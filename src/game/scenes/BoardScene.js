@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
-import { SigmarsGardenBoard } from "../../board.js";
+import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
@@ -199,7 +199,7 @@ export class BoardScene extends Phaser.Scene {
 
   restartLevel() {
     if (this.busy || this.initialPieces.length === 0) return;
-    this.board = new SigmarsGardenBoard(this.initialPieces);
+    this.board = new GardenBoard(this.initialPieces);
     this.activePanelType = null;
     this.status.setText("");
     this.rebuildPieceViews();

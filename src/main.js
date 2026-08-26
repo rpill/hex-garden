@@ -27,4 +27,4 @@ const game = new Phaser.Game({
 });
 
 window.addEventListener("contextmenu", (event) => event.preventDefault());
-globalThis.__SIGMARS_GARDEN_RULES_LAB__ = game;
+globalThis.__GARDEN_RULES_LAB__ = game;

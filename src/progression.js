@@ -1,5 +1,5 @@
 import { Atom, ELEMENT_TYPES } from "./atom-types.js";
-import { SigmarsGardenBoard } from "./board.js";
+import { GardenBoard } from "./board.js";
 import {
   BoardVariant,
   createSeededRandom,
@@ -361,7 +361,7 @@ function applyMove(board, move) {
 }
 
 export function analyzeProgressionDifficulty(record) {
-  const board = new SigmarsGardenBoard(record.pieces);
+  const board = new GardenBoard(record.pieces);
   const snapshots = [];
 
   for (const move of record.solution) {
@@ -412,7 +412,7 @@ function generateCustomProgressionBoard(definition, random) {
         plateRadius: definition.plateRadius,
         plateCells,
         ...result,
-        board: new SigmarsGardenBoard(result.pieces),
+        board: new GardenBoard(result.pieces),
       };
     }
   }

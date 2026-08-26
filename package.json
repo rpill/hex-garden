@@ -1,5 +1,5 @@
 {
-  "name": "sigmars-garden-rules-lab",
+  "name": "garden-rules-lab",
   "version": "0.1.0",
   "description": "Neutral Phaser test bench for hex-board rules and solvable level generation",
   "type": "module",

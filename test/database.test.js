@@ -6,7 +6,7 @@ import {
   Atom,
   BYTES_PER_BOARD,
   DATABASE_HEADER_BYTES,
-  SigmarsGardenDatabase,
+  GardenDatabase,
 } from "../src/index.js";
 
 function syntheticDatabase() {
@@ -40,7 +40,7 @@ function syntheticDatabase() {
 }
 
 test("database parser reads the original fixed-width binary format", () => {
-  const database = new SigmarsGardenDatabase(syntheticDatabase());
+  const database = new GardenDatabase(syntheticDatabase());
   assert.equal(database.count, 1);
   assert.equal(database.readPieces(0).length, ATOMS_PER_BOARD);
   assert.equal(database.createBoard(0).size, ATOMS_PER_BOARD);
@@ -49,7 +49,7 @@ test("database parser reads the original fixed-width binary format", () => {
 
 test("database parser rejects size/header mismatches", () => {
   const truncated = syntheticDatabase().slice(0, -1);
-  assert.throws(() => new SigmarsGardenDatabase(truncated), /Invalid database size/);
+  assert.throws(() => new GardenDatabase(truncated), /Invalid database size/);
 });
 
 const installedDatabase = String.raw`D:\Games\The Zachtronics Solitaire Collection\Content\solitaire.dat`;
@@ -59,7 +59,7 @@ test(
   "integration: the installed 50,000-board database is compatible",
   { skip: !existsSync(installedDatabase) },
   () => {
-    const database = new SigmarsGardenDatabase(readFileSync(installedDatabase));
+    const database = new GardenDatabase(readFileSync(installedDatabase));
     assert.equal(database.count, 50_000);
     const pieces = database.readPieces(0, { rotation: 5 });
     assert.equal(pieces.length, 55);
@@ -78,7 +78,7 @@ test(
   "integration: the alternate 5,000-board database and quintessence are compatible",
   { skip: !existsSync(installedAlternateDatabase) },
   () => {
-    const database = new SigmarsGardenDatabase(readFileSync(installedAlternateDatabase));
+    const database = new GardenDatabase(readFileSync(installedAlternateDatabase));
     assert.equal(database.count, 5_000);
     const pieces = database.readPieces(0);
     assert.equal(pieces.filter((piece) => piece.type === Atom.QUINTESSENCE).length, 2);

@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   ATOM_NAMES,
-  SigmarsGardenDatabase,
+  GardenDatabase,
 } from "../src/index.js";
 
 const defaultPath = String.raw`D:\Games\The Zachtronics Solitaire Collection\Content\solitaire.dat`;
@@ -10,7 +10,7 @@ const path = resolve(process.argv[2] ?? defaultPath);
 const index = Number.parseInt(process.argv[3] ?? "0", 10);
 const rotation = Number.parseInt(process.argv[4] ?? "0", 10);
 
-const database = new SigmarsGardenDatabase(await readFile(path));
+const database = new GardenDatabase(await readFile(path));
 const pieces = database.readPieces(index, { rotation });
 const composition = Object.fromEntries(
   Object.entries(

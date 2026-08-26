@@ -7,13 +7,13 @@ export {
   isElement,
   isMetal,
 } from "./atom-types.js";
-export { SigmarsGardenBoard } from "./board.js";
+export { GardenBoard } from "./board.js";
 export {
   ATOMS_PER_BOARD,
   BYTES_PER_ATOM,
   BYTES_PER_BOARD,
   DATABASE_HEADER_BYTES,
-  SigmarsGardenDatabase,
+  GardenDatabase,
   encodeBoardDatabase,
 } from "./database.js";
 export {

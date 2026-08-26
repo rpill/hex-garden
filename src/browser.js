@@ -1,5 +1,5 @@
-import { SigmarsGardenBoard } from "./board.js";
-import { SigmarsGardenDatabase } from "./database.js";
+import { GardenBoard } from "./board.js";
+import { GardenDatabase } from "./database.js";
 import { BoardVariant } from "./generator.js";
 import { DEFAULT_CAMPAIGN_SEED } from "./campaign.js";
 import { DEFAULT_PROGRESSION_SEED } from "./progression.js";
@@ -13,7 +13,7 @@ export async function fetchBoardDatabase(url, fetchImplementation = globalThis.f
   if (!response.ok) {
     throw new Error(`Could not load board database: HTTP ${response.status}`);
   }
-  return new SigmarsGardenDatabase(await response.arrayBuffer());
+  return new GardenDatabase(await response.arrayBuffer());
 }
 
 /** Generate deterministic levels in a module worker, keeping the render loop responsive. */
@@ -91,7 +91,7 @@ export class BrowserLevelGenerator {
     }
     pending.resolve({
       ...message.result,
-      board: new SigmarsGardenBoard(message.result.pieces),
+      board: new GardenBoard(message.result.pieces),
     });
   }
 }

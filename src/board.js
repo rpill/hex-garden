@@ -13,7 +13,7 @@ function clonePiece(piece) {
   return { q: piece.q, r: piece.r, type: piece.type };
 }
 
-export class SigmarsGardenBoard {
+export class GardenBoard {
   #pieces = new Map();
   #selection = [];
 
@@ -44,7 +44,7 @@ export class SigmarsGardenBoard {
   }
 
   clone() {
-    const board = new SigmarsGardenBoard(this.pieces());
+    const board = new GardenBoard(this.pieces());
     board.#selection = [...this.#selection];
     return board;
   }

@@ -1,5 +1,5 @@
 import { Atom, ELEMENT_TYPES } from "./atom-types.js";
-import { SigmarsGardenBoard } from "./board.js";
+import { GardenBoard } from "./board.js";
 import {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
@@ -310,9 +310,9 @@ function tryShellMask(mask, moveSpecs, random) {
 /** Replay a supplied solution and throw on the first invalid move. */
 export function replaySolution(boardOrPieces, solution) {
   const board =
-    boardOrPieces instanceof SigmarsGardenBoard
+    boardOrPieces instanceof GardenBoard
       ? boardOrPieces.clone()
-      : new SigmarsGardenBoard(boardOrPieces);
+      : new GardenBoard(boardOrPieces);
 
   solution.forEach((move, moveIndex) => {
     let lastResult;
@@ -365,7 +365,7 @@ export function generateSolvableBoard({
         variant,
         shape: selectedShape,
         ...result,
-        board: new SigmarsGardenBoard(result.pieces),
+        board: new GardenBoard(result.pieces),
       };
     }
   }

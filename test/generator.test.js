@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   BoardVariant,
   BoardShape,
-  SigmarsGardenDatabase,
+  GardenDatabase,
   createSeededRandom,
   encodeBoardDatabase,
   generateSolvableBoard,
@@ -82,7 +82,7 @@ test("generated boards round-trip through an independent database", () => {
   const random = createSeededRandom("database");
   const records = Array.from({ length: 10 }, () => generateSolvableBoard({ random }));
   const bytes = encodeBoardDatabase(records);
-  const database = new SigmarsGardenDatabase(bytes);
+  const database = new GardenDatabase(bytes);
   assert.equal(database.count, 10);
   records.forEach((record, index) => {
     assert.deepEqual(database.readPieces(index), record.pieces);

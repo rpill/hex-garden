@@ -42,6 +42,6 @@ Before the generator rewrite, 500 generated boards exposed an average of 28.13 a
 
 ## Level generation contract
 
-The project does not load or ship the original `.dat` layouts. It procedurally selects new rotational orbit combinations, assigns fresh type positions and a forward removal schedule, then rejects the result unless replaying it through `SigmarsGardenBoard.select()` empties the board.
+The project does not load or ship the original `.dat` layouts. It procedurally selects new rotational orbit combinations, assigns fresh type positions and a forward removal schedule, then rejects the result unless replaying it through `GardenBoard.select()` empties the board.
 
 This proves that every generated starting layout has at least one complete solution. It does not imply that every possible player choice preserves solvability.

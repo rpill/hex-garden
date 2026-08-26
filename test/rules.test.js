@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   ADJACENT_OFFSETS,
   Atom,
-  SigmarsGardenBoard,
+  GardenBoard,
   atomTypesMatch,
 } from "../src/index.js";
 
@@ -27,13 +27,13 @@ test("free atoms require three contiguous empty neighbours", () => {
     r: ADJACENT_OFFSETS[i].r,
     type: Atom.FIRE,
   }));
-  const locked = new SigmarsGardenBoard([
+  const locked = new GardenBoard([
     { ...center, type: Atom.WATER },
     ...alternatingBlockers,
   ]);
   assert.equal(locked.isFree(center), false);
 
-  const contiguousOpening = new SigmarsGardenBoard([
+  const contiguousOpening = new GardenBoard([
     { ...center, type: Atom.WATER },
     ...[0, 1, 2].map((i) => ({ ...ADJACENT_OFFSETS[i], type: Atom.FIRE })),
   ]);
@@ -42,7 +42,7 @@ test("free atoms require three contiguous empty neighbours", () => {
 
 test("the circular neighbour run can cross offset 5 to offset 0", () => {
   const center = { q: 0, r: 0 };
-  const board = new SigmarsGardenBoard([
+  const board = new GardenBoard([
     { ...center, type: Atom.WATER },
     ...[1, 2, 3].map((i) => ({ ...ADJACENT_OFFSETS[i], type: Atom.FIRE })),
   ]);
@@ -58,7 +58,7 @@ test("metals unlock strictly from lead toward gold", () => {
     tin: { q: 40, r: 0 },
     lead: { q: 50, r: 0 },
   };
-  const board = new SigmarsGardenBoard([
+  const board = new GardenBoard([
     { ...positions.gold, type: Atom.GOLD },
     { ...positions.silver, type: Atom.SILVER },
     { ...positions.copper, type: Atom.COPPER },
@@ -86,7 +86,7 @@ test("removing iron unlocks copper, while only removing silver unlocks gold", ()
     r: 0,
     type: Atom.QUICKSILVER,
   }));
-  const board = new SigmarsGardenBoard([...metals, ...quicksilver]);
+  const board = new GardenBoard([...metals, ...quicksilver]);
   const removePair = (metalIndex, quicksilverIndex) => {
     assert.equal(board.select(metals[metalIndex]).kind, "selected");
     assert.equal(board.select(quicksilver[quicksilverIndex]).kind, "removed");
@@ -111,7 +111,7 @@ test("selection removes pairs, replaces mismatches, and removes gold alone", () 
   const fireB = { q: 5, r: 0 };
   const water = { q: 10, r: 0 };
   const gold = { q: 15, r: 0 };
-  const board = new SigmarsGardenBoard([
+  const board = new GardenBoard([
     { ...fireA, type: Atom.FIRE },
     { ...fireB, type: Atom.FIRE },
     { ...water, type: Atom.WATER },
@@ -140,7 +140,7 @@ test("quintessence removes with one atom of every cardinal element", () => {
     { q: 15, r: 0, type: Atom.WATER },
     { q: 20, r: 0, type: Atom.EARTH },
   ];
-  const board = new SigmarsGardenBoard(pieces);
+  const board = new GardenBoard(pieces);
   assert.equal(board.legalMoves().some((move) => move.length === 5), true);
 
   assert.equal(board.select(pieces[0]).kind, "selected");

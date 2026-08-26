@@ -1,7 +1,7 @@
 import { PROGRESSION_LEVEL_COUNT } from "./progression.js";
 
 export const CAMPAIGN_PROGRESS_STORAGE_KEY =
-  "sigmars-garden-js.campaign-progress.v1";
+  "garden-js.campaign-progress.v1";
 
 function assertLevel(level) {
   if (

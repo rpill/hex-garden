@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import {
   ADJACENT_OFFSETS,
   Atom,
-  SigmarsGardenDatabase,
-  SigmarsGardenBoard,
+  GardenDatabase,
+  GardenBoard,
   addHex,
   hexDistance,
   hexKey,
@@ -11,7 +11,7 @@ import {
 } from "../src/index.js";
 
 const path = String.raw`D:\Games\The Zachtronics Solitaire Collection\Content\solitaire.dat`;
-const database = new SigmarsGardenDatabase(await readFile(path));
+const database = new GardenDatabase(await readFile(path));
 const profiles = new Map();
 const goldNeighbourHistogram = Array(7).fill(0);
 let goldGeometricallyFree = 0;
@@ -62,7 +62,7 @@ for (let index = 0; index < database.count; index += 1) {
   else if (invariantAt(3)) symmetry = "twofold";
   else symmetry = "none";
   rotationalSymmetry[symmetry] += 1;
-  const board = new SigmarsGardenBoard(pieces);
+  const board = new GardenBoard(pieces);
   const geometricFreeCount = pieces.filter((piece) =>
     hasThreeEmptyNeighbours(piece, occupied),
   ).length;

@@ -81,7 +81,7 @@ export function isMetal(type) {
 
 export function assertAtomType(type) {
   if (!Object.hasOwn(ATOM_NAMES, type)) {
-    throw new RangeError(`Unknown Sigmar's Garden atom type: ${type}`);
+    throw new RangeError(`Unknown Garden atom type: ${type}`);
   }
   return type;
 }

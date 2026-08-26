@@ -3,8 +3,8 @@ import {
   ADJACENT_OFFSETS,
   Atom,
   BoardVariant,
-  SigmarsGardenBoard,
-  SigmarsGardenDatabase,
+  GardenBoard,
+  GardenDatabase,
   ATOM_NAMES,
   addHex,
   generateCampaignLevel,
@@ -28,7 +28,7 @@ function hasThreeEmptyNeighbours(position, occupied) {
 }
 
 function topologyMetrics(pieces) {
-  const board = new SigmarsGardenBoard(pieces);
+  const board = new GardenBoard(pieces);
   const occupied = new Set(pieces.map(hexKey));
   const gold = pieces.find((piece) => piece.type === Atom.GOLD);
   const goldNeighbours = ADJACENT_OFFSETS.filter((offset) =>
@@ -107,7 +107,7 @@ function summarize(name, records) {
   };
 }
 
-const database = new SigmarsGardenDatabase(await readFile(originalPath));
+const database = new GardenDatabase(await readFile(originalPath));
 const count = Math.min(sampleSize, database.count);
 const original = Array.from({ length: count }, (_, index) => database.readPieces(index));
 const generated = Array.from({ length: count }, (_, level) =>

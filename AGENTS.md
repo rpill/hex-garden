@@ -1,4 +1,4 @@
-# Sigmar's Garden progression lab — project instructions
+# Garden progression lab — project instructions
 
 ## Current phase
 
@@ -46,7 +46,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Levels 27-38 stay on 61 cells and add Quicksilver plus the metal chain incrementally. Gold appears only after the complete chain.
 - Levels 39-50 use 91 cells and the full standard 55-piece composition.
 - Levels 51-60 use 91 cells, introduce Quintessence, and finish with the full quintessence composition.
-- Every generated campaign record contains a solution certificate replayed through `SigmarsGardenBoard.select()`, plate geometry, a mechanics definition, and difficulty measurements.
+- Every generated campaign record contains a solution certificate replayed through `GardenBoard.select()`, plate geometry, a mechanics definition, and difficulty measurements.
 - Campaign level indices are zero-based internally and limited to `0..59`.
 
 ## Endless modes
@@ -58,7 +58,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Mix 60-degree, 120-degree, and 180-degree mask families. The original 50,000-board audit found 27,742 sixfold, 20,169 threefold, 2,089 twofold, and zero fully asymmetric occupancy masks. Atom types themselves need not share the mask symmetry.
 - Preserve rare special silhouettes, including the centre plus complete radius-4 and radius-5 rings. Do not turn this special case into the only layout.
 - Levels are deterministic from campaign seed + variant + zero-based level number.
-- Generation assigns a fresh forward removal schedule to a newly selected procedural mask and returns a solution certificate that must replay through the public `SigmarsGardenBoard.select()` API to an empty board.
+- Generation assigns a fresh forward removal schedule to a newly selected procedural mask and returns a solution certificate that must replay through the public `GardenBoard.select()` API to an empty board.
 - Certified metal moves preserve `Pb -> Sn -> Fe -> Cu -> Ag -> Au`; Ag is the final pair and Au the final move in generated levels.
 - The solution certificate is an internal verifier, not a player hint.
 - Do not require a `.dat` file at runtime. Browser generation runs in a module Web Worker.

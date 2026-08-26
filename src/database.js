@@ -1,5 +1,5 @@
 import { assertAtomType } from "./atom-types.js";
-import { SigmarsGardenBoard } from "./board.js";
+import { GardenBoard } from "./board.js";
 import { BOARD_CENTER, rotateHexAround } from "./hex.js";
 
 export const ATOMS_PER_BOARD = 55;
@@ -20,13 +20,13 @@ function readSignedByte(value) {
   return value > 127 ? value - 256 : value;
 }
 
-export class SigmarsGardenDatabase {
+export class GardenDatabase {
   #bytes;
 
   constructor(input) {
     this.#bytes = asUint8Array(input);
     if (this.#bytes.byteLength < DATABASE_HEADER_BYTES) {
-      throw new Error("Sigmar's Garden database is truncated");
+      throw new Error("Garden database is truncated");
     }
 
     this.count = new DataView(
@@ -65,7 +65,7 @@ export class SigmarsGardenDatabase {
   }
 
   createBoard(index, options) {
-    return new SigmarsGardenBoard(this.readPieces(index, options));
+    return new GardenBoard(this.readPieces(index, options));
   }
 
   randomBoard(random = Math.random) {
@@ -80,10 +80,10 @@ export class SigmarsGardenDatabase {
 }
 
 function getPieces(boardOrRecord) {
-  if (boardOrRecord instanceof SigmarsGardenBoard) return boardOrRecord.pieces();
+  if (boardOrRecord instanceof GardenBoard) return boardOrRecord.pieces();
   if (Array.isArray(boardOrRecord)) return boardOrRecord;
   if (Array.isArray(boardOrRecord?.pieces)) return boardOrRecord.pieces;
-  if (boardOrRecord?.board instanceof SigmarsGardenBoard) return boardOrRecord.board.pieces();
+  if (boardOrRecord?.board instanceof GardenBoard) return boardOrRecord.board.pieces();
   throw new TypeError("Expected a board, piece array, or generated board record");
 }
 

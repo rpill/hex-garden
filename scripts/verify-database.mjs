@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  SigmarsGardenDatabase,
+  GardenDatabase,
   replaySolution,
 } from "../src/index.js";
 
@@ -12,9 +12,9 @@ const solutionsPath = resolve(
   process.argv[3] ?? databasePath.replace(/(?:\.[^./\\]+)?$/i, ".solutions.json"),
 );
 
-const database = new SigmarsGardenDatabase(await readFile(databasePath));
+const database = new GardenDatabase(await readFile(databasePath));
 const certificate = JSON.parse(await readFile(solutionsPath, "utf8"));
-if (certificate.format !== "sigmars-garden-js-solutions-v1") {
+if (certificate.format !== "garden-js-solutions-v1") {
   throw new Error(`Unsupported solution certificate: ${certificate.format}`);
 }
 if (!Array.isArray(certificate.boards) || certificate.boards.length !== database.count) {
