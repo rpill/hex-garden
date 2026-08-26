@@ -135,7 +135,7 @@ export function getProgressionLevelDefinition(level) {
     // whole levels made the opening feel like mechanical pair clicking.
     definition.elementCount = Math.min(4, 1 + index);
     definition.ordinaryMoveCount =
-      index < 4 ? 4 + index * 2 : 12;
+      index < 4 ? 4 + index * 2 : 10;
   } else if (chapter.id === ProgressionChapter.SALT) {
     // The player already knows all four elements. Salt should create planning
     // pressure immediately instead of restarting the chapter as a tutorial.
@@ -496,59 +496,95 @@ function sampleRouteWinProbability(pieces, trials = 32) {
   return wins / trials;
 }
 
-function candidateChoicePressure(candidate) {
-  const board = new GardenBoard(candidate.pieces);
-  const sampleLength = Math.max(
-    1,
-    Math.ceil(candidate.solution.length * 0.7),
-  );
-  const meaningfulCounts = [];
-
-  for (const move of candidate.solution.slice(0, sampleLength)) {
-    meaningfulCounts.push(
-      new Set(board.legalMoves().map(moveTypeSignature)).size,
-    );
-    applyMove(board, move);
+function analyzeCertificateDecisionPressure(pieces, solution) {
+  if (pieces.length > 24) {
+    return Object.freeze({
+      firstMixedDecisionStep: null,
+      mixedDecisionSteps: null,
+      losingMovesAlongCertificate: null,
+    });
   }
 
-  return {
-    initial: meaningfulCounts[0] ?? 0,
-    average:
-      meaningfulCounts.reduce((sum, count) => sum + count, 0) /
-      meaningfulCounts.length,
+  const pieceIndex = new Map(
+    pieces.map((piece, index) => [hexKey(piece), index]),
+  );
+  const fullMask = (1n << BigInt(pieces.length)) - 1n;
+  const solvableMemo = new Map();
+  const boardForMask = (mask) =>
+    new GardenBoard(
+      pieces.filter(
+        (_piece, index) => (mask & (1n << BigInt(index))) !== 0n,
+      ),
+    );
+  const removeMove = (mask, move) => {
+    let nextMask = mask;
+    for (const piece of move) {
+      const index = pieceIndex.get(hexKey(piece));
+      nextMask &= ~(1n << BigInt(index));
+    }
+    return nextMask;
   };
+  const isSolvable = (mask) => {
+    const key = mask.toString();
+    if (solvableMemo.has(key)) return solvableMemo.get(key);
+    const board = boardForMask(mask);
+    if (board.won) {
+      solvableMemo.set(key, true);
+      return true;
+    }
+    const solvable = board
+      .legalMoves()
+      .some((move) => isSolvable(removeMove(mask, move)));
+    solvableMemo.set(key, solvable);
+    return solvable;
+  };
+
+  let mask = fullMask;
+  let firstMixedDecisionStep = null;
+  let mixedDecisionSteps = 0;
+  let losingMovesAlongCertificate = 0;
+
+  solution.forEach((certificateMove, step) => {
+    const legalMoves = boardForMask(mask).legalMoves();
+    const winningMoveCount = legalMoves.filter((move) =>
+      isSolvable(removeMove(mask, move)),
+    ).length;
+    const losingMoveCount = legalMoves.length - winningMoveCount;
+    if (winningMoveCount > 0 && losingMoveCount > 0) {
+      firstMixedDecisionStep ??= step + 1;
+      mixedDecisionSteps += 1;
+      losingMovesAlongCertificate += losingMoveCount;
+    }
+    mask = removeMove(mask, certificateMove);
+  });
+
+  return Object.freeze({
+    firstMixedDecisionStep,
+    mixedDecisionSteps,
+    losingMovesAlongCertificate,
+  });
 }
 
 function scoreOnboardingCandidate(candidate) {
-  const pressure = candidateChoicePressure(candidate);
+  const pressure = analyzeCertificateDecisionPressure(
+    candidate.pieces,
+    candidate.solution,
+  );
+  if (pressure.firstMixedDecisionStep === null) return -1;
   return (
-    (1 - candidate.sampledRouteWinProbability) * 100 +
-    pressure.initial * 2 +
-    pressure.average
+    (candidate.solution.length - pressure.firstMixedDecisionStep) * 100 +
+    pressure.mixedDecisionSteps * 20 +
+    pressure.losingMovesAlongCertificate * 5
   );
 }
 
 function selectOnboardingCandidate(candidates) {
-  const shortlisted = candidates
+  return candidates
     .map((candidate) => ({
       candidate,
       score: scoreOnboardingCandidate(candidate),
     }))
-    .sort((left, right) => right.score - left.score)
-    .slice(0, 8);
-
-  return shortlisted
-    .map(({ candidate, score }) => ({
-      candidate,
-      score,
-      exactWinProbability: analyzeReachableRoutes(candidate.pieces)
-        .randomRouteWinProbability,
-    }))
-    .sort(
-      (left, right) =>
-        left.exactWinProbability - right.exactWinProbability ||
-        right.score - left.score,
-    )[0].candidate;
+    .sort((left, right) => right.score - left.score)[0].candidate;
 }
 
 export function analyzeProgressionDifficulty(record) {
@@ -570,6 +606,10 @@ export function analyzeProgressionDifficulty(record) {
     ({ meaningfulMoveCount }) => meaningfulMoveCount,
   );
   const routeAnalysis = analyzeReachableRoutes(record.pieces);
+  const decisionPressure = analyzeCertificateDecisionPressure(
+    record.pieces,
+    record.solution,
+  );
   return Object.freeze({
     tier: record.definition.chapterNumber,
     pieceCount: record.pieces.length,
@@ -591,6 +631,7 @@ export function analyzeProgressionDifficulty(record) {
     sampledRouteWinProbability:
       record.sampledRouteWinProbability ??
       routeAnalysis.randomRouteWinProbability,
+    ...decisionPressure,
     ...routeAnalysis,
   });
 }
@@ -602,8 +643,8 @@ function generateCustomProgressionBoard(definition, random) {
   const plateCells = enumerateHexPlate(definition.plateRadius);
   const chooseChallengingOnboarding =
     definition.chapter === ProgressionChapter.ELEMENTS &&
-    definition.chapterLevel >= 4;
-  const candidateTarget = chooseChallengingOnboarding ? 48 : 1;
+    definition.chapterLevel >= 3;
+  const candidateTarget = chooseChallengingOnboarding ? 96 : 1;
   const candidates = [];
 
   if (pieceCount > plateCells.length) {
@@ -621,7 +662,6 @@ function generateCustomProgressionBoard(definition, random) {
       replaySolution(result.pieces, result.solution);
       const candidate = {
         ...result,
-        sampledRouteWinProbability: sampleRouteWinProbability(result.pieces),
       };
       candidates.push(candidate);
       candidatesFromMask += 1;
@@ -630,13 +670,19 @@ function generateCustomProgressionBoard(definition, random) {
         const selected = chooseChallengingOnboarding
           ? selectOnboardingCandidate(candidates)
           : candidate;
+        const finalized = {
+          ...selected,
+          sampledRouteWinProbability: sampleRouteWinProbability(
+            selected.pieces,
+          ),
+        };
         return {
           variant: definition.variant,
           shape: `campaign-r${definition.plateRadius}`,
           plateRadius: definition.plateRadius,
           plateCells,
-          ...selected,
-          board: new GardenBoard(selected.pieces),
+          ...finalized,
+          board: new GardenBoard(finalized.pieces),
         };
       }
       if (chooseChallengingOnboarding && candidatesFromMask >= 4) break;
@@ -645,13 +691,17 @@ function generateCustomProgressionBoard(definition, random) {
 
   if (candidates.length > 0) {
     const selected = selectOnboardingCandidate(candidates);
+    const finalized = {
+      ...selected,
+      sampledRouteWinProbability: sampleRouteWinProbability(selected.pieces),
+    };
     return {
       variant: definition.variant,
       shape: `campaign-r${definition.plateRadius}`,
       plateRadius: definition.plateRadius,
       plateCells,
-      ...selected,
-      board: new GardenBoard(selected.pieces),
+      ...finalized,
+      board: new GardenBoard(finalized.pieces),
     };
   }
 

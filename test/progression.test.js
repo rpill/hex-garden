@@ -96,7 +96,7 @@ test("opening progression creates early choices and requires Salt wildcards", ()
   );
   assert.deepEqual(
     elementDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [4, 6, 8, 10, 12, 12, 12, 12],
+    [4, 6, 8, 10, 10, 10, 10, 10],
   );
 
   const saltDefinitions = Array.from({ length: 8 }, (_value, index) =>
@@ -129,12 +129,11 @@ test("opening progression creates early choices and requires Salt wildcards", ()
   assert.equal(levels[0].difficulty.initialMeaningfulMoveCount, 1);
   assert.ok(levels[2].difficulty.initialMeaningfulMoveCount >= 3);
 
-  for (const record of levels.slice(4, 8)) {
-    assert.ok(record.difficulty.randomRouteWinProbability < 0.85);
-    assert.ok(record.difficulty.initialMeaningfulMoveCount >= 2);
+  for (const record of levels.slice(3, 8)) {
+    assert.ok(record.difficulty.firstMixedDecisionStep <= 3);
+    assert.ok(record.difficulty.mixedDecisionSteps >= 1);
+    assert.ok(record.difficulty.losingMovesAlongCertificate >= 1);
   }
-  assert.ok(levels[6].difficulty.randomRouteWinProbability < 0.7);
-  assert.ok(levels[7].difficulty.randomRouteWinProbability < 0.7);
 
   for (const record of levels.slice(8)) {
     const saltCount = record.pieces.filter(
