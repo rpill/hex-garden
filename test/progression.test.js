@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { BrowserLevelGenerator } from "../src/browser.js";
 import {
   Atom,
   PROGRESSION_LEVEL_COUNT,
@@ -109,3 +110,35 @@ test("gold appears only after the complete metal chain and is certified last", (
   }
 });
 
+
+test("browser worker facade keeps progression requests separate from endless", async () => {
+  const listeners = new Map();
+  let postedMessage;
+  const fakeWorker = {
+    addEventListener(type, listener) {
+      listeners.set(type, listener);
+    },
+    postMessage(message) {
+      postedMessage = message;
+      queueMicrotask(() => {
+        const { board: _board, ...result } = generateProgressionLevel(
+          message.level,
+          { campaignSeed: message.campaignSeed },
+        );
+        listeners.get("message")({
+          data: { requestId: message.requestId, result },
+        });
+      });
+    },
+    terminate() {},
+  };
+
+  const generator = new BrowserLevelGenerator({ workerFactory: () => fakeWorker });
+  const record = await generator.generateProgression(16, {
+    campaignSeed: "browser-progression",
+  });
+  assert.equal(postedMessage.kind, "progression");
+  assert.equal(record.plateCells.length, 61);
+  assert.equal(replaySolution(record.board, record.solution), true);
+  generator.terminate();
+});

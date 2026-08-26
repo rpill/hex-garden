@@ -2,6 +2,7 @@ import { SigmarsGardenBoard } from "./board.js";
 import { SigmarsGardenDatabase } from "./database.js";
 import { BoardVariant } from "./generator.js";
 import { DEFAULT_CAMPAIGN_SEED } from "./campaign.js";
+import { DEFAULT_PROGRESSION_SEED } from "./progression.js";
 
 /** Optional binary loading for a pre-generated fallback or curated campaign. */
 export async function fetchBoardDatabase(url, fetchImplementation = globalThis.fetch) {
@@ -54,6 +55,22 @@ export class BrowserLevelGenerator {
     return new Promise((resolve, reject) => {
       this.#pending.set(requestId, { resolve, reject });
       this.#worker.postMessage({ requestId, level, campaignSeed, variant });
+    });
+  }
+
+  generateProgression(
+    level,
+    { campaignSeed = DEFAULT_PROGRESSION_SEED } = {},
+  ) {
+    const requestId = this.#nextRequestId++;
+    return new Promise((resolve, reject) => {
+      this.#pending.set(requestId, { resolve, reject });
+      this.#worker.postMessage({
+        kind: "progression",
+        requestId,
+        level,
+        campaignSeed,
+      });
     });
   }
 
