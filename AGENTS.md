@@ -2,14 +2,16 @@
 
 ## Current phase
 
-This project is a mechanics, progression, and level-generation test bench. The current product goal is a 60-level main campaign that teaches mechanics gradually, while the existing `standard` and `quintessence` generators remain independent endless modes. Do not add product styling yet: no title/menu screens, settings, tutorial overlays, hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art.
+This project is a mechanics, progression, and level-generation test bench. The current product goal is a 60-level main campaign that teaches mechanics gradually, while the existing `standard` and `quintessence` generators remain independent endless modes. A minimal mode menu and campaign level-select screen are now required. Do not add product styling yet: no settings, tutorial overlays, hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art.
 
 The runtime should expose only what is needed to inspect the board and progression:
 
 - campaign plates of 37, 61, or 91 cells, plus the endless 91-cell plate;
 - the current variable-size campaign layout or 55-piece endless layout;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
-- previous level, next level, restart, and `CAMPAIGN -> STANDARD -> Q MODE` controls;
+- a minimal start menu for `CAMPAIGN`, `STANDARD / ENDLESS`, and `Q MODE / ENDLESS`;
+- a responsive grid showing all 60 campaign levels as `DONE`, `PLAY`, or `LOCK`;
+- previous unlocked level, next unlocked level, restart, and menu/level-select controls;
 - direct selection/removal behavior;
 - the functional atom inventory panel: remaining Salt/elements/Hg and, in quintessence layouts, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 
@@ -67,9 +69,10 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 - Phaser 3 + Vite + native ES modules.
 - Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, `src/campaign.js`, and `src/progression.js`.
-- The only active scene is `src/game/scenes/BoardScene.js`.
-- Use `Phaser.Scale.RESIZE`; keep the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
-- No persistence is required in this phase. A level is regenerated from its mode, seed, and number.
+- Active scenes are `MenuScene`, `LevelSelectScene`, and `BoardScene`.
+- Use `Phaser.Scale.RESIZE`; keep the menus, all 60 level buttons, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
+- Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
+- A board itself is regenerated from its mode, seed, and number; generated coordinates are not persisted.
 - `BrowserLevelGenerator.generate()` and worker requests without a kind remain the endless API. Progression uses `generateProgression()` and `kind: "progression"`.
 
 ## Git workflow
@@ -87,6 +90,6 @@ Before handoff:
 3. Verify exact 55-piece counts for both endless variants.
 4. Replay generated solution certificates for all 60 campaign levels and a sequence of levels in both endless variants.
 5. Verify campaign boundaries at levels 1, 9, 17, 27, 39, and 51.
-6. Smoke-test selecting a legal pair, rejecting a blocked atom, restarting, switching level, switching all three modes, and phone portrait layout.
+6. Smoke-test the start menu, all 60 campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, both endless modes, board return controls, and phone portrait layout.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.
