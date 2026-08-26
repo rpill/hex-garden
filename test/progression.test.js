@@ -86,6 +86,78 @@ test("mechanics unlock by chapter without changing the endless contracts", () =>
   );
 });
 
+test("opening progression adds novelty quickly and introduces Salt as a slope", () => {
+  const elementDefinitions = Array.from({ length: 8 }, (_value, level) =>
+    getProgressionLevelDefinition(level),
+  );
+  assert.deepEqual(
+    elementDefinitions.map((definition) => definition.elementCount),
+    [1, 2, 3, 4, 4, 4, 4, 4],
+  );
+  assert.deepEqual(
+    elementDefinitions.map((definition) => definition.ordinaryMoveCount),
+    [4, 5, 6, 7, 8, 9, 10, 11],
+  );
+
+  const saltDefinitions = Array.from({ length: 8 }, (_value, index) =>
+    getProgressionLevelDefinition(index + 8),
+  );
+  assert.deepEqual(
+    saltDefinitions.map((definition) => definition.elementCount),
+    [1, 2, 2, 3, 3, 4, 4, 4],
+  );
+  assert.deepEqual(
+    saltDefinitions.map((definition) => definition.saltPairCount),
+    [1, 1, 1, 1, 1, 1, 2, 2],
+  );
+  assert.deepEqual(
+    saltDefinitions.map((definition) => definition.ordinaryMoveCount),
+    [8, 8, 9, 10, 10, 11, 12, 13],
+  );
+
+  const levels = Array.from({ length: 16 }, (_value, level) =>
+    generateProgressionLevel(level, { campaignSeed: "rules-lab-v1" }),
+  );
+  assert.equal(levels[0].difficulty.moveCount, 4);
+  assert.equal(levels[0].difficulty.randomRouteWinProbability, 1);
+  assert.equal(levels[0].difficulty.shortestDeadEndMove, null);
+  assert.ok(levels[0].difficulty.initialLegalMoveCount > 1);
+  assert.equal(levels[0].difficulty.initialMeaningfulMoveCount, 1);
+
+  const firstSalt = levels[8].difficulty;
+  const secondSalt = levels[9].difficulty;
+  const thirdSalt = levels[10].difficulty;
+  assert.equal(firstSalt.randomRouteWinProbability, 1);
+  assert.equal(firstSalt.shortestDeadEndMove, null);
+  assert.ok(
+    secondSalt.randomRouteWinProbability <
+      firstSalt.randomRouteWinProbability,
+  );
+  assert.ok(
+    thirdSalt.randomRouteWinProbability <
+      secondSalt.randomRouteWinProbability,
+  );
+  assert.ok(secondSalt.shortestDeadEndMove >= 6);
+  assert.ok(thirdSalt.shortestDeadEndMove >= 7);
+  assert.equal(
+    levels.slice(0, 15).every(
+      (record) => record.difficulty.routeAnalysisComplete,
+    ),
+    true,
+  );
+  assert.equal(levels[15].difficulty.routeAnalysisComplete, false);
+});
+
+test("exact route analysis stays off the full-size synchronous generation path", () => {
+  const record = generateProgressionLevel(16, {
+    campaignSeed: "route-analysis-limit",
+  });
+  assert.ok(record.pieces.length > 30);
+  assert.equal(record.difficulty.routeAnalysisComplete, false);
+  assert.equal(record.difficulty.randomRouteWinProbability, null);
+  assert.equal(record.difficulty.reachableStateCount, null);
+});
+
 test("gold appears only after the complete metal chain and is certified last", () => {
   for (let level = 0; level < PROGRESSION_LEVEL_COUNT; level += 1) {
     const record = generateProgressionLevel(level, {

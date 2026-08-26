@@ -130,12 +130,21 @@ export function getProgressionLevelDefinition(level) {
   };
 
   if (chapter.id === ProgressionChapter.ELEMENTS) {
-    definition.elementCount = Math.min(4, 1 + Math.floor(index / 2));
-    definition.ordinaryMoveCount = 6 + index;
+    // Teach the matching rule quickly, then spend the rest of the chapter on
+    // spatial decisions. Repeating each newly introduced element for two
+    // whole levels made the opening feel like mechanical pair clicking.
+    definition.elementCount = Math.min(4, 1 + index);
+    definition.ordinaryMoveCount = 4 + index;
   } else if (chapter.id === ProgressionChapter.SALT) {
-    definition.elementCount = 4;
-    definition.ordinaryMoveCount = 11 + Math.floor((index * 4) / 7);
-    definition.saltPairCount = 1 + Math.floor(index / 4);
+    // Isolate Salt against one familiar element first. Additional element
+    // colours return gradually so the wildcard risk is introduced as a slope
+    // instead of a one-level difficulty cliff.
+    definition.elementCount = Math.min(
+      4,
+      1 + Math.floor((index + 1) / 2),
+    );
+    definition.ordinaryMoveCount = 8 + Math.floor((index * 5) / 7);
+    definition.saltPairCount = 1 + Math.floor(index / 6);
     definition.mechanics.push("salt");
   } else if (chapter.id === ProgressionChapter.OPPOSITES) {
     definition.elementCount = 4;
@@ -223,7 +232,11 @@ function createOrdinarySpecs(definition, random) {
       ...saltSpecs,
       ...oppositeSpecs,
       ...quintessenceSpecs,
-      ...cycleElementPairs(elementPairCount, 4, definition.level),
+      ...cycleElementPairs(
+        elementPairCount,
+        definition.elementCount,
+        definition.level,
+      ),
     ],
     random,
   );
@@ -360,19 +373,117 @@ function applyMove(board, move) {
   }
 }
 
+function moveTypeSignature(move) {
+  return move
+    .map((piece) => piece.type)
+    .sort((left, right) => left - right)
+    .join("+");
+}
+
+function analyzeReachableRoutes(pieces) {
+  // Exact route analysis is intentionally limited to the compact onboarding
+  // boards. The full 55-piece chapters have far too many reachable states for
+  // this metric to belong on the synchronous generation path.
+  if (pieces.length > 24) {
+    return Object.freeze({
+      routeAnalysisComplete: false,
+      reachableStateCount: null,
+      deadEndStateCount: null,
+      shortestDeadEndMove: null,
+      randomRouteWinProbability: null,
+    });
+  }
+
+  const pieceIndex = new Map(
+    pieces.map((piece, index) => [hexKey(piece), index]),
+  );
+  const fullMask = (1n << BigInt(pieces.length)) - 1n;
+  const memo = new Map();
+
+  const visit = (mask) => {
+    const key = mask.toString();
+    const cached = memo.get(key);
+    if (cached) return cached;
+
+    const board = new GardenBoard(
+      pieces.filter(
+        (_piece, index) => (mask & (1n << BigInt(index))) !== 0n,
+      ),
+    );
+    if (board.won) {
+      const result = Object.freeze({
+        deadEnd: false,
+        shortestDeadEndMove: null,
+        winProbability: 1,
+      });
+      memo.set(key, result);
+      return result;
+    }
+
+    const legalMoves = board.legalMoves();
+    if (legalMoves.length === 0) {
+      const result = Object.freeze({
+        deadEnd: true,
+        shortestDeadEndMove: 0,
+        winProbability: 0,
+      });
+      memo.set(key, result);
+      return result;
+    }
+
+    const children = legalMoves.map((move) => {
+      let nextMask = mask;
+      for (const piece of move) {
+        const index = pieceIndex.get(hexKey(piece));
+        nextMask &= ~(1n << BigInt(index));
+      }
+      return visit(nextMask);
+    });
+    const deadEndDistances = children
+      .filter((child) => child.shortestDeadEndMove !== null)
+      .map((child) => child.shortestDeadEndMove + 1);
+    const result = Object.freeze({
+      deadEnd: false,
+      shortestDeadEndMove:
+        deadEndDistances.length > 0 ? Math.min(...deadEndDistances) : null,
+      winProbability:
+        children.reduce((sum, child) => sum + child.winProbability, 0) /
+        children.length,
+    });
+    memo.set(key, result);
+    return result;
+  };
+
+  const initial = visit(fullMask);
+  return Object.freeze({
+    routeAnalysisComplete: true,
+    reachableStateCount: memo.size,
+    deadEndStateCount: [...memo.values()].filter((state) => state.deadEnd)
+      .length,
+    shortestDeadEndMove: initial.shortestDeadEndMove,
+    randomRouteWinProbability: initial.winProbability,
+  });
+}
+
 export function analyzeProgressionDifficulty(record) {
   const board = new GardenBoard(record.pieces);
   const snapshots = [];
 
   for (const move of record.solution) {
     const freeCount = board.pieces().filter((piece) => board.isFree(piece)).length;
-    const legalMoveCount = board.legalMoves().length;
-    snapshots.push({ freeCount, legalMoveCount });
+    const legalMoves = board.legalMoves();
+    const legalMoveCount = legalMoves.length;
+    const meaningfulMoveCount = new Set(legalMoves.map(moveTypeSignature)).size;
+    snapshots.push({ freeCount, legalMoveCount, meaningfulMoveCount });
     applyMove(board, move);
   }
 
   const legalCounts = snapshots.map(({ legalMoveCount }) => legalMoveCount);
   const freeCounts = snapshots.map(({ freeCount }) => freeCount);
+  const meaningfulCounts = snapshots.map(
+    ({ meaningfulMoveCount }) => meaningfulMoveCount,
+  );
+  const routeAnalysis = analyzeReachableRoutes(record.pieces);
   return Object.freeze({
     tier: record.definition.chapterNumber,
     pieceCount: record.pieces.length,
@@ -385,6 +496,13 @@ export function analyzeProgressionDifficulty(record) {
     averageLegalMoveCount:
       legalCounts.reduce((sum, count) => sum + count, 0) / legalCounts.length,
     forcedCertificateSteps: legalCounts.filter((count) => count === 1).length,
+    initialMeaningfulMoveCount: meaningfulCounts[0] ?? 0,
+    minimumMeaningfulMoveCount: Math.min(...meaningfulCounts),
+    maximumMeaningfulMoveCount: Math.max(...meaningfulCounts),
+    averageMeaningfulMoveCount:
+      meaningfulCounts.reduce((sum, count) => sum + count, 0) /
+      meaningfulCounts.length,
+    ...routeAnalysis,
   });
 }
 
