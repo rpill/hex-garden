@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1.030212,0,0,1.030212,-19.022848,-20.511966)">
+        <circle cx="142.711" cy="144.157" r="98.667" style="fill:rgb(46,46,46);"/>
+    </g>
+    <g transform="matrix(1,0,0,1,-14.711249,-16.156697)">
+        <circle cx="142.711" cy="144.157" r="98.667" style="fill:url(#_Radial1);"/>
+    </g>
+    <g transform="matrix(0.431353,0,0,0.833717,132.458468,11.651234)">
+        <circle cx="145.524" cy="140.637" r="57.986" style="fill:url(#_Radial2);"/>
+        <clipPath id="_clip3">
+            <circle cx="145.524" cy="140.637" r="57.986"/>
+        </clipPath>
+        <g clip-path="url(#_clip3)">
+            <g transform="matrix(3.49288,0,0,1.208862,-298.256808,31.811636)">
+                <circle cx="133.161" cy="123.233" r="14.757" style="fill:white;fill-opacity:0.35;"/>
+            </g>
+        </g>
+        <circle cx="145.524" cy="140.637" r="57.986" style="fill:none;stroke:rgb(49,25,0);stroke-width:5.96px;"/>
+    </g>
+    <g transform="matrix(0.490701,0,0,1.260252,125.920524,-26.402008)">
+        <circle cx="133.161" cy="123.233" r="14.757" style="fill:rgb(5,1,0);"/>
+    </g>
+    <g transform="matrix(0.517386,0,0,1,129.005434,0.902827)">
+        <path d="M163.942,79.656C153.277,71.263 152.24,96.834 172.623,109.402C189.206,119.628 175.084,88.425 163.942,79.656Z" style="fill:white;fill-opacity:0.8;"/>
+    </g>
+    <g transform="matrix(-0.00991,-0.562108,0.290827,-0.019154,184.438128,205.86724)">
+        <path d="M176.344,79.656C165.678,71.263 132.804,94.158 153.187,106.726C169.77,116.951 187.485,88.425 176.344,79.656Z" style="fill:white;fill-opacity:0.8;"/>
+    </g>
+    <defs>
+        <radialGradient id="_Radial1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-131.775498,103.647979,-103.647979,-131.775498,186.292217,107.996691)"><stop offset="0" style="stop-color:white;stop-opacity:1"/><stop offset="0.79" style="stop-color:rgb(148,142,139);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(179,179,179);stop-opacity:1"/></radialGradient>
+        <radialGradient id="_Radial2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-107.941112,107.941112,0,145.52428,198.622818)"><stop offset="0" style="stop-color:rgb(255,73,16);stop-opacity:1"/><stop offset="0.61" style="stop-color:rgb(131,38,5);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(49,21,0);stop-opacity:1"/></radialGradient>
+    </defs>
+</svg>

@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- Created using Krita: https://krita.org -->
+<svg xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:krita="http://krita.org/namespaces/svg/krita"
+    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+    width="184.32pt"
+    height="184.32pt"
+    viewBox="0 0 184.32 184.32">
+<defs>
+  <linearGradient id="gradient0" gradientUnits="objectBoundingBox" x1="-0.33060476594357" y1="0.579854298052815" x2="1.40975606984211" y2="0.453684495508306" spreadMethod="pad">
+   <stop stop-color="#620500" offset="0" stop-opacity="1"/>
+   <stop stop-color="#aa0001" offset="0.935714285714286" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient1" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#ff7d85" offset="0.0285714285714286" stop-opacity="1"/>
+   <stop stop-color="#ff2937" offset="0.271428571428571" stop-opacity="1"/>
+   <stop stop-color="#e71c15" offset="0.642857142857143" stop-opacity="1"/>
+   <stop stop-color="#bf0100" offset="1" stop-opacity="1"/>
+  </linearGradient>
+ </defs>
+<path id="shape0" transform="matrix(1.09345753157088 0 0 1.09345753157088 12.8184979181795 35.3434602586629)" fill="#4f0004" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M122.626 0L145.789 9.6889L146.554 54.5012L54.0639 98.9096L30.4161 111.723L5.71036 101.593L0 42.9774Z" sodipodi:nodetypes="cccccccc"/><path id="shape1" transform="matrix(1.09345753157088 0 0 1.09345753157088 17.313296253389 38.327549843983)" fill="url(#gradient0)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M117.779 0L139.297 8.11088L96.2567 66.9023L26.6107 105.808L4.12024 95.8193L0 43.3263Z" sodipodi:nodetypes="ccccccc"/><path id="shape2" transform="matrix(1.09345753157088 0 0 1.09345753157088 42.4354608301471 46.4565370842144)" fill="url(#gradient1)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M115.838 0L116.513 43.5321L3.55686 98.1935L0 45.2473Z" sodipodi:nodetypes="ccccc"/>
+</svg>

@@ -1,0 +1,69 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- Created using Krita: https://krita.org -->
+<svg xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:krita="http://krita.org/namespaces/svg/krita"
+    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+    width="184.32pt"
+    height="184.32pt"
+    viewBox="0 0 184.32 184.32">
+<defs>
+  <linearGradient id="gradient0" gradientUnits="objectBoundingBox" x1="-0.150936330922769" y1="0.0359236958176095" x2="1.09898669578523" y2="1.25358521254337" spreadMethod="pad">
+   <stop stop-color="#b96207" offset="0" stop-opacity="1"/>
+   <stop stop-color="#8b4200" offset="0.128571435809135" stop-opacity="1"/>
+   <stop stop-color="#ab6a15" offset="0.300000011920929" stop-opacity="1"/>
+   <stop stop-color="#f49c2b" offset="0.371428579092026" stop-opacity="1"/>
+   <stop stop-color="#c67100" offset="0.435714274644852" stop-opacity="1"/>
+   <stop stop-color="#bb5f00" offset="0.828571438789368" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient1" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="0.647779887206011" y2="1.11286130999226" spreadMethod="pad">
+   <stop stop-color="#b06e00" offset="0" stop-opacity="1"/>
+   <stop stop-color="#cc9f28" offset="0.992063462734222" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient2" gradientUnits="objectBoundingBox" x1="0.386511722453593" y1="-0.131300636706796" x2="0.776785771629933" y2="1.1597497730035" spreadMethod="pad">
+   <stop stop-color="#ed9800" offset="0" stop-opacity="1"/>
+   <stop stop-color="#efb51e" offset="0.442857146263123" stop-opacity="1"/>
+   <stop stop-color="#ffe380" offset="0.52142858505249" stop-opacity="1"/>
+   <stop stop-color="#f2c132" offset="0.607142865657806" stop-opacity="1"/>
+   <stop stop-color="#c86a00" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient3" gradientUnits="objectBoundingBox" x1="0.352473222143954" y1="-0.147586618995682" x2="0.745609862682804" y2="1.20796594565576" spreadMethod="pad">
+   <stop stop-color="#ffc41a" offset="0.0396825410425663" stop-opacity="1"/>
+   <stop stop-color="#ae6000" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient4" gradientUnits="objectBoundingBox" x1="0.869141551599915" y1="-0.104853116316279" x2="0.689298264901021" y2="1.20443733795802" spreadMethod="pad">
+   <stop stop-color="#b35e00" offset="0.269841283559799" stop-opacity="1"/>
+   <stop stop-color="#fbc532" offset="0.555555582046509" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient5" gradientUnits="objectBoundingBox" x1="0.428750018129708" y1="0.0274345416805689" x2="0.689298264901021" y2="1.20443733795802" spreadMethod="pad">
+   <stop stop-color="#edb218" offset="0" stop-opacity="1"/>
+   <stop stop-color="#b36b00" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient6" gradientUnits="objectBoundingBox" x1="0.97999172672372" y1="0.0774396207063153" x2="0.097698851545489" y2="0.910284774758788" spreadMethod="pad">
+   <stop stop-color="#924c00" offset="0" stop-opacity="1"/>
+   <stop stop-color="#ffcb15" offset="0.871428549289703" stop-opacity="1"/>
+   <stop stop-color="#ffdf6b" offset="0.95714282989502" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient7" gradientUnits="objectBoundingBox" x1="-0.335441009529544" y1="0.765784464254928" x2="1.05481486535566" y2="0.592881371695922" spreadMethod="pad">
+   <stop stop-color="#c47200" offset="0.714285731315613" stop-opacity="1"/>
+   <stop stop-color="#fbc532" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient8" gradientUnits="objectBoundingBox" x1="0.378674926622863" y1="-0.164942206917601" x2="0.818627591318484" y2="1.24972576825925" spreadMethod="pad">
+   <stop stop-color="#c88509" offset="0" stop-opacity="1"/>
+   <stop stop-color="#924c00" offset="0.992063462734222" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient9" gradientUnits="objectBoundingBox" x1="0.520983729615844" y1="-0.134043255763905" x2="0.637352930168016" y2="1.14254306482767" spreadMethod="pad">
+   <stop stop-color="#ff9700" offset="0" stop-opacity="1"/>
+   <stop stop-color="#ffc71b" offset="0.471428573131561" stop-opacity="1"/>
+   <stop stop-color="#ffe58b" offset="0.535714268684387" stop-opacity="1"/>
+   <stop stop-color="#ffc118" offset="0.645669281482697" stop-opacity="1"/>
+   <stop stop-color="#ff8300" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient10" gradientUnits="objectBoundingBox" x1="1.32012835080271" y1="-0.170943961430476" x2="-0.133009608960694" y2="0.957089926931447" spreadMethod="pad">
+   <stop stop-color="#924c00" offset="0" stop-opacity="1"/>
+   <stop stop-color="#e2a413" offset="1" stop-opacity="1"/>
+  </linearGradient>
+ </defs>
+<ellipse id="shape0" transform="matrix(0.955245245998286 0 0.0158136762725722 1.037450695319 8.76075092419 2.32410708345857)" rx="88.8392101573403" ry="84.2024151949348" cx="88.8392101573403" cy="84.2024151949348" fill="#2a0800" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel"/><g id="group0" krita:textContourGroup="true" transform="matrix(1.18771629153428 0 -0.150648553272858 1.18771629153428 20.4633701838936 3.33077524235139)"><ellipse id="shape01" transform="matrix(0.804270559229518 0 0.124105998300836 0.873483594283975 -7.1665357426498 1.05000506681048)" rx="85.2035731184765" ry="81.5638759529387" cx="85.2035731184765" cy="81.5638759529387" fill="url(#gradient0)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel"/><text id="shape1" krita:textVersion="3" paint-order="stroke fill markers" fill="url(#gradient1)" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" style="overflow: clip;shape-inside: url(#shape01);font-size: 12;overflow: clip;text-overflow: clip;white-space: pre-wrap;"></text></g><ellipse id="shape2" transform="matrix(1.12909142024941 0 0.088871648635284 1.08443942819693 17.1738908863317 7.5837016468355)" rx="68.04" ry="72.36" cx="68.04" cy="72.36" fill="url(#gradient2)" fill-rule="evenodd" stroke="url(#gradient3)" stroke-width="1.6776" stroke-linecap="square" stroke-linejoin="bevel"/><ellipse id="shape02" transform="matrix(1.04277821930652 0 0.103724692265381 1.037450695319 36.3215503833987 17.4241160537974)" rx="57.9992573478882" ry="61.6817498779128" cx="57.9992573478882" cy="61.6817498779128" fill="url(#gradient4)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel"/><g id="group1" krita:textContourGroup="true" transform="matrix(1.18771629153428 0 -0.0654678912664473 1.18771629153428 24.762769636753 11.9551159597765)"><ellipse id="shape021" transform="matrix(0.877969113279968 0 0.135478331303453 0.873483594283975 6.10965305290981 10.4572134660577)" rx="57.9992573478882" ry="61.6817498779128" cx="57.9992573478882" cy="61.6817498779128" fill="url(#gradient5)" fill-rule="evenodd" stroke="url(#gradient6)" stroke-width="0.9576" stroke-linecap="square" stroke-linejoin="bevel"/><text id="shape11" krita:textVersion="3" paint-order="stroke fill markers" fill="#cb9334" stroke="#ffffff" stroke-width="5.0688" stroke-linecap="square" stroke-linejoin="bevel" style="overflow: clip;shape-inside: url(#shape021);font-size: 12;overflow: clip;text-overflow: clip;white-space: pre-wrap;"></text></g><path id="shape3" transform="matrix(1.18534639399282 -0.0749927691458338 0.0749927691458338 1.18534639399282 58.8453853963774 40.8192160717667)" fill="url(#gradient7)" fill-rule="evenodd" stroke="url(#gradient8)" stroke-width="0.7488" stroke-linecap="square" stroke-linejoin="bevel" d="M44.9066 14.6038L36.8483 9.16492L29.5056 7.18713L24.6727 0.759329L15.1936 0L9.06429 4.17631L9.33394 8.8294L2.42682 17.5352L0 29.4372L5.32035 43.0522L14.4676 48.8884L29.2463 52.6409L37.4706 53.5945L39.0159 57.9915L33.1251 60.6492L18.5123 61.488L13.7416 63.9425L13.389 72.9662L21.4888 80.2946L33.0836 79.1026L36.4439 79.1026L39.0055 82.8463L42.9672 82.6167L51.4404 77.2043L52.5812 73.2222L49.6773 70.5999L55.1014 60.967L53.525 48.5705L44.4399 39.1672L26.9855 37.3484L16.9981 33.4105L15.8781 23.0712L20.9391 20.7668L32.6377 23.2655L38.5388 27.3005L45 23.0359C45 23.0359 44.9688 20.2252 44.9066 14.6038Z" sodipodi:nodetypes="ccccccccccccccccccccccccccccccccccccc"/><path id="shape4" transform="matrix(1.18534639399282 -0.074992769145834 0.074992769145834 1.18534639399282 64.530982532075 36.5027410916843)" fill="url(#gradient9)" fill-rule="evenodd" stroke="url(#gradient10)" stroke-width="0.7416" stroke-linecap="square" stroke-linejoin="bevel" d="M44.9066 14.6038L36.8483 9.16492L29.5056 7.18713L24.6727 0.759329L15.1936 0L9.06429 4.17631L9.33394 8.8294L2.42682 17.5352L0 29.4372L5.32035 43.0522L14.4676 48.8884L29.2463 52.6409L37.4706 53.5945L39.0159 57.9915L33.1251 60.6492L18.5123 61.488L13.7416 63.9425L13.389 72.9662L21.4888 80.2946L33.0836 79.1026L36.4439 79.1026L39.0055 82.8463L42.9672 82.6167L51.4404 77.2043L52.5812 73.2222L49.6773 70.5999L55.1014 60.967L53.525 48.5705L44.4399 39.1672L26.9855 37.3484L16.9981 33.4105L15.8781 23.0712L20.9391 20.7668L32.6377 23.2655L38.5388 27.3005L45 23.0359C45 23.0359 44.9688 20.2252 44.9066 14.6038Z" sodipodi:nodetypes="ccccccccccccccccccccccccccccccccccccc"/>
+</svg>

@@ -1,0 +1,69 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<!-- Created using Krita: https://krita.org -->
+<svg xmlns="http://www.w3.org/2000/svg" 
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:krita="http://krita.org/namespaces/svg/krita"
+    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+    width="184.32pt"
+    height="184.32pt"
+    viewBox="0 0 184.32 184.32">
+<defs>
+  <linearGradient id="gradient0" gradientUnits="objectBoundingBox" x1="-0.0976152313160911" y1="0.728255842113436" x2="1.11032629032711" y2="0.74460892624171" spreadMethod="pad">
+   <stop stop-color="#572300" offset="0.200000002980232" stop-opacity="1"/>
+   <stop stop-color="#8b4200" offset="0.564285695552826" stop-opacity="1"/>
+   <stop stop-color="#b06000" offset="0.735714256763458" stop-opacity="1"/>
+   <stop stop-color="#b97500" offset="0.935714304447174" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient1" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#9c3f00" offset="0.0500000007450581" stop-opacity="1"/>
+   <stop stop-color="#dc8e08" offset="0.492857128381729" stop-opacity="1"/>
+   <stop stop-color="#ffc60e" offset="0.821428596973419" stop-opacity="1"/>
+   <stop stop-color="#f8d28c" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient2" gradientUnits="objectBoundingBox" x1="0.368430945839644" y1="0.118578743126357" x2="0.326357595665863" y2="2.5923901573271" spreadMethod="pad">
+   <stop stop-color="#fbbf55" offset="0" stop-opacity="1"/>
+   <stop stop-color="#fff4d9" offset="0.128571435809135" stop-opacity="1"/>
+   <stop stop-color="#ffc420" offset="0.28571429848671" stop-opacity="1"/>
+   <stop stop-color="#ee9b0d" offset="0.414285719394684" stop-opacity="1"/>
+   <stop stop-color="#e9970b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient3" gradientUnits="objectBoundingBox" x1="-0.0976152313160911" y1="0.728255842113436" x2="1.11032629032711" y2="0.74460892624171" spreadMethod="pad">
+   <stop stop-color="#8b4200" offset="0" stop-opacity="1"/>
+   <stop stop-color="#b06000" offset="0.735714256763458" stop-opacity="1"/>
+   <stop stop-color="#b97500" offset="0.935714304447174" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient4" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#9c3f00" offset="0.0428571440279484" stop-opacity="1"/>
+   <stop stop-color="#dc8e08" offset="0.307142853736877" stop-opacity="1"/>
+   <stop stop-color="#f6b90d" offset="0.807142853736877" stop-opacity="1"/>
+   <stop stop-color="#ffd85b" offset="0.992857158184052" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient5" gradientUnits="objectBoundingBox" x1="0.368430945839644" y1="0.118578743126357" x2="0.326357595665863" y2="2.5923901573271" spreadMethod="pad">
+   <stop stop-color="#fbbf55" offset="0" stop-opacity="1"/>
+   <stop stop-color="#fff4d9" offset="0.128571435809135" stop-opacity="1"/>
+   <stop stop-color="#ffc420" offset="0.28571429848671" stop-opacity="1"/>
+   <stop stop-color="#ee9b0d" offset="0.414285719394684" stop-opacity="1"/>
+   <stop stop-color="#e9970b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient6" gradientUnits="objectBoundingBox" x1="-0.0976152313160911" y1="0.728255842113436" x2="1.11032629032711" y2="0.74460892624171" spreadMethod="pad">
+   <stop stop-color="#8b4200" offset="0" stop-opacity="1"/>
+   <stop stop-color="#b06000" offset="0.735714256763458" stop-opacity="1"/>
+   <stop stop-color="#b97500" offset="0.935714304447174" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient7" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1" spreadMethod="pad">
+   <stop stop-color="#9c3f00" offset="0.0142857143655419" stop-opacity="1"/>
+   <stop stop-color="#dc8e08" offset="0.214285716414452" stop-opacity="1"/>
+   <stop stop-color="#ffc60e" offset="0.54285717010498" stop-opacity="1"/>
+   <stop stop-color="#f8d28c" offset="1" stop-opacity="1"/>
+  </linearGradient>
+  <linearGradient id="gradient8" gradientUnits="objectBoundingBox" x1="0.368430945839644" y1="0.118578743126357" x2="0.326357595665863" y2="2.5923901573271" spreadMethod="pad">
+   <stop stop-color="#fbbf55" offset="0" stop-opacity="1"/>
+   <stop stop-color="#fff4d9" offset="0.128571435809135" stop-opacity="1"/>
+   <stop stop-color="#ffc420" offset="0.28571429848671" stop-opacity="1"/>
+   <stop stop-color="#ee9b0d" offset="0.414285719394684" stop-opacity="1"/>
+   <stop stop-color="#e9970b" offset="1" stop-opacity="1"/>
+  </linearGradient>
+ </defs>
+<path id="shape0" transform="matrix(1.09139897359761 0 0 1.09139897359761 10.4041903740116 9.61684723585297)" fill="#553000" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M79.0136 13.4598L83.267 13.1548L150.574 62.5209L154.554 86.0642L115.906 118.331L74.7605 152.151L0 92.2207L7.22202 64.6682L26.6224 52.6136L17.271 45.7684C19.5044 37.3136 22.8723 26.7658 24.7184 18.6769C40.5973 10.2772 52.3288 4.05163 59.9131 0Z" sodipodi:nodetypes="ccccccccccccc"/><path id="shape01" transform="matrix(1.09138444533791 -0.00563134481301116 0.00563134481301116 1.09138444533791 57.4789125194511 46.0681448715886)" fill="url(#gradient0)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M104.4 29.4586L108.1 52.0084L71.2878 82.5507L0 24.1961L6.17829 0Z" sodipodi:nodetypes="cccccc"/><path id="shape1" transform="matrix(1.09139897359761 0 0 1.09139897359761 64.0102573929001 26.2430717712164)" fill="url(#gradient1)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M33.7127 0L98.9195 47.2926L67.077 69.8339L0 17.7825Z" sodipodi:nodetypes="ccccc"/><path id="shape2" transform="matrix(1.09139897359761 0 0 1.09139897359761 110.648457458841 81.9854192070912)" fill="url(#gradient2)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M0 0L24.0491 10.8641L46.0614 3.10595L24.7571 19.349L23.1751 48.2599L23.2015 18.8728Z" sodipodi:nodetypes="ccccccc"/><path id="shape02" transform="matrix(1.09138444533791 -0.00563134481301116 0.00563134481301116 1.09138444533791 13.7575683967724 81.7430490279701)" fill="url(#gradient3)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M104.4 29.4586L108.1 52.0084L71.2878 82.5507L0 24.1961L6.17829 0Z" sodipodi:nodetypes="cccccc"/><path id="shape11" transform="matrix(1.09139897359761 0 0 1.09139897359761 20.2889132702214 61.9179759275978)" fill="url(#gradient4)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M33.7127 0L98.9195 47.2926L67.077 69.8339L0 17.7825Z" sodipodi:nodetypes="ccccc"/><path id="shape21" transform="matrix(1.09139897359761 0 0 1.09139897359761 66.9271133361625 117.660323363473)" fill="url(#gradient5)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M0 0L24.0491 10.8641L46.0614 3.10595L24.7571 19.349L23.1751 48.2599L23.2015 18.8728Z" sodipodi:nodetypes="ccccccc"/><path id="shape3" transform="matrix(1.09138444533791 -0.00563134481301116 0.00563134481301116 1.09138444533791 32.6415325001602 31.6271767655686)" fill="url(#gradient6)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M104.4 29.4586L108.1 52.0084L71.2878 82.5507L0 24.1961L6.17829 0Z" sodipodi:nodetypes="cccccc"/><path id="shape4" transform="matrix(1.09139897359761 0 0 1.09139897359761 39.1728773736093 11.8021036651963)" fill="url(#gradient7)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M33.7127 0L98.9195 47.2926L67.077 69.8339L0 17.7825Z" sodipodi:nodetypes="ccccc"/><path id="shape5" transform="matrix(1.09139897359761 0 0 1.09139897359761 85.8110774395503 67.5444511010712)" fill="url(#gradient8)" fill-rule="evenodd" stroke-opacity="0" stroke="#000000" stroke-width="0" stroke-linecap="square" stroke-linejoin="bevel" d="M0 0L24.0491 10.8641L46.0614 3.10595L24.7571 19.349L23.1751 48.2599L23.2015 18.8728Z" sodipodi:nodetypes="ccccccc"/>
+</svg>

@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created using Krita: https://krita.org -->
+
+<svg
+   width="184.32001pt"
+   height="184.32001pt"
+   viewBox="0 0 184.32 184.32"
+   version="1.1"
+   id="svg16"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs16">
+    <linearGradient
+       id="gradient0"
+       gradientUnits="userSpaceOnUse"
+       x1="72.027618"
+       y1="-33.057827"
+       x2="68.859085"
+       y2="181.88675"
+       spreadMethod="pad"
+       gradientTransform="matrix(1.2661569,0,0,1.043809,6.554337,26.567536)">
+      <stop
+         stop-color="#59e5ff"
+         offset="0.29787233"
+         stop-opacity="1"
+         id="stop1"
+         style="stop-color:#ff5975;stop-opacity:1;" />
+      <stop
+         stop-color="#029bc9"
+         offset="0.40425533"
+         stop-opacity="1"
+         id="stop2"
+         style="stop-color:#c90219;stop-opacity:1;" />
+      <stop
+         stop-color="#005988"
+         offset="1"
+         stop-opacity="1"
+         id="stop3"
+         style="stop-color:#880007;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient1"
+       gradientUnits="userSpaceOnUse"
+       x1="0"
+       y1="0"
+       x2="47.974625"
+       y2="47.974625"
+       spreadMethod="pad"
+       gradientTransform="matrix(1.2524857,0,0,1.0552024,117.89256,45.392713)">
+      <stop
+         stop-color="#4ad5ff"
+         offset="0.43971631"
+         stop-opacity="1"
+         id="stop4"
+         style="stop-color:#ff4a5f;stop-opacity:1;" />
+      <stop
+         stop-color="#0089ae"
+         offset="1"
+         stop-opacity="1"
+         id="stop5"
+         style="stop-color:#ae0012;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient2"
+       gradientUnits="userSpaceOnUse"
+       x1="0"
+       y1="0"
+       x2="47.953537"
+       y2="47.953537"
+       spreadMethod="pad"
+       gradientTransform="matrix(-1.2530364,0,0,1.0547386,67.366058,44.001394)">
+      <stop
+         stop-color="#24bde9"
+         offset="0"
+         stop-opacity="1"
+         id="stop6"
+         style="stop-color:#e92459;stop-opacity:1;" />
+      <stop
+         stop-color="#009ac4"
+         offset="1"
+         stop-opacity="1"
+         id="stop7"
+         style="stop-color:#c4000f;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient3"
+       gradientUnits="userSpaceOnUse"
+       x1="13.451288"
+       y1="-0.18050411"
+       x2="59.311649"
+       y2="33.381172"
+       spreadMethod="pad"
+       gradientTransform="matrix(-1.7715743,0,0,0.74601781,137.72466,58.263525)">
+      <stop
+         stop-color="#24bde9"
+         offset="0"
+         stop-opacity="1"
+         id="stop8"
+         style="stop-color:#e9243a;stop-opacity:1;" />
+      <stop
+         stop-color="#007ca5"
+         offset="1"
+         stop-opacity="1"
+         id="stop9"
+         style="stop-color:#a50013;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient4"
+       gradientUnits="userSpaceOnUse"
+       x1="31.513123"
+       y1="-16.139919"
+       x2="37.129616"
+       y2="98.781487"
+       spreadMethod="pad"
+       gradientTransform="matrix(-1.2649751,0,0,1.0447841,137.46311,93.665824)">
+      <stop
+         stop-color="#007ca5"
+         offset="0.02836879"
+         stop-opacity="1"
+         id="stop10"
+         style="stop-color:#a50009;stop-opacity:1;" />
+      <stop
+         stop-color="#00aee0"
+         offset="1"
+         stop-opacity="1"
+         id="stop11"
+         style="stop-color:#e00029;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient5"
+       gradientUnits="userSpaceOnUse"
+       x1="34.842365"
+       y1="-17.845041"
+       x2="41.052219"
+       y2="109.21738"
+       spreadMethod="pad"
+       gradientTransform="matrix(-1.128463,0,0,1.1711734,94.710621,76.510688)">
+      <stop
+         stop-color="#0087b4"
+         offset="0.02836879"
+         stop-opacity="1"
+         id="stop12"
+         style="stop-color:#b40013;stop-opacity:1;" />
+      <stop
+         stop-color="#00b3e7"
+         offset="1"
+         stop-opacity="1"
+         id="stop13"
+         style="stop-color:#e7002b;stop-opacity:1;" />
+    </linearGradient>
+    <linearGradient
+       id="gradient6"
+       gradientUnits="userSpaceOnUse"
+       x1="7.921494"
+       y1="30.758179"
+       x2="43.958328"
+       y2="12.987799"
+       spreadMethod="pad"
+       gradientTransform="matrix(1.5072105,0,0,0.87686883,87.185686,50.076713)">
+      <stop
+         stop-color="#1db0db"
+         offset="0"
+         stop-opacity="1"
+         id="stop14"
+         style="stop-color:#db1d37;stop-opacity:1;" />
+      <stop
+         stop-color="#ffffff"
+         offset="0.404255330562592"
+         stop-opacity="1"
+         id="stop15" />
+      <stop
+         stop-color="#4ad5ff"
+         offset="1"
+         stop-opacity="1"
+         id="stop16"
+         style="stop-color:#ff4a67;stop-opacity:1;" />
+    </linearGradient>
+  </defs>
+  <path
+     id="shape0"
+     fill="#002532"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 111.55018,25.063313 69.031258,25.831834 26.526706,43.076477 26.336559,43.010029 26.208952,43.20535 25.792674,43.374229 4.0753196,75.685676 93.273638,170.50403 179.2613,78.038373 l 1.28182,-0.582743 -0.31039,-0.461802 0.26326,-0.283381 -22.47622,-33.191366 z"
+     style="fill:#32000b;fill-opacity:1" />
+  <path
+     id="shape1"
+     fill="url(#gradient0)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 110.95845,26.567536 69.654329,27.314101 27.651242,44.35526 6.554337,75.743447 93.204063,167.85237 177.93507,76.738903 156.10034,44.495973 110.95845,26.567536"
+     style="fill:url(#gradient0);stroke:#000000;stroke-opacity:0" />
+  <path
+     id="shape2"
+     fill="url(#gradient1)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 117.89256,59.141707 137.17847,96.01565 177.98009,77.46274 156.42989,45.392713 117.89256,59.141707"
+     style="fill:url(#gradient1)" />
+  <path
+     id="shape3"
+     fill="url(#gradient2)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 67.366058,57.705898 48.08015,94.579841 7.2785298,76.027045 28.179539,44.001394 67.366058,57.705898"
+     style="fill:url(#gradient2)" />
+  <path
+     id="shape4"
+     fill="url(#gradient3)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 137.72466,95.917026 48.308604,93.880014 67.033613,58.263525 118.18767,60.090547"
+     style="fill:url(#gradient3)" />
+  <path
+     id="shape5"
+     fill="url(#gradient4)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 93.668225,167.27714 48.338023,93.665824 137.46311,97.387489"
+     style="fill:url(#gradient4)" />
+  <path
+     id="shape6"
+     fill="url(#gradient5)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="M 94.710621,167.74441 6.8040157,76.510688 48.776523,93.962378"
+     style="fill:url(#gradient5)" />
+  <path
+     id="shape7"
+     fill="url(#gradient6)"
+     fill-rule="evenodd"
+     stroke-opacity="0"
+     stroke="#000000"
+     stroke-width="0"
+     stroke-linecap="square"
+     stroke-linejoin="bevel"
+     d="m 143.97185,50.076713 -26.80028,6.544142 -29.985884,2.253497 30.313294,0.840579 13.54459,23.398984 -9.14959,-24.224377 22.07787,-8.812825"
+     style="fill:url(#gradient6)" />
+</svg>

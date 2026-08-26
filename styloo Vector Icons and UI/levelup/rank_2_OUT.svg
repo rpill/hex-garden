@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.5;">
+    <g transform="matrix(1.876198,0,0,1.950633,-133.399312,-56.497848)">
+        <path d="M139.344,148.365C137.381,148.365 134.823,147.339 131.964,145.265C128.396,142.678 124.122,138.427 119.599,133.282C102.47,113.794 81.491,81.318 81.491,81.318C81.248,80.94 81.119,80.505 81.119,80.061C81.119,73.214 85.978,64.893 92.77,58.36C99.562,51.828 108.213,47.154 115.331,47.154L163.089,47.154C170.208,47.154 178.859,51.828 185.65,58.36C192.442,64.893 197.302,73.214 197.302,80.061C197.302,80.503 197.174,80.936 196.933,81.312C196.933,81.312 176.086,113.79 159.035,133.278C154.532,138.424 150.275,142.675 146.717,145.263C143.865,147.338 141.308,148.365 139.344,148.365Z" style="fill:rgb(81,35,0);"/>
+    </g>
+    <g transform="matrix(0.957535,0,0,0.957535,5.426456,11.630576)">
+        <g transform="matrix(1.959404,0,0,2.03714,-144.982449,-71.1498)">
+            <path d="M194.825,80.061C194.825,80.061 152.523,145.983 139.344,145.983C126.165,145.983 83.595,80.061 83.595,80.061C83.595,67.385 102.152,49.536 115.331,49.536L163.089,49.536C176.268,49.536 194.825,67.385 194.825,80.061Z" style="fill:url(#_Linear1);stroke:rgb(211,116,24);stroke-width:0.52px;"/>
+        </g>
+        <g transform="matrix(1.250623,0,0,1.250623,-32.079805,-24.257048)">
+            <path d="M63.909,54.818L81.018,71.193C81.018,71.193 88.72,63.756 97.799,62.931C108.302,61.976 74.478,47.777 74.478,47.777L63.909,54.818Z" style="fill:url(#_Linear2);"/>
+        </g>
+        <g transform="matrix(1.40728,0,0,1.463112,-68.121192,-18.980341)">
+            <path d="M194.825,80.061C194.825,80.061 152.523,145.983 139.344,145.983C126.165,145.983 83.595,80.061 83.595,80.061C83.595,67.385 102.152,49.536 115.331,49.536L163.089,49.536C176.268,49.536 194.825,67.385 194.825,80.061Z" style="fill:url(#_Linear3);"/>
+        </g>
+        <g transform="matrix(1.250623,0,0,1.250623,-32.079805,-24.257048)">
+            <path d="M65.248,94.352C65.248,94.352 70.907,81.997 85.666,75.167C108.049,64.809 142.807,68.93 160.337,69.436C177.867,69.942 190.411,96.574 190.411,96.574C190.411,96.574 184.104,63.84 157.977,62.171C131.851,60.503 100.661,62.323 99.821,62.171C99.821,62.171 84.958,64.04 73.203,79.112C64.163,90.703 65.248,94.352 65.248,94.352Z" style="fill:rgb(163,64,17);"/>
+        </g>
+        <g transform="matrix(1.250623,0,0,1.250623,-32.079805,-24.257048)">
+            <path d="M177.406,118.589C177.406,118.589 144.265,172.495 128,175.006C111.735,177.517 80.856,118.723 78.698,118.589C76.541,118.454 128,171.179 128,171.179" style="fill:rgb(255,224,52);"/>
+        </g>
+    </g>
+    <g id="_2" serif:id="2" transform="matrix(0.770581,0,0,1,45.297323,0)">
+        <g transform="matrix(1.005889,0,0,1.005889,-44.688805,3.962452)">
+            <path d="M119.95,82.358L109.615,82.358L109.615,72.779L111.776,70.257L148.687,72.779L150.849,79.866L148.687,82.358L138.1,82.358L138.1,124.053L148.687,124.053L150.849,132.772L148.687,135.295L109.615,135.295L109.615,124.053L111.776,121.78L119.95,124.053L119.95,82.358Z" style="fill:url(#_Linear4);"/>
+        </g>
+        <g transform="matrix(1.005889,0,0,1.005889,-42.514455,1.42495)">
+            <clipPath id="_clip5">
+                <path d="M119.95,82.358L109.615,82.358L109.615,72.779L148.687,72.779L148.687,82.358L138.1,82.358L138.1,124.053L148.687,124.053L148.687,135.295L109.615,135.295L109.615,124.053L119.95,124.053L119.95,82.358Z"/>
+            </clipPath>
+            <g clip-path="url(#_clip5)">
+                <g transform="matrix(1.290125,-0,-0,0.994146,-16.173657,-1.416608)">
+                    <use xlink:href="#_Image6" x="97.501" y="74.633" width="31px" height="63px"/>
+                </g>
+            </g>
+        </g>
+        <g transform="matrix(1.005889,0,0,1.005889,-3.211963,3.962452)">
+            <path d="M119.95,82.358L109.615,82.358L109.615,72.779L111.776,70.257L148.687,72.779L150.849,79.866L148.687,82.358L138.1,82.358L138.1,124.053L148.687,124.053L150.849,132.772L148.687,135.295L109.615,135.295L109.615,124.053L111.776,121.78L119.95,124.053L119.95,82.358Z" style="fill:url(#_Linear7);"/>
+        </g>
+        <g transform="matrix(1.005889,0,0,1.005889,-1.037613,1.42495)">
+            <clipPath id="_clip8">
+                <path d="M119.95,82.358L109.615,82.358L109.615,72.779L148.687,72.779L148.687,82.358L138.1,82.358L138.1,124.053L148.687,124.053L148.687,135.295L109.615,135.295L109.615,124.053L119.95,124.053L119.95,82.358Z"/>
+            </clipPath>
+            <g clip-path="url(#_clip8)">
+                <g transform="matrix(1.290125,-0,-0,0.994146,-57.40768,-1.416608)">
+                    <use xlink:href="#_Image6" x="129.462" y="74.633" width="31px" height="63px"/>
+                </g>
+            </g>
+        </g>
+    </g>
+    <defs>
+        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,84.796854,-88.161,0,140.430103,61.186564)"><stop offset="0" style="stop-color:rgb(255,201,0);stop-opacity:1"/><stop offset="0.2" style="stop-color:rgb(255,214,41);stop-opacity:1"/><stop offset="0.21" style="stop-color:rgb(255,214,41);stop-opacity:1"/><stop offset="0.22" style="stop-color:rgb(210,113,23);stop-opacity:1"/><stop offset="0.43" style="stop-color:rgb(243,193,44);stop-opacity:1"/><stop offset="0.61" style="stop-color:rgb(255,224,52);stop-opacity:1"/><stop offset="0.79" style="stop-color:rgb(241,178,37);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(204,61,0);stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear2" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-22.124931,17.303292,-16.297755,-20.839196,92.555264,52.857219)"><stop offset="0" style="stop-color:rgb(255,239,83);stop-opacity:0"/><stop offset="1" style="stop-color:rgb(255,225,9);stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear3" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-52.614618,54.701998,0,139.210168,120.081023)"><stop offset="0" style="stop-color:rgb(255,202,34);stop-opacity:1"/><stop offset="0.2" style="stop-color:rgb(229,162,21);stop-opacity:1"/><stop offset="0.42" style="stop-color:rgb(202,120,7);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(189,100,0);stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear4" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-34.10391,19.215475,0,129.150805,118.505589)"><stop offset="0" style="stop-color:rgb(163,64,17);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(163,64,17);stop-opacity:1"/></linearGradient>
+        <image id="_Image6" width="31px" height="63px" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB8AAAA/CAYAAAAYAhMPAAAACXBIWXMAAA7EAAAOxAGVKw4bAAABkklEQVRYhe2YMXLEIAxFBfzd7XL/mdwpTe6RE8RWil3P2mNsJEuCJmpoBE//IzDjxF8fTKpIuvSTAFFprOkH28NTkWcn30J08F0cFCOsUQm/oPxkSoxyYRjhtkL+lZuCZyJiImZ+jfQeZ36OlTx8f/7YyCeCW16gPHIYvBXI9y3cfIkp5qM8lLRGemonrOFG24WgWuxsF63p9H1BuRtWMhaBfFspd1IkdQb5gnJH250bTnPU8i3gmSS23QpXTd8mn8DjHo7L0kjIeoxXw2WkUJFL1E5ITMMJA6nI4c7P9pftESFYVqXcozfWSyCjE7USOuXu8NzjnI2At14ydPGj5nHskAKfcE34ImFE28H71tLEQNOJRFeMOlj2gwvSxIjoD1/h+sAPEKB5uO1jCgDN8xDwE17b805N+Fbe3Xk+sL1TIaBp5J73ariKm3J4wFYE235ecVt54LEDTZP/qsJ6BbY7K9981SKUi4rgRXnH681HuaDgRorNduNJAP1677m8oLiGE7hShzfn+TSowPYGyFDHH9VrbppHj3TjAAAAAElFTkSuQmCC"/>
+        <linearGradient id="_Linear7" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(0,-34.10391,19.215475,0,129.150805,118.505589)"><stop offset="0" style="stop-color:rgb(163,64,17);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(163,64,17);stop-opacity:1"/></linearGradient>
+    </defs>
+</svg>
