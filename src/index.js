@@ -42,3 +42,9 @@ export {
   subtractHex,
 } from "./hex.js";
 export { atomTypesMatch, isMetalLocked, isSingleRemoval } from "./rules.js";
+export {
+  PANEL_COMMON_TYPES,
+  PANEL_METAL_TYPES,
+  createPanelState,
+  panelTypesForVariant,
+} from "./panel-state.js";

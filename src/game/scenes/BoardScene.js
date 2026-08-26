@@ -4,10 +4,11 @@ import { SigmarsGardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import { BoardVariant } from "../../generator.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
+import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
-const BOTTOM_BAR_HEIGHT = 60;
+const BOTTOM_BAR_HEIGHT = 134;
 
 const ATOM_LABELS = Object.freeze({
   [Atom.SALT]: "Sa",
@@ -71,12 +72,15 @@ export class BoardScene extends Phaser.Scene {
     this.generationToken = 0;
     this.initialPieces = [];
     this.pieceViews = new Map();
+    this.panelViews = new Map();
+    this.activePanelType = null;
   }
 
   create() {
     this.generator = new BrowserLevelGenerator();
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics();
+    this.panelGraphics = this.add.graphics().setDepth(4);
     this.header = makeText(this, "", 16).setOrigin(0.5);
     this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
 
@@ -92,6 +96,7 @@ export class BoardScene extends Phaser.Scene {
 
     this.scale.on("resize", () => this.layout());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.generator.terminate());
+    this.rebuildPanelViews();
     this.layout();
     this.loadLevel();
   }
@@ -101,6 +106,7 @@ export class BoardScene extends Phaser.Scene {
     this.setBusy(true);
     this.board = undefined;
     this.initialPieces = [];
+    this.activePanelType = null;
     this.status.setText("GENERATING");
     this.clearPieceViews();
     this.render();
@@ -140,12 +146,14 @@ export class BoardScene extends Phaser.Scene {
       this.variant === BoardVariant.STANDARD
         ? BoardVariant.QUINTESSENCE
         : BoardVariant.STANDARD;
+    this.rebuildPanelViews();
     this.loadLevel();
   }
 
   restartLevel() {
     if (this.busy || this.initialPieces.length === 0) return;
     this.board = new SigmarsGardenBoard(this.initialPieces);
+    this.activePanelType = null;
     this.status.setText("");
     this.rebuildPieceViews();
     this.layout();
@@ -194,6 +202,41 @@ export class BoardScene extends Phaser.Scene {
     this.pieceViews.clear();
   }
 
+  rebuildPanelViews() {
+    for (const view of this.panelViews.values()) {
+      view.label.destroy();
+      view.count.destroy();
+      view.hitZone.destroy();
+    }
+    this.panelViews.clear();
+
+    for (const type of panelTypesForVariant(this.variant)) {
+      const label = makeText(this, ATOM_LABELS[type], 14, "#111111")
+        .setOrigin(0.5)
+        .setDepth(6);
+      const count = makeText(this, "", 10, "#d8d8d8")
+        .setOrigin(0.5)
+        .setDepth(6);
+      const hitZone = this.add.zone(0, 0, 36, 36).setDepth(7);
+      hitZone.setInteractive(
+        new Phaser.Geom.Circle(18, 18, 18),
+        Phaser.Geom.Circle.Contains,
+      );
+      hitZone.input.cursor = "pointer";
+      hitZone.on("pointerdown", () => this.selectPanelType(type));
+      this.panelViews.set(type, { type, label, count, hitZone });
+    }
+  }
+
+  selectPanelType(type) {
+    if (this.busy || !this.board) return;
+    const state = createPanelState(this.board, { variant: this.variant });
+    const entry = state.entries.find((candidate) => candidate.type === type);
+    if (!entry || entry.depleted) return;
+    this.activePanelType = this.activePanelType === type ? null : type;
+    this.render();
+  }
+
   setBusy(value) {
     this.busy = value;
     const alpha = value ? 0.45 : 1;
@@ -209,14 +252,16 @@ export class BoardScene extends Phaser.Scene {
     const compact = width < 560;
 
     this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
-    this.status.setFontSize(compact ? 11 : 14).setPosition(10, height - 18);
+    this.status.setFontSize(compact ? 11 : 14).setPosition(10, height - 126);
 
-    const controlsY = height - BOTTOM_BAR_HEIGHT + 18;
+    const controlsY = height - 22;
     const gap = 68;
     this.restartButton.setPosition(width / 2, controlsY);
     this.previousButton.setPosition(width / 2 - gap, controlsY);
     this.nextButton.setPosition(width / 2 + gap, controlsY);
     this.variantButton.setPosition(compact ? width - 57 : width - 92, controlsY);
+
+    this.layoutPanel(width, height, compact);
 
     const boardHeight = Math.max(100, height - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
@@ -238,6 +283,35 @@ export class BoardScene extends Phaser.Scene {
       );
     }
     this.render();
+  }
+
+  layoutPanel(width, height, compact) {
+    const types = panelTypesForVariant(this.variant);
+    const panelWidth = Math.min(width - 12, compact ? 520 : 680);
+    const left = (width - panelWidth) / 2;
+    const step = panelWidth / types.length;
+    const radius = Math.max(10, Math.min(18, step * 0.38));
+    const y = height - 76;
+
+    this.panelLayout = { left, width: panelWidth, y, radius, step, types };
+    types.forEach((type, index) => {
+      const view = this.panelViews.get(type);
+      if (!view) return;
+      const x = left + step * (index + 0.5);
+      const hitDiameter = Math.max(28, radius * 2.25);
+      view.label
+        .setPosition(x, y)
+        .setFontSize(Math.max(9, Math.floor(radius * 0.78)));
+      view.count
+        .setPosition(x + radius * 0.72, y - radius * 0.92)
+        .setFontSize(Math.max(8, Math.floor(radius * 0.58)));
+      view.hitZone.setPosition(x, y).setSize(hitDiameter, hitDiameter);
+      view.hitZone.input.hitArea.setTo(
+        hitDiameter / 2,
+        hitDiameter / 2,
+        hitDiameter / 2,
+      );
+    });
   }
 
   hexToScreen(index) {
@@ -273,6 +347,7 @@ export class BoardScene extends Phaser.Scene {
       this.variant === BoardVariant.STANDARD ? "STANDARD" : "Q MODE",
     );
 
+    this.renderPanel();
     this.cellGraphics.clear();
     for (const cell of enumerateBoardCells()) {
       const position = this.hexToScreen(cell);
@@ -293,17 +368,77 @@ export class BoardScene extends Phaser.Scene {
       const position = this.hexToScreen(view.piece);
       const free = this.board.isFree(view.piece);
       const isSelected = selected.has(hexKey(view.piece));
+      const isPanelMatch = this.activePanelType === view.piece.type;
       const radius = this.hexSize * 0.68;
 
       this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], free ? 1 : 0.38);
       this.atomGraphics.fillCircle(position.x, position.y, radius);
       this.atomGraphics.lineStyle(
-        isSelected ? Math.max(2, this.hexSize * 0.12) : 1,
-        isSelected ? 0xffffff : 0x111111,
+        isSelected || isPanelMatch ? Math.max(2, this.hexSize * 0.12) : 1,
+        isSelected ? 0xffffff : isPanelMatch ? 0xf0d58a : 0x111111,
         1,
       );
       this.atomGraphics.strokeCircle(position.x, position.y, radius);
       view.label.setAlpha(free ? 1 : 0.45);
     }
+  }
+
+  renderPanel() {
+    this.panelGraphics.clear();
+    if (!this.panelLayout) return;
+
+    const { left, width, y, radius, step, types } = this.panelLayout;
+    const state = createPanelState(this.board, {
+      variant: this.variant,
+      activeType: this.activePanelType,
+    });
+    if (
+      this.activePanelType !== null &&
+      state.entries.find((entry) => entry.type === this.activePanelType)?.depleted
+    ) {
+      this.activePanelType = null;
+    }
+
+    this.panelGraphics.fillStyle(0x181818, 1);
+    this.panelGraphics.fillRect(left, y - radius - 9, width, radius * 2 + 18);
+    this.panelGraphics.lineStyle(1, 0x555555, 1);
+    this.panelGraphics.strokeRect(left, y - radius - 9, width, radius * 2 + 18);
+
+    for (const boundary of [1, 5, 6]) {
+      const x = left + step * boundary;
+      this.panelGraphics.lineStyle(1, 0x686868, 0.8);
+      this.panelGraphics.lineBetween(x, y - radius, x, y + radius);
+    }
+
+    for (let index = 6; index < types.length - 1; index += 1) {
+      const fromX = left + step * (index + 0.5) + radius + 2;
+      const toX = left + step * (index + 1.5) - radius - 2;
+      if (toX <= fromX) continue;
+      this.panelGraphics.lineStyle(1, 0x777777, 0.8);
+      this.panelGraphics.lineBetween(fromX, y, toX, y);
+      this.panelGraphics.fillStyle(0x777777, 0.8);
+      this.panelGraphics.fillTriangle(toX, y, toX - 4, y - 3, toX - 4, y + 3);
+    }
+
+    state.entries.forEach((entry, index) => {
+      const view = this.panelViews.get(entry.type);
+      if (!view) return;
+      const x = left + step * (index + 0.5);
+      const alpha = entry.depleted ? 0.18 : entry.locked ? 0.36 : 1;
+      this.panelGraphics.fillStyle(ATOM_COLORS[entry.type], alpha);
+      this.panelGraphics.fillCircle(x, y, radius);
+      this.panelGraphics.lineStyle(
+        entry.selected ? 3 : entry.current ? 2 : 1,
+        entry.selected ? 0xffffff : entry.current ? 0xf0d58a : 0x101010,
+        alpha,
+      );
+      this.panelGraphics.strokeCircle(x, y, radius);
+
+      view.label.setAlpha(alpha);
+      view.count
+        .setText(entry.countVisible && !entry.depleted ? String(entry.count) : "")
+        .setColor(entry.warning ? "#e89070" : "#d8d8d8")
+        .setAlpha(alpha);
+    });
   }
 }

@@ -10,7 +10,8 @@ The runtime should expose only what is needed to inspect the board:
 - the current 55-piece level;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
 - previous level, next level, restart, and board-variant controls;
-- direct selection/removal behavior.
+- direct selection/removal behavior;
+- the functional atom inventory panel: remaining Salt/elements/Hg or Q, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 
 The folder `styloo Vector Icons and UI/` is parked source material. Do not import or modify it during this phase.
 
@@ -57,6 +58,12 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - The only active scene is `src/game/scenes/BoardScene.js`.
 - Use `Phaser.Scale.RESIZE`; keep the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - No persistence is required in this phase. A level is regenerated from its number.
+
+## Git workflow
+
+- The repository is initialized locally. Commit every completed logical change before handoff.
+- Keep dependency caches, `node_modules`, build output, and temporary files untracked.
+- Do not amend or rewrite existing commits unless the user explicitly asks.
 
 ## Verification
 
