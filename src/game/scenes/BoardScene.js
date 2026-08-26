@@ -404,8 +404,9 @@ export class BoardScene extends Phaser.Scene {
     this.panelGraphics.lineStyle(1, 0x555555, 1);
     this.panelGraphics.strokeRect(left, y - radius - 9, width, radius * 2 + 18);
 
+    const quicksilverIndex = types.indexOf(Atom.QUICKSILVER);
     const metalStartIndex = types.indexOf(Atom.LEAD);
-    for (const boundary of [1, 5, metalStartIndex]) {
+    for (const boundary of [1, quicksilverIndex, metalStartIndex]) {
       const x = left + step * boundary;
       this.panelGraphics.lineStyle(1, 0x686868, 0.8);
       this.panelGraphics.lineBetween(x, y - radius, x, y + radius);

@@ -52,9 +52,15 @@ test("removing a metal advances the panel from lead toward gold", () => {
 
 test("quintessence panel shows both Hg and Q", () => {
   const types = panelTypesForVariant("quintessence");
-  assert.equal(types.length, 13);
-  assert.equal(types.includes(Atom.QUINTESSENCE), true);
-  assert.equal(types.includes(Atom.QUICKSILVER), true);
+  assert.deepEqual(types.slice(0, 7), [
+    Atom.SALT,
+    Atom.AIR,
+    Atom.FIRE,
+    Atom.WATER,
+    Atom.EARTH,
+    Atom.QUINTESSENCE,
+    Atom.QUICKSILVER,
+  ]);
 
   const state = createPanelState(
     pieces(Atom.AIR, Atom.QUINTESSENCE, Atom.QUICKSILVER),

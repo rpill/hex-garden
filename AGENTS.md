@@ -11,7 +11,7 @@ The runtime should expose only what is needed to inspect the board:
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
 - previous level, next level, restart, and board-variant controls;
 - direct selection/removal behavior;
-- the functional atom inventory panel: remaining Salt/elements/Hg and, in the quintessence variant, Q, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
+- the functional atom inventory panel: remaining Salt/elements/Hg and, in the quintessence variant, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 
 The folder `styloo Vector Icons and UI/` is parked source material. Do not import or modify it during this phase.
 

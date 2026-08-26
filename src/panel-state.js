@@ -20,8 +20,8 @@ export const PANEL_COMMON_TYPES = Object.freeze([
 export function panelTypesForVariant(variant) {
   return [
     ...PANEL_COMMON_TYPES,
-    Atom.QUICKSILVER,
     ...(variant === "quintessence" ? [Atom.QUINTESSENCE] : []),
+    Atom.QUICKSILVER,
     ...PANEL_METAL_TYPES,
   ];
 }
