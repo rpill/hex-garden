@@ -13,7 +13,9 @@ import {
   enumerateHexPlate,
   hexDistance,
   hexKey,
+  rotateHexAround,
 } from "./hex.js";
+import { CURATED_OPENING_LEVELS } from "./opening-levels.js";
 
 export const PROGRESSION_LEVEL_COUNT = 60;
 export const DEFAULT_PROGRESSION_SEED = "garden-progression-v1";
@@ -502,6 +504,9 @@ function analyzeCertificateDecisionPressure(pieces, solution) {
       firstMixedDecisionStep: null,
       mixedDecisionSteps: null,
       losingMovesAlongCertificate: null,
+      firstDeceptiveDecisionStep: null,
+      deceptiveDecisionSteps: null,
+      deceptiveLosingMovesAlongCertificate: null,
     });
   }
 
@@ -543,6 +548,9 @@ function analyzeCertificateDecisionPressure(pieces, solution) {
   let firstMixedDecisionStep = null;
   let mixedDecisionSteps = 0;
   let losingMovesAlongCertificate = 0;
+  let firstDeceptiveDecisionStep = null;
+  let deceptiveDecisionSteps = 0;
+  let deceptiveLosingMovesAlongCertificate = 0;
 
   solution.forEach((certificateMove, step) => {
     const legalMoves = boardForMask(mask).legalMoves();
@@ -555,6 +563,25 @@ function analyzeCertificateDecisionPressure(pieces, solution) {
       mixedDecisionSteps += 1;
       losingMovesAlongCertificate += losingMoveCount;
     }
+    const movesBySignature = new Map();
+    for (const move of legalMoves) {
+      const signature = moveTypeSignature(move);
+      const state = movesBySignature.get(signature) ?? {
+        winning: 0,
+        losing: 0,
+      };
+      if (isSolvable(removeMove(mask, move))) state.winning += 1;
+      else state.losing += 1;
+      movesBySignature.set(signature, state);
+    }
+    const deceptiveLosingMoveCount = [...movesBySignature.values()]
+      .filter((state) => state.winning > 0 && state.losing > 0)
+      .reduce((sum, state) => sum + state.losing, 0);
+    if (deceptiveLosingMoveCount > 0) {
+      firstDeceptiveDecisionStep ??= step + 1;
+      deceptiveDecisionSteps += 1;
+      deceptiveLosingMovesAlongCertificate += deceptiveLosingMoveCount;
+    }
     mask = removeMove(mask, certificateMove);
   });
 
@@ -562,29 +589,10 @@ function analyzeCertificateDecisionPressure(pieces, solution) {
     firstMixedDecisionStep,
     mixedDecisionSteps,
     losingMovesAlongCertificate,
+    firstDeceptiveDecisionStep,
+    deceptiveDecisionSteps,
+    deceptiveLosingMovesAlongCertificate,
   });
-}
-
-function scoreOnboardingCandidate(candidate) {
-  const pressure = analyzeCertificateDecisionPressure(
-    candidate.pieces,
-    candidate.solution,
-  );
-  if (pressure.firstMixedDecisionStep === null) return -1;
-  return (
-    (candidate.solution.length - pressure.firstMixedDecisionStep) * 100 +
-    pressure.mixedDecisionSteps * 20 +
-    pressure.losingMovesAlongCertificate * 5
-  );
-}
-
-function selectOnboardingCandidate(candidates) {
-  return candidates
-    .map((candidate) => ({
-      candidate,
-      score: scoreOnboardingCandidate(candidate),
-    }))
-    .sort((left, right) => right.score - left.score)[0].candidate;
 }
 
 export function analyzeProgressionDifficulty(record) {
@@ -636,16 +644,45 @@ export function analyzeProgressionDifficulty(record) {
   });
 }
 
+function generateCuratedOpeningBoard(definition, random) {
+  const template = CURATED_OPENING_LEVELS[definition.chapterLevel];
+  if (!template) {
+    throw new Error(`Missing curated opening level ${definition.level + 1}`);
+  }
+
+  const turns = Math.floor(random() * 6);
+  const activeTypes = ELEMENT_TYPES.slice(0, definition.elementCount);
+  const permutedTypes = shuffle(activeTypes, random);
+  const typeMap = new Map(
+    activeTypes.map((type, index) => [type, permutedTypes[index]]),
+  );
+  const transformPosition = (position) =>
+    rotateHexAround(position, BOARD_CENTER, turns);
+  const pieces = template.pieces.map((item) => ({
+    ...transformPosition(item),
+    type: typeMap.get(item.type) ?? item.type,
+  }));
+  const solution = template.solution.map((certifiedMove) =>
+    certifiedMove.map(transformPosition),
+  );
+
+  replaySolution(pieces, solution);
+  return {
+    variant: definition.variant,
+    shape: "campaign-r3-curated",
+    plateRadius: definition.plateRadius,
+    plateCells: enumerateHexPlate(definition.plateRadius),
+    pieces,
+    solution,
+    board: new GardenBoard(pieces),
+  };
+}
+
 function generateCustomProgressionBoard(definition, random) {
   const ordinarySpecs = createOrdinarySpecs(definition, random);
   const moveSpecs = interleaveMetalSpecs(ordinarySpecs, definition.metalDepth);
   const pieceCount = moveSpecs.reduce((sum, move) => sum + move.length, 0);
   const plateCells = enumerateHexPlate(definition.plateRadius);
-  const chooseChallengingOnboarding =
-    definition.chapter === ProgressionChapter.ELEMENTS &&
-    definition.chapterLevel >= 3;
-  const candidateTarget = chooseChallengingOnboarding ? 96 : 1;
-  const candidates = [];
 
   if (pieceCount > plateCells.length) {
     throw new Error(
@@ -655,54 +692,23 @@ function generateCustomProgressionBoard(definition, random) {
 
   for (let maskAttempt = 0; maskAttempt < 300; maskAttempt += 1) {
     const mask = growConnectedMask(plateCells, pieceCount, random);
-    let candidatesFromMask = 0;
     for (let placementAttempt = 0; placementAttempt < 120; placementAttempt += 1) {
       const result = assignSchedule(mask, moveSpecs, random);
       if (!result) continue;
       replaySolution(result.pieces, result.solution);
-      const candidate = {
+      const finalized = {
         ...result,
+        sampledRouteWinProbability: sampleRouteWinProbability(result.pieces),
       };
-      candidates.push(candidate);
-      candidatesFromMask += 1;
-
-      if (candidates.length >= candidateTarget) {
-        const selected = chooseChallengingOnboarding
-          ? selectOnboardingCandidate(candidates)
-          : candidate;
-        const finalized = {
-          ...selected,
-          sampledRouteWinProbability: sampleRouteWinProbability(
-            selected.pieces,
-          ),
-        };
-        return {
-          variant: definition.variant,
-          shape: `campaign-r${definition.plateRadius}`,
-          plateRadius: definition.plateRadius,
-          plateCells,
-          ...finalized,
-          board: new GardenBoard(finalized.pieces),
-        };
-      }
-      if (chooseChallengingOnboarding && candidatesFromMask >= 4) break;
+      return {
+        variant: definition.variant,
+        shape: `campaign-r${definition.plateRadius}`,
+        plateRadius: definition.plateRadius,
+        plateCells,
+        ...finalized,
+        board: new GardenBoard(finalized.pieces),
+      };
     }
-  }
-
-  if (candidates.length > 0) {
-    const selected = selectOnboardingCandidate(candidates);
-    const finalized = {
-      ...selected,
-      sampledRouteWinProbability: sampleRouteWinProbability(selected.pieces),
-    };
-    return {
-      variant: definition.variant,
-      shape: `campaign-r${definition.plateRadius}`,
-      plateRadius: definition.plateRadius,
-      plateCells,
-      ...finalized,
-      board: new GardenBoard(finalized.pieces),
-    };
   }
 
   throw new Error(`Could not construct progression level ${definition.level + 1}`);
@@ -717,7 +723,9 @@ export function generateProgressionLevel(
   const random = createSeededRandom(seed);
   let generated;
 
-  if (definition.fullComposition) {
+  if (definition.chapter === ProgressionChapter.ELEMENTS) {
+    generated = generateCuratedOpeningBoard(definition, random);
+  } else if (definition.fullComposition) {
     generated = generateSolvableBoard({
       random,
       variant: definition.variant,

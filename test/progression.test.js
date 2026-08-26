@@ -129,11 +129,28 @@ test("opening progression creates early choices and requires Salt wildcards", ()
   assert.equal(levels[0].difficulty.initialMeaningfulMoveCount, 1);
   assert.ok(levels[2].difficulty.initialMeaningfulMoveCount >= 3);
 
-  for (const record of levels.slice(3, 8)) {
-    assert.ok(record.difficulty.firstMixedDecisionStep <= 3);
-    assert.ok(record.difficulty.mixedDecisionSteps >= 1);
-    assert.ok(record.difficulty.losingMovesAlongCertificate >= 1);
-  }
+  assert.equal(
+    levels.slice(0, 8).every((record) => record.shape === "campaign-r3-curated"),
+    true,
+  );
+  assert.deepEqual(
+    levels.slice(3, 8).map((record) => ({
+      first: record.difficulty.firstDeceptiveDecisionStep,
+      steps: record.difficulty.deceptiveDecisionSteps,
+      losing: record.difficulty.deceptiveLosingMovesAlongCertificate,
+    })),
+    [
+      { first: 3, steps: 1, losing: 1 },
+      { first: 3, steps: 2, losing: 2 },
+      { first: 3, steps: 2, losing: 2 },
+      { first: 2, steps: 3, losing: 7 },
+      { first: 2, steps: 1, losing: 1 },
+    ],
+  );
+  assert.ok(
+    levels[6].difficulty.randomRouteWinProbability <
+      levels[7].difficulty.randomRouteWinProbability,
+  );
 
   for (const record of levels.slice(8)) {
     const saltCount = record.pieces.filter(
@@ -169,6 +186,35 @@ test("opening progression creates early choices and requires Salt wildcards", ()
     ),
     true,
   );
+});
+
+test("opening seed changes presentation without changing authored pressure", () => {
+  for (let level = 0; level < 8; level += 1) {
+    const first = generateProgressionLevel(level, {
+      campaignSeed: "opening-a",
+    });
+    const second = generateProgressionLevel(level, {
+      campaignSeed: "opening-b",
+    });
+
+    assert.notDeepEqual(first.pieces, second.pieces);
+    assert.equal(replaySolution(first.pieces, first.solution), true);
+    assert.equal(replaySolution(second.pieces, second.solution), true);
+    assert.deepEqual(
+      {
+        win: first.difficulty.randomRouteWinProbability,
+        first: first.difficulty.firstDeceptiveDecisionStep,
+        steps: first.difficulty.deceptiveDecisionSteps,
+        losing: first.difficulty.deceptiveLosingMovesAlongCertificate,
+      },
+      {
+        win: second.difficulty.randomRouteWinProbability,
+        first: second.difficulty.firstDeceptiveDecisionStep,
+        steps: second.difficulty.deceptiveDecisionSteps,
+        losing: second.difficulty.deceptiveLosingMovesAlongCertificate,
+      },
+    );
+  }
 });
 
 test("exact route analysis stays off the full-size synchronous generation path", () => {
