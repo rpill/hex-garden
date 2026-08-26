@@ -3,10 +3,16 @@ import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { SigmarsGardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import { BoardVariant } from "../../generator.js";
+import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
 import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
+const PlayMode = Object.freeze({
+  CAMPAIGN: "campaign",
+  STANDARD: BoardVariant.STANDARD,
+  QUINTESSENCE: BoardVariant.QUINTESSENCE,
+});
 const TOP_BAR_HEIGHT = 52;
 const BOTTOM_BAR_HEIGHT = 134;
 
@@ -68,9 +74,13 @@ export class BoardScene extends Phaser.Scene {
   constructor() {
     super("board");
     this.level = 0;
+    this.mode = PlayMode.CAMPAIGN;
     this.variant = BoardVariant.STANDARD;
     this.generationToken = 0;
     this.initialPieces = [];
+    this.plateCells = enumerateBoardCells();
+    this.plateRadius = 5;
+    this.levelDefinition = undefined;
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.activePanelType = null;
@@ -87,12 +97,12 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
     this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
     this.nextButton = makeButton(this, ">", () => this.changeLevel(1));
-    this.variantButton = makeButton(this, "VARIANT", () => this.toggleVariant());
+    this.variantButton = makeButton(this, "MODE", () => this.cycleMode());
 
     this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
     this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
-    this.input.keyboard?.on("keydown-V", () => this.toggleVariant());
+    this.input.keyboard?.on("keydown-V", () => this.cycleMode());
 
     this.scale.on("resize", () => this.layout());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.generator.terminate());
@@ -112,16 +122,26 @@ export class BoardScene extends Phaser.Scene {
     this.render();
 
     try {
-      const record = await this.generator.generate(this.level, {
-        campaignSeed: CAMPAIGN_SEED,
-        variant: this.variant,
-      });
+      const record =
+        this.mode === PlayMode.CAMPAIGN
+          ? await this.generator.generateProgression(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+            })
+          : await this.generator.generate(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+              variant: this.mode,
+            });
       if (token !== this.generationToken) return;
       this.board = record.board;
+      this.variant = record.variant;
       this.boardShape = record.shape;
+      this.plateCells = record.plateCells ?? enumerateBoardCells();
+      this.plateRadius = record.plateRadius ?? 5;
+      this.levelDefinition = record.definition;
       this.initialPieces = record.pieces.map((piece) => ({ ...piece }));
       this.status.setText("");
       this.setBusy(false);
+      this.rebuildPanelViews();
       this.rebuildPieceViews();
       this.layout();
     } catch (error) {
@@ -134,18 +154,30 @@ export class BoardScene extends Phaser.Scene {
 
   changeLevel(delta) {
     if (this.busy) return;
-    const next = Math.max(0, this.level + delta);
+    const maximum =
+      this.mode === PlayMode.CAMPAIGN
+        ? PROGRESSION_LEVEL_COUNT - 1
+        : Number.MAX_SAFE_INTEGER;
+    const next = Math.min(maximum, Math.max(0, this.level + delta));
     if (next === this.level) return;
     this.level = next;
     this.loadLevel();
   }
 
-  toggleVariant() {
+  cycleMode() {
     if (this.busy) return;
+    this.mode =
+      this.mode === PlayMode.CAMPAIGN
+        ? PlayMode.STANDARD
+        : this.mode === PlayMode.STANDARD
+          ? PlayMode.QUINTESSENCE
+          : PlayMode.CAMPAIGN;
+    this.level = 0;
     this.variant =
-      this.variant === BoardVariant.STANDARD
+      this.mode === PlayMode.QUINTESSENCE
         ? BoardVariant.QUINTESSENCE
         : BoardVariant.STANDARD;
+    this.levelDefinition = undefined;
     this.rebuildPanelViews();
     this.loadLevel();
   }
@@ -265,7 +297,12 @@ export class BoardScene extends Phaser.Scene {
 
     const boardHeight = Math.max(100, height - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
-    this.hexSize = Math.max(9, Math.min(boardWidth / 19.2, boardHeight / 17.2));
+    const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
+    const plateHeight = this.plateRadius * 3 + 2.2;
+    this.hexSize = Math.max(
+      9,
+      Math.min(boardWidth / plateWidth, boardHeight / plateHeight),
+    );
     this.boardCenterX = width / 2;
     this.boardCenterY = TOP_BAR_HEIGHT + boardHeight / 2;
 
@@ -340,16 +377,29 @@ export class BoardScene extends Phaser.Scene {
 
   render() {
     const count = this.board?.size ?? 0;
+    const total = this.initialPieces.length || 0;
+    const chapter =
+      this.mode === PlayMode.CAMPAIGN
+        ? (this.levelDefinition?.chapter ?? "campaign").toUpperCase()
+        : (this.boardShape ?? "-").toUpperCase();
+    const levelLabel =
+      this.mode === PlayMode.CAMPAIGN
+        ? `${String(this.level + 1).padStart(2, "0")}/${PROGRESSION_LEVEL_COUNT}`
+        : String(this.level + 1).padStart(4, "0");
     this.header.setText(
-      `${this.variant.toUpperCase()} / ${(this.boardShape ?? "-").toUpperCase()}   LEVEL ${String(this.level + 1).padStart(4, "0")}   ${count}/55`,
+      `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
     this.variantButton.setText(
-      this.variant === BoardVariant.STANDARD ? "STANDARD" : "Q MODE",
+      this.mode === PlayMode.CAMPAIGN
+        ? "CAMPAIGN"
+        : this.mode === PlayMode.STANDARD
+          ? "STANDARD"
+          : "Q MODE",
     );
 
     this.renderPanel();
     this.cellGraphics.clear();
-    for (const cell of enumerateBoardCells()) {
+    for (const cell of this.plateCells) {
       const position = this.hexToScreen(cell);
       this.drawHex(
         this.cellGraphics,
