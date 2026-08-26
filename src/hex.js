@@ -56,17 +56,32 @@ export function rotateHexAround(index, pivot, turns) {
   return addHex(rotateHex(subtractHex(index, pivot), turns), pivot);
 }
 
-/** The 91 cells of the radius-5 hexagonal game plate. */
-export function enumerateBoardCells() {
+/** All cells of a hexagonal plate around an arbitrary centre. */
+export function enumerateHexPlate(radius, center = BOARD_CENTER) {
+  if (!Number.isSafeInteger(radius) || radius < 0) {
+    throw new RangeError("radius must be a non-negative safe integer");
+  }
   const result = [];
-  for (let q = 0; q <= BOARD_RADIUS * 2; q += 1) {
-    const minR = Math.max(-q, -BOARD_RADIUS);
-    const maxR = Math.min(BOARD_RADIUS * 2 - q, BOARD_RADIUS);
-    for (let r = minR; r <= maxR; r += 1) result.push(hex(q, r));
+  for (let dq = -radius; dq <= radius; dq += 1) {
+    const minDr = Math.max(-radius, -dq - radius);
+    const maxDr = Math.min(radius, -dq + radius);
+    for (let dr = minDr; dr <= maxDr; dr += 1) {
+      result.push(hex(center.q + dq, center.r + dr));
+    }
   }
   return result;
 }
 
+/** The 91 cells of the original radius-5 game plate. */
+export function enumerateBoardCells() {
+  return enumerateHexPlate(BOARD_RADIUS);
+}
+
+export function isHexPlateCell(index, radius, center = BOARD_CENTER) {
+  if (!Number.isSafeInteger(radius) || radius < 0) return false;
+  return hexDistance(index, center) <= radius;
+}
+
 export function isBoardCell(index) {
-  return hexDistance(index, BOARD_CENTER) <= BOARD_RADIUS;
+  return isHexPlateCell(index, BOARD_RADIUS);
 }

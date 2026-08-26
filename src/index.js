@@ -28,15 +28,25 @@ export {
   generateCampaignLevel,
 } from "./campaign.js";
 export {
+  DEFAULT_PROGRESSION_SEED,
+  PROGRESSION_LEVEL_COUNT,
+  ProgressionChapter,
+  analyzeProgressionDifficulty,
+  generateProgressionLevel,
+  getProgressionLevelDefinition,
+} from "./progression.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,
   addHex,
   enumerateBoardCells,
+  enumerateHexPlate,
   hex,
   hexDistance,
   hexKey,
   isBoardCell,
+  isHexPlateCell,
   rotateHex,
   rotateHexAround,
   subtractHex,
