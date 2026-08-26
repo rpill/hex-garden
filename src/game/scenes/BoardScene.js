@@ -6,13 +6,10 @@ import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
 import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
+import { getCampaignProgress } from "../campaign-progress.js";
+import { PlayMode } from "../modes.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
-const PlayMode = Object.freeze({
-  CAMPAIGN: "campaign",
-  STANDARD: BoardVariant.STANDARD,
-  QUINTESSENCE: BoardVariant.QUINTESSENCE,
-});
 const TOP_BAR_HEIGHT = 52;
 const BOTTOM_BAR_HEIGHT = 134;
 
@@ -86,7 +83,31 @@ export class BoardScene extends Phaser.Scene {
     this.activePanelType = null;
   }
 
+  init(data = {}) {
+    this.progress = getCampaignProgress(this);
+    this.mode = Object.values(PlayMode).includes(data.mode)
+      ? data.mode
+      : PlayMode.CAMPAIGN;
+    this.variant =
+      this.mode === PlayMode.QUINTESSENCE
+        ? BoardVariant.QUINTESSENCE
+        : BoardVariant.STANDARD;
+    const requestedLevel =
+      Number.isSafeInteger(data.level) && data.level >= 0 ? data.level : 0;
+    this.level =
+      this.mode === PlayMode.CAMPAIGN
+        ? Math.min(requestedLevel, this.progress.snapshot.highestUnlocked)
+        : requestedLevel;
+    this.initialPieces = [];
+    this.plateCells = enumerateBoardCells();
+    this.plateRadius = 5;
+    this.levelDefinition = undefined;
+    this.activePanelType = null;
+  }
+
   create() {
+    this.pieceViews = new Map();
+    this.panelViews = new Map();
     this.generator = new BrowserLevelGenerator();
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics();
@@ -97,15 +118,20 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
     this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
     this.nextButton = makeButton(this, ">", () => this.changeLevel(1));
-    this.variantButton = makeButton(this, "MODE", () => this.cycleMode());
+    this.menuButton = makeButton(this, "MENU", () => this.leaveBoard());
 
     this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
     this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
-    this.input.keyboard?.on("keydown-V", () => this.cycleMode());
+    this.input.keyboard?.on("keydown-ESC", () => this.leaveBoard());
 
-    this.scale.on("resize", () => this.layout());
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.generator.terminate());
+    this.scale.on("resize", this.layout, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.layout, this);
+      this.generator.terminate();
+      this.pieceViews.clear();
+      this.panelViews.clear();
+    });
     this.rebuildPanelViews();
     this.layout();
     this.loadLevel();
@@ -156,7 +182,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.busy) return;
     const maximum =
       this.mode === PlayMode.CAMPAIGN
-        ? PROGRESSION_LEVEL_COUNT - 1
+        ? this.progress.snapshot.highestUnlocked
         : Number.MAX_SAFE_INTEGER;
     const next = Math.min(maximum, Math.max(0, this.level + delta));
     if (next === this.level) return;
@@ -164,22 +190,11 @@ export class BoardScene extends Phaser.Scene {
     this.loadLevel();
   }
 
-  cycleMode() {
-    if (this.busy) return;
-    this.mode =
-      this.mode === PlayMode.CAMPAIGN
-        ? PlayMode.STANDARD
-        : this.mode === PlayMode.STANDARD
-          ? PlayMode.QUINTESSENCE
-          : PlayMode.CAMPAIGN;
-    this.level = 0;
-    this.variant =
-      this.mode === PlayMode.QUINTESSENCE
-        ? BoardVariant.QUINTESSENCE
-        : BoardVariant.STANDARD;
-    this.levelDefinition = undefined;
-    this.rebuildPanelViews();
-    this.loadLevel();
+  leaveBoard() {
+    this.generationToken += 1;
+    this.scene.start(
+      this.mode === PlayMode.CAMPAIGN ? "level-select" : "menu",
+    );
   }
 
   restartLevel() {
@@ -202,7 +217,22 @@ export class BoardScene extends Phaser.Scene {
     } else if (result.kind === "deselected") {
       this.status.setText("");
     } else if (result.kind === "removed") {
-      this.status.setText(this.board.won ? "BOARD CLEARED" : "");
+      let message = "";
+      if (this.board.won) {
+        message = "BOARD CLEARED";
+        if (this.mode === PlayMode.CAMPAIGN) {
+          const alreadyCompleted = this.progress.isCompleted(this.level);
+          const snapshot = this.progress.complete(this.level);
+          if (snapshot.campaignCompleted) {
+            message = "CAMPAIGN COMPLETE";
+          } else if (!alreadyCompleted) {
+            message =
+              `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
+          }
+        }
+        this.setBusy(false);
+      }
+      this.status.setText(message);
       this.rebuildPieceViews();
     }
     this.layout();
@@ -272,10 +302,14 @@ export class BoardScene extends Phaser.Scene {
   setBusy(value) {
     this.busy = value;
     const alpha = value ? 0.45 : 1;
-    this.previousButton.setAlpha(alpha);
+    const previousUnavailable = this.level === 0;
+    const nextUnavailable =
+      this.mode === PlayMode.CAMPAIGN &&
+      this.level >= this.progress.snapshot.highestUnlocked;
+    this.previousButton.setAlpha(value || previousUnavailable ? 0.45 : 1);
     this.restartButton.setAlpha(alpha);
-    this.nextButton.setAlpha(alpha);
-    this.variantButton.setAlpha(alpha);
+    this.nextButton.setAlpha(value || nextUnavailable ? 0.45 : 1);
+    this.menuButton.setAlpha(1);
   }
 
   layout() {
@@ -291,7 +325,7 @@ export class BoardScene extends Phaser.Scene {
     this.restartButton.setPosition(width / 2, controlsY);
     this.previousButton.setPosition(width / 2 - gap, controlsY);
     this.nextButton.setPosition(width / 2 + gap, controlsY);
-    this.variantButton.setPosition(compact ? width - 57 : width - 92, controlsY);
+    this.menuButton.setPosition(compact ? width - 48 : width - 70, controlsY);
 
     this.layoutPanel(width, height, compact);
 
@@ -389,12 +423,8 @@ export class BoardScene extends Phaser.Scene {
     this.header.setText(
       `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
-    this.variantButton.setText(
-      this.mode === PlayMode.CAMPAIGN
-        ? "CAMPAIGN"
-        : this.mode === PlayMode.STANDARD
-          ? "STANDARD"
-          : "Q MODE",
+    this.menuButton.setText(
+      this.mode === PlayMode.CAMPAIGN ? "LEVELS" : "MENU",
     );
 
     this.renderPanel();
