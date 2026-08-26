@@ -50,10 +50,11 @@ test("removing a metal advances the panel from lead toward gold", () => {
   assert.equal(byType.get(Atom.GOLD).locked, true);
 });
 
-test("quintessence variant swaps the counted Hg slot for Q", () => {
+test("quintessence panel shows both Hg and Q", () => {
   const types = panelTypesForVariant("quintessence");
+  assert.equal(types.length, 13);
   assert.equal(types.includes(Atom.QUINTESSENCE), true);
-  assert.equal(types.includes(Atom.QUICKSILVER), false);
+  assert.equal(types.includes(Atom.QUICKSILVER), true);
 
   const state = createPanelState(
     pieces(Atom.AIR, Atom.QUINTESSENCE, Atom.QUICKSILVER),
@@ -61,6 +62,7 @@ test("quintessence variant swaps the counted Hg slot for Q", () => {
   );
   const byType = new Map(state.entries.map((entry) => [entry.type, entry]));
   assert.equal(byType.get(Atom.QUINTESSENCE).count, 1);
+  assert.equal(byType.get(Atom.QUICKSILVER).count, 1);
   assert.equal(byType.get(Atom.QUINTESSENCE).selected, true);
   assert.equal(byType.get(Atom.AIR).warning, false);
 });

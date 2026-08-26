@@ -404,13 +404,14 @@ export class BoardScene extends Phaser.Scene {
     this.panelGraphics.lineStyle(1, 0x555555, 1);
     this.panelGraphics.strokeRect(left, y - radius - 9, width, radius * 2 + 18);
 
-    for (const boundary of [1, 5, 6]) {
+    const metalStartIndex = types.indexOf(Atom.LEAD);
+    for (const boundary of [1, 5, metalStartIndex]) {
       const x = left + step * boundary;
       this.panelGraphics.lineStyle(1, 0x686868, 0.8);
       this.panelGraphics.lineBetween(x, y - radius, x, y + radius);
     }
 
-    for (let index = 6; index < types.length - 1; index += 1) {
+    for (let index = metalStartIndex; index < types.length - 1; index += 1) {
       const fromX = left + step * (index + 0.5) + radius + 2;
       const toX = left + step * (index + 1.5) - radius - 2;
       if (toX <= fromX) continue;
