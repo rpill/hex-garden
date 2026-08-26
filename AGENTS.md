@@ -1,17 +1,17 @@
-# Sigmar's Garden rules lab — project instructions
+# Sigmar's Garden progression lab — project instructions
 
 ## Current phase
 
-This project is deliberately a mechanics and level-generation test bench. Until the user explicitly changes the phase, do not add product UI or styling: no title/menu screens, settings, tutorial, hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, difficulty modes, renamed atoms, or imported art.
+This project is a mechanics, progression, and level-generation test bench. The current product goal is a 60-level main campaign that teaches mechanics gradually, while the existing `standard` and `quintessence` generators remain independent endless modes. Do not add product styling yet: no title/menu screens, settings, tutorial overlays, hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art.
 
-The runtime should expose only what is needed to inspect the board:
+The runtime should expose only what is needed to inspect the board and progression:
 
-- the 91-cell radius-5 hexagonal plate;
-- the current 55-piece level;
+- campaign plates of 37, 61, or 91 cells, plus the endless 91-cell plate;
+- the current variable-size campaign layout or 55-piece endless layout;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
-- previous level, next level, restart, and board-variant controls;
+- previous level, next level, restart, and `CAMPAIGN -> STANDARD -> Q MODE` controls;
 - direct selection/removal behavior;
-- the functional atom inventory panel: remaining Salt/elements/Hg and, in the quintessence variant, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
+- the functional atom inventory panel: remaining Salt/elements/Hg and, in quintessence layouts, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 
 The folder `styloo Vector Icons and UI/` is parked source material. Do not import or modify it during this phase.
 
@@ -35,9 +35,21 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 `src/board.js` is the authority for runtime move behavior. Renderer code must call it and must not duplicate or weaken these rules.
 
-## Levels
+## Main progression
 
-- Every level has exactly 55 pieces on distinct cells of the 91-cell plate.
+- `src/progression.js` owns a separate deterministic 60-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
+- Levels 1-8 use 37 cells and introduce the four elements gradually.
+- Levels 9-16 stay on 37 cells and add Salt.
+- Levels 17-26 use 61 cells and add Vitae/Mors.
+- Levels 27-38 stay on 61 cells and add Quicksilver plus the metal chain incrementally. Gold appears only after the complete chain.
+- Levels 39-50 use 91 cells and the full standard 55-piece composition.
+- Levels 51-60 use 91 cells, introduce Quintessence, and finish with the full quintessence composition.
+- Every generated campaign record contains a solution certificate replayed through `SigmarsGardenBoard.select()`, plate geometry, a mechanics definition, and difficulty measurements.
+- Campaign level indices are zero-based internally and limited to `0..59`.
+
+## Endless modes
+
+- Every endless level has exactly 55 pieces on distinct cells of the 91-cell plate.
 - `standard` composition: 8 of each cardinal element, 4 Salt, 4 Vitae, 4 Mors, 5 Quicksilver, and one of each metal from Lead through Gold.
 - `quintessence` composition: 8 of each cardinal element, 4 Salt, 3 Vitae, 3 Mors, 5 Quicksilver, two Quintessence, and one of each metal.
 - Level masks use the same structural principle observed across the original database without loading original coordinates: centre Gold plus rotational orbits totalling 54 cells.
@@ -54,10 +66,11 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 ## Architecture
 
 - Phaser 3 + Vite + native ES modules.
-- Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, and `src/campaign.js`.
+- Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, `src/campaign.js`, and `src/progression.js`.
 - The only active scene is `src/game/scenes/BoardScene.js`.
 - Use `Phaser.Scale.RESIZE`; keep the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
-- No persistence is required in this phase. A level is regenerated from its number.
+- No persistence is required in this phase. A level is regenerated from its mode, seed, and number.
+- `BrowserLevelGenerator.generate()` and worker requests without a kind remain the endless API. Progression uses `generateProgression()` and `kind: "progression"`.
 
 ## Git workflow
 
@@ -69,10 +82,11 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 Before handoff:
 
-1. Run `pnpm test`.
-2. Run `pnpm build`.
-3. Verify exact piece counts for both variants.
-4. Replay generated solution certificates for a sequence of levels in both variants.
-5. Smoke-test selecting a legal pair, rejecting a blocked atom, restarting, switching level, and switching variant.
+1. Run `pnpm test` (or the equivalent `node --test` if the package-manager bootstrap is blocked by a local build-script policy).
+2. Run `pnpm build` (or invoke the installed Vite CLI directly for the same reason).
+3. Verify exact 55-piece counts for both endless variants.
+4. Replay generated solution certificates for all 60 campaign levels and a sequence of levels in both endless variants.
+5. Verify campaign boundaries at levels 1, 9, 17, 27, 39, and 51.
+6. Smoke-test selecting a legal pair, rejecting a blocked atom, restarting, switching level, switching all three modes, and phone portrait layout.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.
