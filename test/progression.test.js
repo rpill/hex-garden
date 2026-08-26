@@ -86,7 +86,7 @@ test("mechanics unlock by chapter without changing the endless contracts", () =>
   );
 });
 
-test("opening progression adds novelty quickly and introduces Salt as a slope", () => {
+test("opening progression creates early choices and requires Salt wildcards", () => {
   const elementDefinitions = Array.from({ length: 8 }, (_value, level) =>
     getProgressionLevelDefinition(level),
   );
@@ -96,7 +96,7 @@ test("opening progression adds novelty quickly and introduces Salt as a slope", 
   );
   assert.deepEqual(
     elementDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [4, 5, 6, 7, 8, 9, 10, 11],
+    [4, 6, 8, 10, 12, 12, 12, 12],
   );
 
   const saltDefinitions = Array.from({ length: 8 }, (_value, index) =>
@@ -104,15 +104,19 @@ test("opening progression adds novelty quickly and introduces Salt as a slope", 
   );
   assert.deepEqual(
     saltDefinitions.map((definition) => definition.elementCount),
-    [1, 2, 2, 3, 3, 4, 4, 4],
+    [4, 4, 4, 4, 4, 4, 4, 4],
   );
   assert.deepEqual(
     saltDefinitions.map((definition) => definition.saltPairCount),
-    [1, 1, 1, 1, 1, 1, 2, 2],
+    [0, 0, 1, 1, 1, 2, 2, 2],
+  );
+  assert.deepEqual(
+    saltDefinitions.map((definition) => definition.saltElementPairCount),
+    [1, 2, 3, 4, 4, 4, 4, 4],
   );
   assert.deepEqual(
     saltDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [8, 8, 9, 10, 10, 11, 12, 13],
+    [12, 13, 14, 15, 16, 16, 16, 16],
   );
 
   const levels = Array.from({ length: 16 }, (_value, level) =>
@@ -123,29 +127,49 @@ test("opening progression adds novelty quickly and introduces Salt as a slope", 
   assert.equal(levels[0].difficulty.shortestDeadEndMove, null);
   assert.ok(levels[0].difficulty.initialLegalMoveCount > 1);
   assert.equal(levels[0].difficulty.initialMeaningfulMoveCount, 1);
+  assert.ok(levels[2].difficulty.initialMeaningfulMoveCount >= 3);
 
-  const firstSalt = levels[8].difficulty;
-  const secondSalt = levels[9].difficulty;
-  const thirdSalt = levels[10].difficulty;
-  assert.equal(firstSalt.randomRouteWinProbability, 1);
-  assert.equal(firstSalt.shortestDeadEndMove, null);
-  assert.ok(
-    secondSalt.randomRouteWinProbability <
-      firstSalt.randomRouteWinProbability,
-  );
-  assert.ok(
-    thirdSalt.randomRouteWinProbability <
-      secondSalt.randomRouteWinProbability,
-  );
-  assert.ok(secondSalt.shortestDeadEndMove >= 6);
-  assert.ok(thirdSalt.shortestDeadEndMove >= 7);
+  for (const record of levels.slice(4, 8)) {
+    assert.ok(record.difficulty.randomRouteWinProbability < 0.85);
+    assert.ok(record.difficulty.initialMeaningfulMoveCount >= 2);
+  }
+  assert.ok(levels[6].difficulty.randomRouteWinProbability < 0.7);
+  assert.ok(levels[7].difficulty.randomRouteWinProbability < 0.7);
+
+  for (const record of levels.slice(8)) {
+    const saltCount = record.pieces.filter(
+      (piece) => piece.type === Atom.SALT,
+    ).length;
+    const oddElementCount = [
+      Atom.AIR,
+      Atom.FIRE,
+      Atom.WATER,
+      Atom.EARTH,
+    ].filter(
+      (type) =>
+        record.pieces.filter((piece) => piece.type === type).length % 2 === 1,
+    ).length;
+    assert.equal(
+      saltCount,
+      record.definition.saltElementPairCount +
+        record.definition.saltPairCount * 2,
+    );
+    assert.equal(oddElementCount, record.definition.saltElementPairCount);
+    assert.ok(record.difficulty.sampledRouteWinProbability < 0.55);
+  }
+
   assert.equal(
-    levels.slice(0, 15).every(
+    levels.slice(0, 9).every(
       (record) => record.difficulty.routeAnalysisComplete,
     ),
     true,
   );
-  assert.equal(levels[15].difficulty.routeAnalysisComplete, false);
+  assert.equal(
+    levels.slice(9).every(
+      (record) => !record.difficulty.routeAnalysisComplete,
+    ),
+    true,
+  );
 });
 
 test("exact route analysis stays off the full-size synchronous generation path", () => {

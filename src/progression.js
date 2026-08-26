@@ -134,17 +134,16 @@ export function getProgressionLevelDefinition(level) {
     // spatial decisions. Repeating each newly introduced element for two
     // whole levels made the opening feel like mechanical pair clicking.
     definition.elementCount = Math.min(4, 1 + index);
-    definition.ordinaryMoveCount = 4 + index;
+    definition.ordinaryMoveCount =
+      index < 4 ? 4 + index * 2 : 12;
   } else if (chapter.id === ProgressionChapter.SALT) {
-    // Isolate Salt against one familiar element first. Additional element
-    // colours return gradually so the wildcard risk is introduced as a slope
-    // instead of a one-level difficulty cliff.
-    definition.elementCount = Math.min(
-      4,
-      1 + Math.floor((index + 1) / 2),
-    );
-    definition.ordinaryMoveCount = 8 + Math.floor((index * 5) / 7);
-    definition.saltPairCount = 1 + Math.floor(index / 6);
+    // The player already knows all four elements. Salt should create planning
+    // pressure immediately instead of restarting the chapter as a tutorial.
+    definition.elementCount = 4;
+    definition.ordinaryMoveCount = 12 + Math.min(index, 4);
+    definition.saltElementPairCount = 1 + Math.min(index, 3);
+    definition.saltPairCount =
+      index < 2 ? 0 : 1 + Math.floor((index - 2) / 3);
     definition.mechanics.push("salt");
   } else if (chapter.id === ProgressionChapter.OPPOSITES) {
     definition.elementCount = 4;
@@ -212,6 +211,14 @@ function createOrdinarySpecs(definition, random) {
     { length: definition.saltPairCount ?? 0 },
     () => pair(Atom.SALT),
   );
+  const saltElementSpecs = Array.from(
+    { length: definition.saltElementPairCount ?? 0 },
+    (_value, index) =>
+      pair(
+        Atom.SALT,
+        ELEMENT_TYPES[(definition.level + index) % definition.elementCount],
+      ),
+  );
   const oppositeSpecs = Array.from(
     { length: definition.oppositePairCount ?? 0 },
     () => pair(Atom.VITAE, Atom.MORS),
@@ -223,6 +230,7 @@ function createOrdinarySpecs(definition, random) {
   const elementPairCount =
     definition.ordinaryMoveCount -
     saltSpecs.length -
+    saltElementSpecs.length -
     oppositeSpecs.length -
     quintessenceSpecs.length;
 
@@ -230,6 +238,7 @@ function createOrdinarySpecs(definition, random) {
   return shuffle(
     [
       ...saltSpecs,
+      ...saltElementSpecs,
       ...oppositeSpecs,
       ...quintessenceSpecs,
       ...cycleElementPairs(
@@ -465,6 +474,83 @@ function analyzeReachableRoutes(pieces) {
   });
 }
 
+function sampleRouteWinProbability(pieces, trials = 32) {
+  const sampleSeed = pieces
+    .map((piece) => `${piece.q},${piece.r},${piece.type}`)
+    .sort()
+    .join("|");
+  const random = createSeededRandom(`route-sample:${sampleSeed}`);
+  let wins = 0;
+
+  for (let trial = 0; trial < trials; trial += 1) {
+    const board = new GardenBoard(pieces);
+    while (!board.won) {
+      const legalMoves = board.legalMoves();
+      if (legalMoves.length === 0) break;
+      const move = legalMoves[Math.floor(random() * legalMoves.length)];
+      applyMove(board, move);
+    }
+    if (board.won) wins += 1;
+  }
+
+  return wins / trials;
+}
+
+function candidateChoicePressure(candidate) {
+  const board = new GardenBoard(candidate.pieces);
+  const sampleLength = Math.max(
+    1,
+    Math.ceil(candidate.solution.length * 0.7),
+  );
+  const meaningfulCounts = [];
+
+  for (const move of candidate.solution.slice(0, sampleLength)) {
+    meaningfulCounts.push(
+      new Set(board.legalMoves().map(moveTypeSignature)).size,
+    );
+    applyMove(board, move);
+  }
+
+  return {
+    initial: meaningfulCounts[0] ?? 0,
+    average:
+      meaningfulCounts.reduce((sum, count) => sum + count, 0) /
+      meaningfulCounts.length,
+  };
+}
+
+function scoreOnboardingCandidate(candidate) {
+  const pressure = candidateChoicePressure(candidate);
+  return (
+    (1 - candidate.sampledRouteWinProbability) * 100 +
+    pressure.initial * 2 +
+    pressure.average
+  );
+}
+
+function selectOnboardingCandidate(candidates) {
+  const shortlisted = candidates
+    .map((candidate) => ({
+      candidate,
+      score: scoreOnboardingCandidate(candidate),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 8);
+
+  return shortlisted
+    .map(({ candidate, score }) => ({
+      candidate,
+      score,
+      exactWinProbability: analyzeReachableRoutes(candidate.pieces)
+        .randomRouteWinProbability,
+    }))
+    .sort(
+      (left, right) =>
+        left.exactWinProbability - right.exactWinProbability ||
+        right.score - left.score,
+    )[0].candidate;
+}
+
 export function analyzeProgressionDifficulty(record) {
   const board = new GardenBoard(record.pieces);
   const snapshots = [];
@@ -502,6 +588,9 @@ export function analyzeProgressionDifficulty(record) {
     averageMeaningfulMoveCount:
       meaningfulCounts.reduce((sum, count) => sum + count, 0) /
       meaningfulCounts.length,
+    sampledRouteWinProbability:
+      record.sampledRouteWinProbability ??
+      routeAnalysis.randomRouteWinProbability,
     ...routeAnalysis,
   });
 }
@@ -511,6 +600,11 @@ function generateCustomProgressionBoard(definition, random) {
   const moveSpecs = interleaveMetalSpecs(ordinarySpecs, definition.metalDepth);
   const pieceCount = moveSpecs.reduce((sum, move) => sum + move.length, 0);
   const plateCells = enumerateHexPlate(definition.plateRadius);
+  const chooseChallengingOnboarding =
+    definition.chapter === ProgressionChapter.ELEMENTS &&
+    definition.chapterLevel >= 4;
+  const candidateTarget = chooseChallengingOnboarding ? 48 : 1;
+  const candidates = [];
 
   if (pieceCount > plateCells.length) {
     throw new Error(
@@ -520,19 +614,45 @@ function generateCustomProgressionBoard(definition, random) {
 
   for (let maskAttempt = 0; maskAttempt < 300; maskAttempt += 1) {
     const mask = growConnectedMask(plateCells, pieceCount, random);
+    let candidatesFromMask = 0;
     for (let placementAttempt = 0; placementAttempt < 120; placementAttempt += 1) {
       const result = assignSchedule(mask, moveSpecs, random);
       if (!result) continue;
       replaySolution(result.pieces, result.solution);
-      return {
-        variant: definition.variant,
-        shape: `campaign-r${definition.plateRadius}`,
-        plateRadius: definition.plateRadius,
-        plateCells,
+      const candidate = {
         ...result,
-        board: new GardenBoard(result.pieces),
+        sampledRouteWinProbability: sampleRouteWinProbability(result.pieces),
       };
+      candidates.push(candidate);
+      candidatesFromMask += 1;
+
+      if (candidates.length >= candidateTarget) {
+        const selected = chooseChallengingOnboarding
+          ? selectOnboardingCandidate(candidates)
+          : candidate;
+        return {
+          variant: definition.variant,
+          shape: `campaign-r${definition.plateRadius}`,
+          plateRadius: definition.plateRadius,
+          plateCells,
+          ...selected,
+          board: new GardenBoard(selected.pieces),
+        };
+      }
+      if (chooseChallengingOnboarding && candidatesFromMask >= 4) break;
     }
+  }
+
+  if (candidates.length > 0) {
+    const selected = selectOnboardingCandidate(candidates);
+    return {
+      variant: definition.variant,
+      shape: `campaign-r${definition.plateRadius}`,
+      plateRadius: definition.plateRadius,
+      plateCells,
+      ...selected,
+      board: new GardenBoard(selected.pieces),
+    };
   }
 
   throw new Error(`Could not construct progression level ${definition.level + 1}`);
