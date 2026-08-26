@@ -12,7 +12,12 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create() {
     this.progress = getCampaignProgress(this);
-    this.title = makeText(this, "CAMPAIGN", 24, "#ededed").setOrigin(0.5);
+    this.title = makeText(
+      this,
+      this.progress.testMode ? "CAMPAIGN TEST" : "CAMPAIGN",
+      24,
+      "#ededed",
+    ).setOrigin(0.5);
     this.summary = makeText(this, "", 12, "#8f8f8f").setOrigin(0.5);
     this.backButton = makeButton(this, "< MENU", () => {
       this.scene.start("menu");
@@ -44,7 +49,9 @@ export class LevelSelectScene extends Phaser.Scene {
   refresh() {
     const snapshot = this.progress.snapshot;
     this.summary.setText(
-      snapshot.campaignCompleted
+      this.progress.testMode
+        ? "ALL 60 LEVELS UNLOCKED"
+        : snapshot.campaignCompleted
         ? "CAMPAIGN COMPLETE"
         : `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}`,
     );

@@ -225,7 +225,7 @@ export class BoardScene extends Phaser.Scene {
           const snapshot = this.progress.complete(this.level);
           if (snapshot.campaignCompleted) {
             message = "CAMPAIGN COMPLETE";
-          } else if (!alreadyCompleted) {
+          } else if (!alreadyCompleted && !this.progress.testMode) {
             message =
               `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
           }

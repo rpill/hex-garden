@@ -6,6 +6,7 @@ import {
   PROGRESSION_LEVEL_COUNT,
   normalizeCampaignProgress,
 } from "../src/index.js";
+import { isCampaignTestMode } from "../src/game/campaign-test-mode.js";
 
 class MemoryStorage {
   values = new Map();
@@ -84,4 +85,24 @@ test("invalid browser data falls back to a playable first level", () => {
   const store = new CampaignProgressStore({ storage });
   assert.equal(store.isUnlocked(0), true);
   assert.equal(store.isUnlocked(1), false);
+});
+
+test("test URL unlocks every level without touching persistent progress", () => {
+  assert.equal(isCampaignTestMode("?test=all"), true);
+  assert.equal(isCampaignTestMode("?test=campaign"), false);
+  assert.equal(isCampaignTestMode(""), false);
+
+  const storage = new MemoryStorage();
+  const store = new CampaignProgressStore({
+    storage,
+    unlockAll: true,
+  });
+  assert.equal(store.testMode, true);
+  assert.equal(store.isUnlocked(0), true);
+  assert.equal(store.isUnlocked(PROGRESSION_LEVEL_COUNT - 1), true);
+  assert.equal(store.snapshot.highestUnlocked, PROGRESSION_LEVEL_COUNT - 1);
+
+  store.complete(41);
+  assert.equal(store.isCompleted(41), true);
+  assert.equal(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY), null);
 });

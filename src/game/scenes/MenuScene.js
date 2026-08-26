@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { PlayMode } from "../modes.js";
 import { makeButton, makeText } from "../ui.js";
 
@@ -8,6 +9,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    this.campaignTestMode = isCampaignTestMode();
     this.title = makeText(this, "HEX GARDEN", 30, "#ededed").setOrigin(0.5);
     this.subtitle = makeText(
       this,
@@ -33,7 +35,9 @@ export class MenuScene extends Phaser.Scene {
     );
     this.note = makeText(
       this,
-      "CAMPAIGN PROGRESS IS SAVED ON THIS DEVICE",
+      this.campaignTestMode
+        ? "TEST MODE: ALL 60 CAMPAIGN LEVELS UNLOCKED"
+        : "CAMPAIGN PROGRESS IS SAVED ON THIS DEVICE",
       11,
       "#666666",
     ).setOrigin(0.5);

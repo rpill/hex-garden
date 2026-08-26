@@ -24,6 +24,15 @@ function initialSnapshot() {
   };
 }
 
+function allUnlockedSnapshot(completedLevels = []) {
+  return {
+    version: 1,
+    completedLevels: [...completedLevels].sort((left, right) => left - right),
+    highestUnlocked: PROGRESSION_LEVEL_COUNT - 1,
+    campaignCompleted: completedLevels.length === PROGRESSION_LEVEL_COUNT,
+  };
+}
+
 function defaultStorage() {
   try {
     return globalThis.localStorage;
@@ -66,14 +75,19 @@ export class CampaignProgressStore {
   #snapshot;
   #storage;
   #storageKey;
+  #unlockAll;
 
   constructor({
     storage = defaultStorage(),
     storageKey = CAMPAIGN_PROGRESS_STORAGE_KEY,
+    unlockAll = false,
   } = {}) {
-    this.#storage = storage;
+    this.#unlockAll = unlockAll === true;
+    this.#storage = this.#unlockAll ? undefined : storage;
     this.#storageKey = storageKey;
-    this.#snapshot = this.#load();
+    this.#snapshot = this.#unlockAll
+      ? allUnlockedSnapshot()
+      : this.#load();
   }
 
   get snapshot() {
@@ -83,9 +97,13 @@ export class CampaignProgressStore {
     };
   }
 
+  get testMode() {
+    return this.#unlockAll;
+  }
+
   isUnlocked(level) {
     assertLevel(level);
-    return level <= this.#snapshot.highestUnlocked;
+    return this.#unlockAll || level <= this.#snapshot.highestUnlocked;
   }
 
   isCompleted(level) {
@@ -100,6 +118,14 @@ export class CampaignProgressStore {
     }
     if (this.isCompleted(level)) return this.snapshot;
 
+    if (this.#unlockAll) {
+      this.#snapshot = allUnlockedSnapshot([
+        ...this.#snapshot.completedLevels,
+        level,
+      ]);
+      return this.snapshot;
+    }
+
     this.#snapshot = normalizeCampaignProgress({
       completedLevels: [...this.#snapshot.completedLevels, level],
     });
@@ -108,7 +134,9 @@ export class CampaignProgressStore {
   }
 
   reset() {
-    this.#snapshot = initialSnapshot();
+    this.#snapshot = this.#unlockAll
+      ? allUnlockedSnapshot()
+      : initialSnapshot();
     try {
       this.#storage?.removeItem?.(this.#storageKey);
     } catch {
