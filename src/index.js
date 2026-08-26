@@ -36,6 +36,11 @@ export {
   getProgressionLevelDefinition,
 } from "./progression.js";
 export {
+  CAMPAIGN_PROGRESS_STORAGE_KEY,
+  CampaignProgressStore,
+  normalizeCampaignProgress,
+} from "./campaign-progress.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,
