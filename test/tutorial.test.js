@@ -4,6 +4,7 @@ import {
   ELEMENT_TYPES,
   TUTORIAL_GUIDED_MOVE_COUNT,
   createTutorialLevel,
+  findLongestEmptyNeighbourRun,
   replaySolution,
 } from "../src/index.js";
 
@@ -23,5 +24,13 @@ test("tutorial demonstrates all four elements on a certified compact board", () 
     [2, 2, 2, 2],
   );
   assert.equal(replaySolution(record.pieces, record.solution), true);
-  assert.ok(record.board.pieces().some((piece) => !record.board.isFree(piece)));
+  const blocked = record.board
+    .pieces()
+    .find((piece) => !record.board.isFree(piece));
+  assert.ok(blocked);
+  assert.ok(
+    findLongestEmptyNeighbourRun(record.pieces, record.solution[0][0]).length >=
+      3,
+  );
+  assert.ok(findLongestEmptyNeighbourRun(record.pieces, blocked).length < 3);
 });

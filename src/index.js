@@ -66,4 +66,5 @@ export {
 export {
   TUTORIAL_GUIDED_MOVE_COUNT,
   createTutorialLevel,
+  findLongestEmptyNeighbourRun,
 } from "./tutorial.js";

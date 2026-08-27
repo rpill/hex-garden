@@ -11,6 +11,7 @@ import { PlayMode } from "../modes.js";
 import {
   TUTORIAL_GUIDED_MOVE_COUNT,
   createTutorialLevel,
+  findLongestEmptyNeighbourRun,
 } from "../../tutorial.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
@@ -139,6 +140,12 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialText = makeText(this, "", 14, "#f0d58a")
       .setOrigin(0.5)
       .setDepth(9);
+    this.tutorialNeighbourLabels = ["1", "2", "3"].map((number) =>
+      makeText(this, number, 13, "#c8edc5")
+        .setOrigin(0.5)
+        .setDepth(9)
+        .setVisible(false),
+    );
     this.mechanicCardText = makeText(this, "", 18, "#ededed")
       .setOrigin(0.5)
       .setAlign("center")
@@ -407,13 +414,14 @@ export class BoardScene extends Phaser.Scene {
     if (this.mode !== PlayMode.TUTORIAL) {
       this.tutorialText.setText("").setVisible(false);
       this.tutorialGraphics.clear();
+      this.hideTutorialNeighbourLabels();
       return;
     }
 
     const messages = [
-      "MATCH IDENTICAL FREE ATOMS\nTAP THE TWO PULSING AIR ATOMS",
-      "REMOVING OUTER PAIRS OPENS THE CENTER\nNOW REMOVE THE PULSING FIRE PAIR",
-      "DIM ATOMS ARE BLOCKED\nCLEAR THE REST WITHOUT HELP",
+      "A FREE ATOM HAS 3+ EMPTY HEXES IN A ROW\nGREEN 1-2-3 = FREE. REMOVE THE PULSING AIR PAIR",
+      "REMOVING A PAIR CREATES A NEW 3-HEX OPEN SIDE\nREMOVE THE PULSING FIRE PAIR",
+      "FEWER THAN 3 EMPTY HEXES IN A ROW = BLOCKED\nCLEAR THE REST WITHOUT HELP",
     ];
     this.tutorialText
       .setText(
@@ -427,6 +435,7 @@ export class BoardScene extends Phaser.Scene {
 
   renderTutorialPulse(time = 0) {
     this.tutorialGraphics.clear();
+    this.hideTutorialNeighbourLabels();
     if (
       this.mode !== PlayMode.TUTORIAL ||
       this.tutorialStep >= TUTORIAL_GUIDED_MOVE_COUNT ||
@@ -436,6 +445,35 @@ export class BoardScene extends Phaser.Scene {
     }
 
     const phase = (Math.sin(time * 0.006) + 1) / 2;
+    if (this.tutorialStep === 0) {
+      const focus = this.tutorialSolution[0]?.[0];
+      const emptyRun = focus
+        ? findLongestEmptyNeighbourRun(this.board.pieces(), focus).slice(0, 3)
+        : [];
+      emptyRun.forEach((position, index) => {
+        const screen = this.hexToScreen(position);
+        const points = [];
+        for (let corner = 0; corner < 6; corner += 1) {
+          const angle = Phaser.Math.DegToRad(60 * corner - 30);
+          points.push(
+            new Phaser.Geom.Point(
+              screen.x + this.hexSize * 0.82 * Math.cos(angle),
+              screen.y + this.hexSize * 0.82 * Math.sin(angle),
+            ),
+          );
+        }
+        this.tutorialGraphics
+          .fillStyle(0x6fa878, 0.16 + phase * 0.12)
+          .fillPoints(points, true);
+        this.tutorialGraphics
+          .lineStyle(2, 0x8ed18c, 0.75 + phase * 0.25)
+          .strokePoints(points, true);
+        this.tutorialNeighbourLabels[index]
+          .setPosition(screen.x, screen.y)
+          .setFontSize(Math.max(10, Math.floor(this.hexSize * 0.34)))
+          .setVisible(true);
+      });
+    }
     const radius = this.hexSize * (0.75 + phase * 0.12);
     const alpha = 0.45 + phase * 0.5;
     this.tutorialGraphics.lineStyle(
@@ -447,6 +485,12 @@ export class BoardScene extends Phaser.Scene {
       if (!this.pieceViews.has(hexKey(position))) continue;
       const screen = this.hexToScreen(position);
       this.tutorialGraphics.strokeCircle(screen.x, screen.y, radius);
+    }
+  }
+
+  hideTutorialNeighbourLabels() {
+    for (const label of this.tutorialNeighbourLabels ?? []) {
+      label.setVisible(false);
     }
   }
 
@@ -524,7 +568,7 @@ export class BoardScene extends Phaser.Scene {
     this.layoutPanel(width, height, compact);
 
     const topBarHeight =
-      this.mode === PlayMode.TUTORIAL ? TOP_BAR_HEIGHT + 34 : TOP_BAR_HEIGHT;
+      this.mode === PlayMode.TUTORIAL ? TOP_BAR_HEIGHT + 54 : TOP_BAR_HEIGHT;
     const boardHeight = Math.max(100, height - topBarHeight - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
