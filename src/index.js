@@ -46,6 +46,17 @@ export {
   standardEndlessAccess,
 } from "./mode-access.js";
 export {
+  ENDLESS_BOARD_BASE_SCORE,
+  SCORE_PER_REMOVED_ATOM,
+  STREAK_MULTIPLIER_STEPS,
+  boardClearBaseScore,
+  createEndlessScoreState,
+  nextStreakMultiplier,
+  scoreClearedBoard,
+  scoreRemovedAtoms,
+  streakMultiplier,
+} from "./endless-score.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,

@@ -2,6 +2,13 @@ import Phaser from "phaser";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
+import {
+  createEndlessScoreState,
+  nextStreakMultiplier,
+  scoreClearedBoard,
+  scoreRemovedAtoms,
+  streakMultiplier,
+} from "../../endless-score.js";
 import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
@@ -23,6 +30,14 @@ const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
 const BOTTOM_BAR_HEIGHT = 134;
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
+
+function formatScore(value) {
+  return Math.round(value).toLocaleString("ru-RU");
+}
+
+function formatMultiplier(value) {
+  return Number.isInteger(value) ? value.toFixed(1) : String(value);
+}
 
 const ATOM_LABELS = Object.freeze({
   [Atom.SALT]: "Sa",
@@ -106,6 +121,10 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialStep = 0;
     this.tutorialSolution = [];
     this.mechanicCardVisible = false;
+    this.endlessScoreState = createEndlessScoreState();
+    this.displayedEndlessScore = 0;
+    this.endlessScoreTween = undefined;
+    this.endlessRunOver = false;
   }
 
   init(data = {}) {
@@ -132,6 +151,10 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialStep = 0;
     this.tutorialSolution = [];
     this.mechanicCardVisible = false;
+    this.endlessScoreState = createEndlessScoreState();
+    this.displayedEndlessScore = 0;
+    this.endlessScoreTween = undefined;
+    this.endlessRunOver = false;
   }
 
   create() {
@@ -146,6 +169,9 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
     this.header = makeText(this, "", 16).setOrigin(0.5);
     this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
+    this.endlessHud = makeText(this, "", 13, "#f0d58a")
+      .setOrigin(0.5)
+      .setDepth(10);
     this.tutorialText = makeText(this, "", 14, "#f0d58a")
       .setOrigin(0.5)
       .setDepth(9);
@@ -184,6 +210,7 @@ export class BoardScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
       this.clearPanelHighlight(false);
+      this.endlessScoreTween?.stop();
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
@@ -195,6 +222,7 @@ export class BoardScene extends Phaser.Scene {
 
   async loadLevel() {
     const token = ++this.generationToken;
+    if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
     this.setBusy(true);
     this.board = undefined;
     this.initialPieces = [];
@@ -254,6 +282,12 @@ export class BoardScene extends Phaser.Scene {
       }
       return;
     }
+    if (this.mode === PlayMode.STANDARD) {
+      if (delta <= 0 || !this.board?.won || this.endlessRunOver) return;
+      this.level += 1;
+      this.loadLevel();
+      return;
+    }
     const maximum =
       this.mode === PlayMode.CAMPAIGN
         ? this.progress.snapshot.highestUnlocked
@@ -288,6 +322,15 @@ export class BoardScene extends Phaser.Scene {
 
   restartLevel() {
     if (this.busy || this.initialPieces.length === 0) return;
+    if (this.mode === PlayMode.STANDARD) {
+      this.endlessScoreTween?.stop();
+      this.endlessScoreState = createEndlessScoreState();
+      this.displayedEndlessScore = 0;
+      this.endlessRunOver = false;
+      this.level = 0;
+      this.loadLevel();
+      return;
+    }
     this.board = new GardenBoard(this.initialPieces);
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
@@ -298,7 +341,14 @@ export class BoardScene extends Phaser.Scene {
   }
 
   selectPiece(piece) {
-    if (this.busy || this.mechanicCardVisible || !this.board) return;
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.endlessRunOver ||
+      !this.board
+    ) {
+      return;
+    }
     if (!this.tutorialAllowsPiece(piece)) {
       this.status.setText("НАЖМИТЕ НА ПУЛЬСИРУЮЩИЕ АТОМЫ");
       return;
@@ -315,6 +365,15 @@ export class BoardScene extends Phaser.Scene {
       this.status.setText("");
     } else if (result.kind === "removed") {
       let message = "";
+      if (this.mode === PlayMode.STANDARD) {
+        const scoredRemoval = scoreRemovedAtoms(
+          this.endlessScoreState,
+          result.removed.length,
+        );
+        this.endlessScoreState = scoredRemoval.state;
+        this.showScorePopup(result.removed, `+${formatScore(scoredRemoval.award)}`);
+        this.animateEndlessScore(this.endlessScoreState.score);
+      }
       if (
         this.mode === PlayMode.TUTORIAL &&
         this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT
@@ -335,7 +394,31 @@ export class BoardScene extends Phaser.Scene {
             message =
               `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
           }
+        } else if (this.mode === PlayMode.STANDARD) {
+          const clearScore = scoreClearedBoard(
+            this.endlessScoreState,
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
+          this.endlessScoreState = clearScore.state;
+          this.showScorePopup(
+            [],
+            `CLEAR +${formatScore(clearScore.award)}`,
+            "#c8edc5",
+          );
+          this.animateEndlessScore(this.endlessScoreState.score);
+          message =
+            `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
+            `×${formatMultiplier(clearScore.multiplier)}`;
         }
+        this.setBusy(false);
+      } else if (
+        this.mode === PlayMode.STANDARD &&
+        this.board.legalMoves().length === 0
+      ) {
+        this.endlessRunOver = true;
+        message =
+          `RUN OVER   SCORE ${formatScore(this.endlessScoreState.score)}   ` +
+          `STREAK ${this.endlessScoreState.streak}`;
         this.setBusy(false);
       }
       this.status.setText(message);
@@ -343,6 +426,75 @@ export class BoardScene extends Phaser.Scene {
       this.updateTutorialGuide();
     }
     this.layout();
+  }
+
+  showScorePopup(removedPieces, text, color = "#f0d58a") {
+    if (this.mode !== PlayMode.STANDARD) return;
+    const positions = removedPieces.map((piece) => this.hexToScreen(piece));
+    const x =
+      positions.length > 0
+        ? positions.reduce((sum, position) => sum + position.x, 0) /
+          positions.length
+        : this.boardCenterX;
+    const y =
+      positions.length > 0
+        ? positions.reduce((sum, position) => sum + position.y, 0) /
+          positions.length
+        : this.boardCenterY;
+    const popup = makeText(this, text, positions.length > 0 ? 17 : 21, color)
+      .setOrigin(0.5)
+      .setPosition(x, y)
+      .setDepth(18)
+      .setScale(0.82);
+    this.tweens.add({
+      targets: popup,
+      y: y - (positions.length > 0 ? 42 : 58),
+      alpha: 0,
+      scale: 1.12,
+      duration: positions.length > 0 ? 760 : 1050,
+      ease: "Cubic.Out",
+      onComplete: () => popup.destroy(),
+    });
+  }
+
+  animateEndlessScore(targetScore) {
+    if (this.mode !== PlayMode.STANDARD) return;
+    this.endlessScoreTween?.stop();
+    const counter = { value: this.displayedEndlessScore };
+    const distance = Math.max(1, targetScore - this.displayedEndlessScore);
+    this.endlessScoreTween = this.tweens.add({
+      targets: counter,
+      value: targetScore,
+      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
+      ease: "Cubic.Out",
+      onUpdate: () => {
+        this.displayedEndlessScore = Math.round(counter.value);
+        this.updateEndlessHud();
+      },
+      onComplete: () => {
+        this.displayedEndlessScore = targetScore;
+        this.endlessScoreTween = undefined;
+        this.updateEndlessHud();
+      },
+    });
+  }
+
+  updateEndlessHud() {
+    const visible = this.mode === PlayMode.STANDARD;
+    this.endlessHud?.setVisible(visible);
+    if (!visible || !this.endlessHud) return;
+    const streak = this.endlessScoreState.streak;
+    const multiplier = streakMultiplier(streak);
+    const next = nextStreakMultiplier(streak);
+    const nextLabel = next
+      ? `NEXT ×${formatMultiplier(next.multiplier)} AT ${next.streak}`
+      : `MAX ×${formatMultiplier(multiplier)}`;
+    const separator = this.scale.width < 560 ? "\n" : "   ";
+    this.endlessHud.setText(
+      `SCORE ${formatScore(this.displayedEndlessScore)}   ` +
+        `STREAK ${streak}   ×${formatMultiplier(multiplier)}` +
+        `${separator}${nextLabel}`,
+    );
   }
 
   rebuildPieceViews() {
@@ -566,10 +718,14 @@ export class BoardScene extends Phaser.Scene {
     this.busy = value;
     const alpha = value ? 0.45 : 1;
     const previousUnavailable =
-      this.mode === PlayMode.TUTORIAL || this.level === 0;
+      this.mode === PlayMode.TUTORIAL ||
+      this.mode === PlayMode.STANDARD ||
+      this.level === 0;
     const nextUnavailable =
       this.mode === PlayMode.TUTORIAL
         ? !this.board?.won
+        : this.mode === PlayMode.STANDARD
+        ? !this.board?.won || this.endlessRunOver
         : this.mode === PlayMode.CAMPAIGN &&
           this.level >= this.progress.snapshot.highestUnlocked;
     this.previousButton.setAlpha(value || previousUnavailable ? 0.45 : 1);
@@ -585,6 +741,10 @@ export class BoardScene extends Phaser.Scene {
     const compact = width < 560;
 
     this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
+    this.endlessHud
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width / 2, compact ? 58 : 52);
+    this.updateEndlessHud();
     this.status
       .setFontSize(compact ? 11 : 14)
       .setPosition(10, compact ? height - 144 : height - 126);
@@ -596,7 +756,17 @@ export class BoardScene extends Phaser.Scene {
     const controlsY = height - 22;
     const gap = 68;
     this.restartButton.setPosition(width / 2, controlsY);
-    this.previousButton.setPosition(width / 2 - gap, controlsY);
+    this.restartButton.setText(
+      this.mode === PlayMode.STANDARD ? "NEW RUN" : "RESTART",
+    );
+    this.previousButton
+      .setPosition(width / 2 - gap, controlsY)
+      .setVisible(this.mode !== PlayMode.STANDARD);
+    if (this.mode === PlayMode.STANDARD) {
+      this.previousButton.disableInteractive();
+    } else {
+      this.previousButton.setInteractive({ useHandCursor: true });
+    }
     this.nextButton.setPosition(width / 2 + gap, controlsY);
     const campaignNavigation =
       this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
@@ -615,7 +785,11 @@ export class BoardScene extends Phaser.Scene {
     this.layoutPanel(width, height, compact);
 
     const topBarHeight =
-      this.mode === PlayMode.TUTORIAL ? TOP_BAR_HEIGHT + 54 : TOP_BAR_HEIGHT;
+      this.mode === PlayMode.TUTORIAL
+        ? TOP_BAR_HEIGHT + 54
+        : this.mode === PlayMode.STANDARD
+        ? TOP_BAR_HEIGHT + (compact ? 48 : 30)
+        : TOP_BAR_HEIGHT;
     const boardHeight = Math.max(100, height - topBarHeight - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
@@ -748,6 +922,7 @@ export class BoardScene extends Phaser.Scene {
         : `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
     this.menuButton.setText("MENU");
+    this.updateEndlessHud();
 
     this.renderPanel();
     this.cellGraphics.clear();
