@@ -9,7 +9,7 @@ import {
 
 test("every early mechanic card describes atoms required by that level", () => {
   const levels = Object.keys(CAMPAIGN_MECHANIC_INTRODUCTIONS).map(Number);
-  assert.deepEqual(levels, [1, 2, 3, 4, 5, 6, 7, 8, 12]);
+  assert.deepEqual(levels, [1, 2, 3, 4, 5, 6, 7, 8]);
 
   for (const level of levels) {
     const introduction = mechanicIntroductionForLevel(level);

@@ -56,13 +56,16 @@ const CHAPTERS = Object.freeze([
   Object.freeze({
     id: ProgressionChapter.FULL_GARDEN,
     start: 9,
-    end: 11,
-  }),
-  Object.freeze({
-    id: ProgressionChapter.QUINTESSENCE,
-    start: 12,
     end: 59,
   }),
+]);
+
+const CAMPAIGN_MASK_FAMILIES = Object.freeze([
+  "compact",
+  "wide",
+  "diagonal",
+  "branches",
+  "hollow",
 ]);
 
 const METAL_CHAIN = Object.freeze([
@@ -166,7 +169,11 @@ export function getProgressionLevelDefinition(level) {
   } else if (chapter.id === ProgressionChapter.FULL_GARDEN) {
     definition.elementCount = 4;
     definition.metalDepth = 6;
-    definition.ordinaryMoveCount = 11;
+    definition.fullComposition = level >= 38;
+    definition.ordinaryMoveCount =
+      plateRadius === 3
+        ? 11
+        : 12 + Math.floor(((level - 16) * 9) / 21);
     definition.saltElementPairCount = 1;
     definition.saltPairCount = 1;
     definition.oppositePairCount = 2;
@@ -178,26 +185,7 @@ export function getProgressionLevelDefinition(level) {
       "gold",
     );
   } else {
-    definition.elementCount = 4;
-    definition.metalDepth = 6;
-    definition.variant = BoardVariant.QUINTESSENCE;
-    definition.fullComposition = level >= 38;
-    definition.quintessenceGroupCount = index < 2 ? 1 : 2;
-    definition.ordinaryMoveCount =
-      plateRadius === 3
-        ? 10
-        : 13 + Math.floor(((level - 16) * 5) / 21);
-    definition.saltElementPairCount = 1;
-    definition.saltPairCount = 1;
-    definition.oppositePairCount = 2;
-    definition.mechanics.push(
-      "salt",
-      "opposites",
-      "quicksilver",
-      "metal-chain",
-      "gold",
-      "quintessence",
-    );
+    throw new Error(`No progression chapter for level ${level + 1}`);
   }
 
   return Object.freeze({
@@ -301,9 +289,20 @@ function geometricFreePositions(positions) {
   );
 }
 
-function growConnectedMask(plateCells, count, random) {
+function growConnectedMask(plateCells, count, random, family = "compact") {
   const plateByKey = new Map(plateCells.map((cell) => [hexKey(cell), cell]));
-  const selected = new Map([[hexKey(BOARD_CENTER), { ...BOARD_CENTER }]]);
+  const selected = new Map();
+  if (family === "hollow") {
+    const hole = addHex(BOARD_CENTER, ADJACENT_OFFSETS[0]);
+    for (const offset of ADJACENT_OFFSETS) {
+      const ringCell = addHex(hole, offset);
+      const available = plateByKey.get(hexKey(ringCell));
+      if (available) selected.set(hexKey(available), { ...available });
+    }
+    plateByKey.delete(hexKey(hole));
+  } else {
+    selected.set(hexKey(BOARD_CENTER), { ...BOARD_CENTER });
+  }
 
   while (selected.size < count) {
     const candidates = new Map();
@@ -323,10 +322,26 @@ function growConnectedMask(plateCells, count, random) {
         const adjacentSelected = ADJACENT_OFFSETS.filter((offset) =>
           selected.has(hexKey(addHex(cell, offset))),
         ).length;
-        const radiusBias = hexDistance(cell, BOARD_CENTER) * 0.28;
+        const radius = hexDistance(cell, BOARD_CENTER);
+        const q = cell.q - BOARD_CENTER.q;
+        const r = cell.r - BOARD_CENTER.r;
+        let structureScore = adjacentSelected * 1.4 - radius * 0.28;
+        if (family === "wide") {
+          structureScore =
+            adjacentSelected * 0.9 + Math.abs(q) * 0.75 - Math.abs(r) * 0.32;
+        } else if (family === "diagonal") {
+          structureScore =
+            adjacentSelected * 0.9 + Math.abs(r) * 0.72 - Math.abs(q) * 0.28;
+        } else if (family === "branches") {
+          structureScore = adjacentSelected * 0.35 + radius * 0.68;
+        } else if (family === "hollow") {
+          const targetRadius = Math.max(2, Math.ceil(count / 14));
+          structureScore =
+            adjacentSelected * 0.5 - Math.abs(radius - targetRadius) * 0.9;
+        }
         return {
           cell,
-          score: adjacentSelected * 1.4 - radiusBias + random() * 3.2,
+          score: structureScore + random() * 3.2,
         };
       })
       .sort((left, right) => right.score - left.score);
@@ -701,6 +716,12 @@ function generateCustomProgressionBoard(definition, random) {
   const moveSpecs = interleaveMetalSpecs(ordinarySpecs, definition.metalDepth);
   const pieceCount = moveSpecs.reduce((sum, move) => sum + move.length, 0);
   const plateCells = enumerateHexPlate(definition.plateRadius);
+  const family =
+    definition.level < 9
+      ? "compact"
+      : CAMPAIGN_MASK_FAMILIES[
+          (definition.level - 9) % CAMPAIGN_MASK_FAMILIES.length
+        ];
 
   if (pieceCount > plateCells.length) {
     throw new Error(
@@ -709,7 +730,7 @@ function generateCustomProgressionBoard(definition, random) {
   }
 
   for (let maskAttempt = 0; maskAttempt < 300; maskAttempt += 1) {
-    const mask = growConnectedMask(plateCells, pieceCount, random);
+    const mask = growConnectedMask(plateCells, pieceCount, random, family);
     for (let placementAttempt = 0; placementAttempt < 120; placementAttempt += 1) {
       const result = assignSchedule(mask, moveSpecs, random);
       if (!result) continue;
@@ -720,9 +741,15 @@ function generateCustomProgressionBoard(definition, random) {
       };
       return {
         variant: definition.variant,
-        shape: `campaign-r${definition.plateRadius}`,
+        shape:
+          definition.level < 9
+            ? `campaign-r${definition.plateRadius}`
+            : `campaign-${family}-r${definition.plateRadius}`,
         plateRadius: definition.plateRadius,
-        plateCells,
+        plateCells:
+          definition.level < 9
+            ? plateCells
+            : mask.map((cell) => ({ ...cell })),
         ...finalized,
         board: new GardenBoard(finalized.pieces),
       };
@@ -750,8 +777,9 @@ export function generateProgressionLevel(
     });
     generated = {
       ...generated,
+      shape: `campaign-${generated.shape}`,
       plateRadius: definition.plateRadius,
-      plateCells: enumerateHexPlate(definition.plateRadius),
+      plateCells: generated.pieces.map(({ q, r }) => ({ q, r })),
     };
   } else {
     generated = generateCustomProgressionBoard(definition, random);

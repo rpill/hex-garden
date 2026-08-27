@@ -2,25 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { BrowserLevelGenerator } from "../src/browser.js";
 import {
+  ADJACENT_OFFSETS,
   Atom,
   PROGRESSION_LEVEL_COUNT,
   ProgressionChapter,
+  addHex,
+  enumerateHexPlate,
   generateProgressionLevel,
   getProgressionLevelDefinition,
   hexKey,
   replaySolution,
 } from "../src/index.js";
 
-test("all mechanics arrive before the board expands 37 -> 61 -> 91 cells", () => {
+test("standard mechanics arrive before the board capacity expands", () => {
   const boundaries = [
     [0, ProgressionChapter.ELEMENTS, 37],
     [1, ProgressionChapter.SALT, 37],
     [2, ProgressionChapter.OPPOSITES, 37],
     [3, ProgressionChapter.METALS, 37],
     [9, ProgressionChapter.FULL_GARDEN, 37],
-    [12, ProgressionChapter.QUINTESSENCE, 37],
-    [16, ProgressionChapter.QUINTESSENCE, 61],
-    [38, ProgressionChapter.QUINTESSENCE, 91],
+    [16, ProgressionChapter.FULL_GARDEN, 61],
+    [38, ProgressionChapter.FULL_GARDEN, 91],
   ];
 
   for (const [level, chapter, plateCellCount] of boundaries) {
@@ -43,7 +45,8 @@ test("all 60 progression levels are deterministic and certificate-solvable", () 
 
     assert.deepEqual(first.pieces, second.pieces);
     assert.deepEqual(first.solution, second.solution);
-    assert.equal(first.plateCells.length, first.definition.plateCellCount);
+    assert.ok(first.plateCells.length <= first.definition.plateCellCount);
+    assert.ok(first.plateCells.length >= first.pieces.length);
     assert.equal(
       first.pieces.every((piece) =>
         first.plateCells.some((cell) => hexKey(cell) === hexKey(piece)),
@@ -57,7 +60,7 @@ test("all 60 progression levels are deterministic and certificate-solvable", () 
   }
 });
 
-test("mechanics unlock by chapter without changing the endless contracts", () => {
+test("campaign unlocks the complete standard rules without Q", () => {
   const elements = generateProgressionLevel(0, { campaignSeed: "mechanics" });
   assert.equal(
     elements.pieces.every((piece) =>
@@ -83,13 +86,14 @@ test("mechanics unlock by chapter without changing the endless contracts", () =>
   );
   assert.equal(metals.pieces.some((piece) => piece.type === Atom.TIN), false);
 
-  const quintessence = generateProgressionLevel(12, {
+  const lateCampaign = generateProgressionLevel(59, {
     campaignSeed: "mechanics",
   });
   assert.equal(
-    quintessence.pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
-    true,
+    lateCampaign.pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
+    false,
   );
+  assert.equal(lateCampaign.variant, "standard");
 });
 
 test("campaign introduces a required new rule almost every early level", () => {
@@ -133,12 +137,68 @@ test("campaign introduces a required new rule almost every early level", () => {
   }
 
   assert.equal(levels[9].definition.chapter, ProgressionChapter.FULL_GARDEN);
+  assert.equal(levels[12].definition.chapter, ProgressionChapter.FULL_GARDEN);
   assert.equal(
-    levels[12].pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
-    true,
+    levels.some((record) =>
+      record.pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
+    ),
+    false,
   );
   assert.equal(
     levels.every((record) => replaySolution(record.pieces, record.solution)),
+    true,
+  );
+});
+
+test("campaign difficulty grows through real silhouette families instead of Q", () => {
+  const shapedLevels = Array.from({ length: 29 }, (_value, index) =>
+    generateProgressionLevel(index + 9, { campaignSeed: "shape-contract" }),
+  );
+  const expectedFamilies = [
+    "compact",
+    "wide",
+    "diagonal",
+    "branches",
+    "hollow",
+  ];
+
+  for (const family of expectedFamilies) {
+    assert.equal(
+      shapedLevels.some((record) => record.shape.includes(family)),
+      true,
+    );
+  }
+  for (const record of shapedLevels) {
+    assert.equal(record.plateCells.length, record.pieces.length);
+    assert.equal(record.variant, "standard");
+    assert.equal(
+      record.pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
+      false,
+    );
+    if (record.shape.includes("hollow")) {
+      const plate = new Set(record.plateCells.map(hexKey));
+      const hasEnclosedHole = enumerateHexPlate(record.plateRadius).some(
+        (cell) =>
+          !plate.has(hexKey(cell)) &&
+          ADJACENT_OFFSETS.every((offset) =>
+            plate.has(hexKey(addHex(cell, offset))),
+          ),
+      );
+      assert.equal(hasEnclosedHole, true);
+    }
+  }
+
+  const fullLevels = Array.from({ length: 22 }, (_value, index) =>
+    generateProgressionLevel(index + 38, { campaignSeed: "shape-contract" }),
+  );
+  assert.ok(new Set(fullLevels.map((record) => record.shape)).size >= 3);
+  assert.equal(
+    fullLevels.every(
+      (record) =>
+        record.variant === "standard" &&
+        record.pieces.length === 55 &&
+        record.plateCells.length === 55,
+    ),
     true,
   );
 });
@@ -234,7 +294,8 @@ test("browser worker facade keeps progression requests separate from endless", a
     campaignSeed: "browser-progression",
   });
   assert.equal(postedMessage.kind, "progression");
-  assert.equal(record.plateCells.length, 61);
+  assert.equal(record.definition.plateCellCount, 61);
+  assert.equal(record.plateCells.length, record.pieces.length);
   assert.equal(replaySolution(record.board, record.solution), true);
   generator.terminate();
 });

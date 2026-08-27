@@ -36,10 +36,6 @@ export const CAMPAIGN_MECHANIC_INTRODUCTIONS = Object.freeze({
     "НОВОЕ: ЗОЛОТО (Au)\n\nЗОЛОТО ОТКРЫВАЕТСЯ ПОСЛЕ СЕРЕБРА (Ag)\nИ УДАЛЯЕТСЯ БЕЗ ПАРЫ",
     [Atom.GOLD],
   ),
-  12: introduction(
-    "НОВОЕ: КВИНТЭССЕНЦИЯ (Q)\n\nУДАЛИТЕ Q ВМЕСТЕ С ЧЕТЫРЬМЯ СТИХИЯМИ:\nВОЗДУХ + ОГОНЬ + ВОДА + ЗЕМЛЯ",
-    [Atom.QUINTESSENCE, Atom.AIR, Atom.FIRE, Atom.WATER, Atom.EARTH],
-  ),
 });
 
 export function mechanicIntroductionForLevel(level) {
