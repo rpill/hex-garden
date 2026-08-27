@@ -300,7 +300,6 @@ export class BoardScene extends Phaser.Scene {
       this.clearMoveHint(false);
       this.endlessScoreTween?.stop();
       this.campaignScoreTween?.stop();
-      this.completionOverlay.hide();
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
