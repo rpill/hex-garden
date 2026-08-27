@@ -65,7 +65,9 @@ export class MenuScene extends Phaser.Scene {
       this,
       this.campaignTestMode
         ? `TEST MODE: ALL ${PROGRESSION_LEVEL_COUNT} CAMPAIGN LEVELS UNLOCKED`
-        : "CAMPAIGN PROGRESS IS SAVED ON THIS DEVICE",
+        : this.progress.snapshot.campaignCompleted
+        ? `CAMPAIGN SCORE ${this.progress.snapshot.campaignScore.toLocaleString("ru-RU")}`
+        : "CAMPAIGN PROGRESS AND SCORE ARE SAVED ON THIS DEVICE",
       11,
       "#666666",
     ).setOrigin(0.5);

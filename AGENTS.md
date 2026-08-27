@@ -6,8 +6,8 @@ This project is a mechanics, progression, and level-generation test bench. The c
 
 The runtime should expose only what is needed to inspect the board and progression:
 
-- campaign plates of 37, 61, or 91 cells, plus the endless 91-cell plate;
-- the current variable-size campaign layout or 55-piece endless layout;
+- campaign plates of 37, 61, or 91 cells, plus staged endless plates of 37, 61, and 91 cells;
+- the current variable-size campaign layout or staged endless layout, reaching the full 55-piece composition on the 91-cell phase;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
 - a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
@@ -15,6 +15,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 - direct selection/removal behavior;
 - the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 - in standard endless, a visible score, cleared-board streak, current multiplier, next multiplier threshold, and animated score awards for removals and board clears.
+- in campaign, a persistent score with animated awards but no streak or multiplier; only a level's first completion can add to that score.
 
 ## Endless scoring
 
@@ -24,6 +25,8 @@ The runtime should expose only what is needed to inspect the board and progressi
 - Removal points use the current cleared-board streak. A clear first increments the streak and then uses the resulting multiplier for its board bonus.
 - A dead end ends the run. `NEW RUN` resets score and streak and returns to endless level zero.
 - Standard endless has no previous-level navigation; cleared boards cannot be replayed to farm score.
+- A public endless run starts with two 37-cell boards, continues with three 61-cell boards, and uses 91-cell/55-piece layouts from its sixth board onward.
+- Campaign awards the same 10 points per removed atom and size-based clear bonus without any streak multiplier. Its score is persisted per level only on first completion.
 - Future paid or inventory hints must not create a ranked advantage. A run using them must be unranked unless every player receives the same fixed allowance.
 - `src/endless-score.js` is the renderer-independent authority for scoring math.
 
@@ -62,7 +65,8 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 ## Endless modes
 
-- Every endless level has exactly 55 pieces on distinct cells of the 91-cell plate.
+- The public standard run uses the staged 37/61/91-cell sequence. Its large phase has exactly 55 pieces on distinct cells of the 91-cell plate.
+- `generateCampaignLevel()` remains the legacy/full endless API: every record from it has exactly 55 pieces on the 91-cell plate.
 - `standard` composition: 8 of each cardinal element, 4 Salt, 4 Vitae, 4 Mors, 5 Quicksilver, and one of each metal from Lead through Gold.
 - `quintessence` composition: 8 of each cardinal element, 4 Salt, 3 Vitae, 3 Mors, 5 Quicksilver, two Quintessence, and one of each metal.
 - Level masks use the same structural principle observed across the original database without loading original coordinates: centre Gold plus rotational orbits totalling 54 cells.
@@ -84,7 +88,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
 - A board itself is regenerated from its mode, seed, and number; generated coordinates are not persisted.
-- `BrowserLevelGenerator.generate()` and worker requests without a kind remain the endless API. Progression uses `generateProgression()` and `kind: "progression"`.
+- `BrowserLevelGenerator.generate()` and worker requests without a kind remain the full 55-piece generator API. The public run uses `generateEndlessRun()` and `kind: "endless-run"`; progression uses `generateProgression()` and `kind: "progression"`.
 
 ## Git workflow
 
@@ -102,6 +106,7 @@ Before handoff:
 4. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
 5. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
 6. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, both board return controls, and phone portrait layout. Keep the internal quintessence generator covered by automated tests.
-7. Verify endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
+7. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
+8. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

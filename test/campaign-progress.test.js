@@ -31,6 +31,7 @@ test("only the first campaign level is unlocked initially", () => {
   assert.equal(store.isUnlocked(1), false);
   assert.equal(store.snapshot.highestUnlocked, 0);
   assert.deepEqual(store.snapshot.completedLevels, []);
+  assert.equal(store.snapshot.campaignScore, 0);
 });
 
 test("completing a level persists and unlocks exactly the next level", () => {
@@ -38,18 +39,24 @@ test("completing a level persists and unlocks exactly the next level", () => {
   const firstSession = new CampaignProgressStore({ storage });
 
   assert.throws(() => firstSession.complete(1), /locked/);
-  firstSession.complete(0);
+  firstSession.complete(0, { score: 1234 });
   assert.equal(firstSession.isCompleted(0), true);
   assert.equal(firstSession.isUnlocked(1), true);
   assert.equal(firstSession.isUnlocked(2), false);
   assert.equal(firstSession.snapshot.tutorialCompleted, true);
+  assert.equal(firstSession.snapshot.campaignScore, 1234);
+  assert.equal(firstSession.snapshot.levelScores[0], 1234);
+  firstSession.complete(0, { score: 999999 });
+  assert.equal(firstSession.snapshot.campaignScore, 1234);
+  assert.equal(firstSession.snapshot.levelScores[0], 1234);
 
   const secondSession = new CampaignProgressStore({ storage });
   assert.equal(secondSession.isCompleted(0), true);
   assert.equal(secondSession.isUnlocked(1), true);
+  assert.equal(secondSession.snapshot.campaignScore, 1234);
   assert.equal(
     JSON.parse(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY)).version,
-    1,
+    2,
   );
 });
 
@@ -59,13 +66,41 @@ test("normalization keeps only a contiguous valid completion prefix", () => {
       completedLevels: [0, 1, 3, 99, -1, 1, "2"],
     }),
     {
-      version: 1,
+      version: 2,
       tutorialCompleted: true,
       completedLevels: [0, 1],
+      levelScores: Array(PROGRESSION_LEVEL_COUNT).fill(0),
+      campaignScore: 0,
       highestUnlocked: 2,
       campaignCompleted: false,
     },
   );
+});
+
+test("normalization migrates old progress and keeps only valid completed scores", () => {
+  const normalized = normalizeCampaignProgress({
+    version: 1,
+    completedLevels: [0, 1],
+    levelScores: [1200, 1400, 9999],
+  });
+  assert.deepEqual(normalized.levelScores.slice(0, 3), [1200, 1400, 0]);
+  assert.equal(normalized.campaignScore, 2600);
+  assert.equal(normalized.version, 2);
+});
+
+test("a migrated completed level can record its missing score exactly once", () => {
+  const storage = new MemoryStorage();
+  storage.setItem(
+    CAMPAIGN_PROGRESS_STORAGE_KEY,
+    JSON.stringify({ version: 1, completedLevels: [0] }),
+  );
+  const store = new CampaignProgressStore({ storage });
+  assert.equal(store.snapshot.campaignScore, 0);
+
+  store.complete(0, { score: 1250 });
+  assert.equal(store.snapshot.campaignScore, 1250);
+  store.complete(0, { score: 9999 });
+  assert.equal(store.snapshot.campaignScore, 1250);
 });
 
 test("tutorial completion persists without completing campaign level 1", () => {
@@ -75,6 +110,7 @@ test("tutorial completion persists without completing campaign level 1", () => {
   firstSession.completeTutorial();
   assert.equal(firstSession.snapshot.tutorialCompleted, true);
   assert.deepEqual(firstSession.snapshot.completedLevels, []);
+  assert.equal(firstSession.snapshot.campaignScore, 0);
 
   const secondSession = new CampaignProgressStore({ storage });
   assert.equal(secondSession.snapshot.tutorialCompleted, true);
@@ -120,7 +156,8 @@ test("test URL unlocks every level without touching persistent progress", () => 
   assert.equal(store.snapshot.highestUnlocked, PROGRESSION_LEVEL_COUNT - 1);
 
   const testLevel = Math.min(12, PROGRESSION_LEVEL_COUNT - 1);
-  store.complete(testLevel);
+  store.complete(testLevel, { score: 777 });
   assert.equal(store.isCompleted(testLevel), true);
+  assert.equal(store.snapshot.campaignScore, 777);
   assert.equal(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY), null);
 });

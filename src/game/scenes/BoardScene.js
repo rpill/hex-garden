@@ -3,6 +3,7 @@ import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import {
+  boardClearBaseScore,
   createEndlessScoreState,
   nextStreakMultiplier,
   scoreClearedBoard,
@@ -11,6 +12,7 @@ import {
 } from "../../endless-score.js";
 import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
+import { STANDARD_ENDLESS_UNLOCK_LEVEL } from "../../mode-access.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
 import {
   PANEL_METAL_TYPES,
@@ -125,6 +127,10 @@ export class BoardScene extends Phaser.Scene {
     this.displayedEndlessScore = 0;
     this.endlessScoreTween = undefined;
     this.endlessRunOver = false;
+    this.campaignLevelScore = 0;
+    this.displayedCampaignScore = 0;
+    this.campaignScoreTween = undefined;
+    this.campaignScoringActive = false;
   }
 
   init(data = {}) {
@@ -155,6 +161,10 @@ export class BoardScene extends Phaser.Scene {
     this.displayedEndlessScore = 0;
     this.endlessScoreTween = undefined;
     this.endlessRunOver = false;
+    this.campaignLevelScore = 0;
+    this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+    this.campaignScoreTween = undefined;
+    this.campaignScoringActive = false;
   }
 
   create() {
@@ -170,6 +180,9 @@ export class BoardScene extends Phaser.Scene {
     this.header = makeText(this, "", 16).setOrigin(0.5);
     this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
     this.endlessHud = makeText(this, "", 13, "#f0d58a")
+      .setOrigin(0.5)
+      .setDepth(10);
+    this.campaignHud = makeText(this, "", 13, "#c8edc5")
       .setOrigin(0.5)
       .setDepth(10);
     this.tutorialText = makeText(this, "", 14, "#f0d58a")
@@ -211,6 +224,7 @@ export class BoardScene extends Phaser.Scene {
       this.scale.off("resize", this.layout, this);
       this.clearPanelHighlight(false);
       this.endlessScoreTween?.stop();
+      this.campaignScoreTween?.stop();
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
@@ -223,6 +237,14 @@ export class BoardScene extends Phaser.Scene {
   async loadLevel() {
     const token = ++this.generationToken;
     if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
+    if (this.mode === PlayMode.CAMPAIGN) {
+      this.campaignScoreTween?.stop();
+      this.campaignLevelScore = 0;
+      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+      this.campaignScoringActive =
+        !this.progress.isCompleted(this.level) ||
+        this.progress.snapshot.levelScores[this.level] === 0;
+    }
     this.setBusy(true);
     this.board = undefined;
     this.initialPieces = [];
@@ -241,6 +263,10 @@ export class BoardScene extends Phaser.Scene {
           ? createTutorialLevel()
           : this.mode === PlayMode.CAMPAIGN
           ? await this.generator.generateProgression(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+            })
+          : this.mode === PlayMode.STANDARD
+          ? await this.generator.generateEndlessRun(this.level, {
               campaignSeed: CAMPAIGN_SEED,
             })
           : await this.generator.generate(this.level, {
@@ -331,6 +357,14 @@ export class BoardScene extends Phaser.Scene {
       this.loadLevel();
       return;
     }
+    if (this.mode === PlayMode.CAMPAIGN) {
+      this.campaignScoreTween?.stop();
+      this.campaignLevelScore = 0;
+      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+      this.campaignScoringActive =
+        !this.progress.isCompleted(this.level) ||
+        this.progress.snapshot.levelScores[this.level] === 0;
+    }
     this.board = new GardenBoard(this.initialPieces);
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
@@ -373,6 +407,23 @@ export class BoardScene extends Phaser.Scene {
         this.endlessScoreState = scoredRemoval.state;
         this.showScorePopup(result.removed, `+${formatScore(scoredRemoval.award)}`);
         this.animateEndlessScore(this.endlessScoreState.score);
+      } else if (
+        this.mode === PlayMode.CAMPAIGN &&
+        this.campaignScoringActive
+      ) {
+        const scoredRemoval = scoreRemovedAtoms(
+          { score: this.campaignLevelScore, streak: 0 },
+          result.removed.length,
+        );
+        this.campaignLevelScore = scoredRemoval.state.score;
+        this.showScorePopup(
+          result.removed,
+          `+${formatScore(scoredRemoval.award)}`,
+          "#c8edc5",
+        );
+        this.animateCampaignScore(
+          this.progress.snapshot.campaignScore + this.campaignLevelScore,
+        );
       }
       if (
         this.mode === PlayMode.TUTORIAL &&
@@ -387,12 +438,38 @@ export class BoardScene extends Phaser.Scene {
           message = "";
         } else if (this.mode === PlayMode.CAMPAIGN) {
           const alreadyCompleted = this.progress.isCompleted(this.level);
-          const snapshot = this.progress.complete(this.level);
+          const shouldRecordScore =
+            this.campaignScoringActive &&
+            this.progress.snapshot.levelScores[this.level] === 0;
+          let clearAward = 0;
+          if (shouldRecordScore) {
+            clearAward = boardClearBaseScore(
+              1 + 3 * this.plateRadius * (this.plateRadius + 1),
+            );
+            this.campaignLevelScore += clearAward;
+            this.showScorePopup(
+              [],
+              `CLEAR +${formatScore(clearAward)}`,
+              "#c8edc5",
+            );
+          }
+          const snapshot = this.progress.complete(this.level, {
+            score: shouldRecordScore ? this.campaignLevelScore : 0,
+          });
+          this.campaignScoringActive = false;
+          this.animateCampaignScore(snapshot.campaignScore);
           if (snapshot.campaignCompleted) {
-            message = "CAMPAIGN COMPLETE";
+            message = `CAMPAIGN COMPLETE   SCORE ${formatScore(snapshot.campaignScore)}`;
           } else if (!alreadyCompleted && !this.progress.testMode) {
             message =
               `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
+          }
+          if (
+            !alreadyCompleted &&
+            !this.progress.testMode &&
+            this.level === STANDARD_ENDLESS_UNLOCK_LEVEL
+          ) {
+            this.showEndlessUnlockedCard();
           }
         } else if (this.mode === PlayMode.STANDARD) {
           const clearScore = scoreClearedBoard(
@@ -429,7 +506,12 @@ export class BoardScene extends Phaser.Scene {
   }
 
   showScorePopup(removedPieces, text, color = "#f0d58a") {
-    if (this.mode !== PlayMode.STANDARD) return;
+    if (
+      this.mode !== PlayMode.STANDARD &&
+      this.mode !== PlayMode.CAMPAIGN
+    ) {
+      return;
+    }
     const positions = removedPieces.map((piece) => this.hexToScreen(piece));
     const x =
       positions.length > 0
@@ -479,6 +561,28 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
+  animateCampaignScore(targetScore) {
+    if (this.mode !== PlayMode.CAMPAIGN) return;
+    this.campaignScoreTween?.stop();
+    const counter = { value: this.displayedCampaignScore };
+    const distance = Math.max(1, targetScore - this.displayedCampaignScore);
+    this.campaignScoreTween = this.tweens.add({
+      targets: counter,
+      value: targetScore,
+      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
+      ease: "Cubic.Out",
+      onUpdate: () => {
+        this.displayedCampaignScore = Math.round(counter.value);
+        this.updateCampaignHud();
+      },
+      onComplete: () => {
+        this.displayedCampaignScore = targetScore;
+        this.campaignScoreTween = undefined;
+        this.updateCampaignHud();
+      },
+    });
+  }
+
   updateEndlessHud() {
     const visible = this.mode === PlayMode.STANDARD;
     this.endlessHud?.setVisible(visible);
@@ -494,6 +598,15 @@ export class BoardScene extends Phaser.Scene {
       `SCORE ${formatScore(this.displayedEndlessScore)}   ` +
         `STREAK ${streak}   ×${formatMultiplier(multiplier)}` +
         `${separator}${nextLabel}`,
+    );
+  }
+
+  updateCampaignHud() {
+    const visible = this.mode === PlayMode.CAMPAIGN;
+    this.campaignHud?.setVisible(visible);
+    if (!visible || !this.campaignHud) return;
+    this.campaignHud.setText(
+      `CAMPAIGN SCORE ${formatScore(this.displayedCampaignScore)}`,
     );
   }
 
@@ -694,7 +807,24 @@ export class BoardScene extends Phaser.Scene {
     }
     this.mechanicCardVisible = true;
     this.mechanicCardText.setText(text).setVisible(true);
-    this.mechanicCardHint.setVisible(true);
+    this.mechanicCardHint
+      .setText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ")
+      .setVisible(true);
+    this.mechanicCardHitZone
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+  }
+
+  showEndlessUnlockedCard() {
+    this.mechanicCardVisible = true;
+    this.mechanicCardText
+      .setText(
+        "ОТКРЫТ НОВЫЙ РЕЖИМ\n\nENDLESS\n\nНАЧНИТЕ С ПОЛЯ НА 37 КЛЕТОК\nИ УДЕРЖИВАЙТЕ СТРИК",
+      )
+      .setVisible(true);
+    this.mechanicCardHint
+      .setText("НАЖМИТЕ, ЧТОБЫ ПРОДОЛЖИТЬ")
+      .setVisible(true);
     this.mechanicCardHitZone
       .setVisible(true)
       .setInteractive({ useHandCursor: true });
@@ -744,7 +874,11 @@ export class BoardScene extends Phaser.Scene {
     this.endlessHud
       .setFontSize(compact ? 10 : 12)
       .setPosition(width / 2, compact ? 58 : 52);
+    this.campaignHud
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width / 2, 52);
     this.updateEndlessHud();
+    this.updateCampaignHud();
     this.status
       .setFontSize(compact ? 11 : 14)
       .setPosition(10, compact ? height - 144 : height - 126);
@@ -787,8 +921,10 @@ export class BoardScene extends Phaser.Scene {
     const topBarHeight =
       this.mode === PlayMode.TUTORIAL
         ? TOP_BAR_HEIGHT + 54
-        : this.mode === PlayMode.STANDARD
+      : this.mode === PlayMode.STANDARD
         ? TOP_BAR_HEIGHT + (compact ? 48 : 30)
+        : this.mode === PlayMode.CAMPAIGN
+        ? TOP_BAR_HEIGHT + 28
         : TOP_BAR_HEIGHT;
     const boardHeight = Math.max(100, height - topBarHeight - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
@@ -923,6 +1059,7 @@ export class BoardScene extends Phaser.Scene {
     );
     this.menuButton.setText("MENU");
     this.updateEndlessHud();
+    this.updateCampaignHud();
 
     this.renderPanel();
     this.cellGraphics.clear();

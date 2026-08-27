@@ -17,19 +17,35 @@ function assertLevel(level) {
 
 function initialSnapshot() {
   return {
-    version: 1,
+    version: 2,
     tutorialCompleted: false,
     completedLevels: [],
+    levelScores: Array(PROGRESSION_LEVEL_COUNT).fill(0),
+    campaignScore: 0,
     highestUnlocked: 0,
     campaignCompleted: false,
   };
 }
 
-function allUnlockedSnapshot(completedLevels = []) {
+function allUnlockedSnapshot(
+  completedLevels = [],
+  levelScores = Array(PROGRESSION_LEVEL_COUNT).fill(0),
+) {
+  const normalizedScores = Array.from(
+    { length: PROGRESSION_LEVEL_COUNT },
+    (_value, level) =>
+      completedLevels.includes(level) &&
+      Number.isSafeInteger(levelScores[level]) &&
+      levelScores[level] >= 0
+        ? levelScores[level]
+        : 0,
+  );
   return {
-    version: 1,
+    version: 2,
     tutorialCompleted: true,
     completedLevels: [...completedLevels].sort((left, right) => left - right),
+    levelScores: normalizedScores,
+    campaignScore: normalizedScores.reduce((sum, score) => sum + score, 0),
     highestUnlocked: PROGRESSION_LEVEL_COUNT - 1,
     campaignCompleted: completedLevels.length === PROGRESSION_LEVEL_COUNT,
   };
@@ -61,12 +77,26 @@ export function normalizeCampaignProgress(value) {
     if (!supplied.has(level)) break;
     completedLevels.push(level);
   }
+  const suppliedScores = Array.isArray(value.levelScores)
+    ? value.levelScores
+    : [];
+  const levelScores = Array.from(
+    { length: PROGRESSION_LEVEL_COUNT },
+    (_value, level) =>
+      completedLevels.includes(level) &&
+      Number.isSafeInteger(suppliedScores[level]) &&
+      suppliedScores[level] >= 0
+        ? suppliedScores[level]
+        : 0,
+  );
 
   return {
-    version: 1,
+    version: 2,
     tutorialCompleted:
       value.tutorialCompleted === true || completedLevels.length > 0,
     completedLevels,
+    levelScores,
+    campaignScore: levelScores.reduce((sum, score) => sum + score, 0),
     highestUnlocked: Math.min(
       completedLevels.length,
       PROGRESSION_LEVEL_COUNT - 1,
@@ -98,6 +128,7 @@ export class CampaignProgressStore {
     return {
       ...this.#snapshot,
       completedLevels: [...this.#snapshot.completedLevels],
+      levelScores: [...this.#snapshot.levelScores],
     };
   }
 
@@ -115,23 +146,51 @@ export class CampaignProgressStore {
     return this.#snapshot.completedLevels.includes(level);
   }
 
-  complete(level) {
+  complete(level, { score = 0 } = {}) {
     assertLevel(level);
+    if (!Number.isSafeInteger(score) || score < 0) {
+      throw new RangeError("score must be a non-negative safe integer");
+    }
     if (!this.isUnlocked(level)) {
       throw new Error(`Campaign level ${level + 1} is locked`);
     }
-    if (this.isCompleted(level)) return this.snapshot;
-
-    if (this.#unlockAll) {
-      this.#snapshot = allUnlockedSnapshot([
-        ...this.#snapshot.completedLevels,
-        level,
-      ]);
+    if (this.isCompleted(level)) {
+      if (score === 0 || this.#snapshot.levelScores[level] > 0) {
+        return this.snapshot;
+      }
+      const levelScores = [...this.#snapshot.levelScores];
+      levelScores[level] = score;
+      if (this.#unlockAll) {
+        this.#snapshot = allUnlockedSnapshot(
+          this.#snapshot.completedLevels,
+          levelScores,
+        );
+      } else {
+        this.#snapshot = normalizeCampaignProgress({
+          tutorialCompleted: this.#snapshot.tutorialCompleted,
+          completedLevels: this.#snapshot.completedLevels,
+          levelScores,
+        });
+        this.#persist();
+      }
       return this.snapshot;
     }
 
+    if (this.#unlockAll) {
+      const levelScores = [...this.#snapshot.levelScores];
+      levelScores[level] = score;
+      this.#snapshot = allUnlockedSnapshot(
+        [...this.#snapshot.completedLevels, level],
+        levelScores,
+      );
+      return this.snapshot;
+    }
+
+    const levelScores = [...this.#snapshot.levelScores];
+    levelScores[level] = score;
     this.#snapshot = normalizeCampaignProgress({
       completedLevels: [...this.#snapshot.completedLevels, level],
+      levelScores,
     });
     this.#persist();
     return this.snapshot;

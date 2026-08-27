@@ -57,6 +57,13 @@ export {
   streakMultiplier,
 } from "./endless-score.js";
 export {
+  ENDLESS_COMPACT_LEVEL_COUNT,
+  ENDLESS_LARGE_START_LEVEL,
+  ENDLESS_MEDIUM_LEVEL_COUNT,
+  endlessRunPhase,
+  generateEndlessRunLevel,
+} from "./endless-run.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,

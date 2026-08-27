@@ -55,12 +55,13 @@ export class LevelSelectScene extends Phaser.Scene {
 
   refresh() {
     const snapshot = this.progress.snapshot;
+    const score = snapshot.campaignScore.toLocaleString("ru-RU");
     this.summary.setText(
       this.progress.testMode
         ? `ALL ${PROGRESSION_LEVEL_COUNT} LEVELS UNLOCKED`
         : snapshot.campaignCompleted
-        ? "CAMPAIGN COMPLETE"
-        : `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}`,
+        ? `CAMPAIGN COMPLETE   SCORE ${score}`
+        : `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}   SCORE ${score}`,
     );
 
     for (const { level, button } of this.levelButtons) {

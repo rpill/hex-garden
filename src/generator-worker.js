@@ -1,4 +1,5 @@
 import { generateCampaignLevel } from "./campaign.js";
+import { generateEndlessRunLevel } from "./endless-run.js";
 import { generateProgressionLevel } from "./progression.js";
 
 globalThis.addEventListener("message", (event) => {
@@ -7,6 +8,8 @@ globalThis.addEventListener("message", (event) => {
     const generated =
       kind === "progression"
         ? generateProgressionLevel(level, { campaignSeed })
+        : kind === "endless-run"
+        ? generateEndlessRunLevel(level, { campaignSeed })
         : generateCampaignLevel(level, {
             campaignSeed,
             variant,

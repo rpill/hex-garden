@@ -74,6 +74,22 @@ export class BrowserLevelGenerator {
     });
   }
 
+  generateEndlessRun(
+    level,
+    { campaignSeed = DEFAULT_CAMPAIGN_SEED } = {},
+  ) {
+    const requestId = this.#nextRequestId++;
+    return new Promise((resolve, reject) => {
+      this.#pending.set(requestId, { resolve, reject });
+      this.#worker.postMessage({
+        kind: "endless-run",
+        requestId,
+        level,
+        campaignSeed,
+      });
+    });
+  }
+
   terminate() {
     this.#worker.terminate();
     const error = new Error("Level generator was terminated");
