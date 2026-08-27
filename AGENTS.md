@@ -30,12 +30,15 @@ The runtime should expose only what is needed to inspect the board and progressi
 - Endless clears award 2/4/6 dust for 37/61/91-cell fields.
 - The shop sells three Move hints for 30 dust, two Undo items for 50 dust, and one Endless Rescue for 60 dust.
 - Buying only increases persistent inventory. Using an owned item during play consumes exactly one charge; a depleted item shows `+` and opens the matching dust-purchase dialog.
-- The depleted-item dialog offers two explicit choices: watch one rewarded ad for one matching item, or buy the normal bundle for dust. Watching alone never spends dust.
+- The depleted-item dialog offers two explicit choices: watch one rewarded ad for one matching item, or buy the normal bundle for dust. Watching alone never spends dust. A successful reward closes the dialog and starts a persistent 60-second global rewarded cooldown; the UI must show the remaining wait instead of allowing consecutive ads.
 - A rewarded item is granted only from the platform SDK's confirmed reward callback. Closing, errors, unavailable inventory, or concurrent requests grant nothing.
 - Localhost and `?test=all` simulate a successful rewarded placement for testability. The real Yandex adapter pauses/resumes gameplay around the ad and allows only one rewarded request at a time.
-- Move highlights one currently legal move for four seconds. Undo restores the board and score to immediately before the latest removal. Rescue is usable only after an Endless dead end and performs the same rollback while continuing the run.
+- Move highlights for four seconds only a move that belongs to a verified route from the current position to an empty board. A merely legal move is not sufficient. If no solution exists or the solver cannot verify one within its safety budget, Move is not consumed.
+- A proven unsolvable position is visibly marked as a dead end and blocks further board selection. Campaign must restart or Undo; Endless may use Rescue or start over. No inappropriate booster purchase or consumption is allowed from this state.
+- Undo restores the board and score to immediately before the latest removal. Rescue is usable only after a proven Endless dead end; it searches history for the most recent solvable state, restores it, and blocks/highlights the specific move that crossed into the unsolvable branch. Rescue is not consumed when no safe restore point can be proven.
 - Any hint, undo, or rescue used in Endless permanently marks that run `ASSISTED`; assisted scores must never be submitted to the future ranked leaderboard.
 - `src/economy.js` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
+- `src/solver.js` is renderer-independent authority for verified winning routes, dead-end proofs, and finding the last solvable history snapshot. It must return `unknown`, never a false dead-end claim, when its bounded search budget is exhausted.
 
 ## Endless scoring
 
@@ -132,5 +135,6 @@ Before handoff:
 10. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
 11. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
 12. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
+13. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route, does not spend in dead/unknown states, and Rescue restores the last solvable state while blocking the proven losing move.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

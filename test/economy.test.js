@@ -4,6 +4,7 @@ import {
   ECONOMY_STORAGE_KEY,
   EconomyStore,
   HintType,
+  REWARDED_AD_COOLDOWN_MS,
   STARTING_DUST,
   dustRewardForPlate,
   endlessDustReward,
@@ -73,6 +74,25 @@ test("rewarded ads grant one explicit booster without changing dust", () => {
   assert.throws(() => store.grantHint(HintType.MOVE, 0), /positive/);
 });
 
+test("rewarded booster grants have a persistent anti-spam cooldown", () => {
+  const storage = new MemoryStorage();
+  const store = new EconomyStore({ storage });
+  const first = store.grantRewardedHint(HintType.MOVE, { now: 1_000 });
+  assert.equal(first.ok, true);
+  assert.equal(store.snapshot.hints.move, 1);
+  assert.equal(store.rewardedWaitMs(1_000), REWARDED_AD_COOLDOWN_MS);
+
+  const blocked = store.grantRewardedHint(HintType.UNDO, { now: 10_000 });
+  assert.equal(blocked.ok, false);
+  assert.equal(store.snapshot.hints.undo, 0);
+  const reloaded = new EconomyStore({ storage });
+  assert.ok(reloaded.rewardedWaitMs(10_000) > 0);
+  assert.equal(
+    reloaded.grantRewardedHint(HintType.UNDO, { now: 61_000 }).ok,
+    true,
+  );
+});
+
 test("an unaffordable purchase leaves wallet and inventory unchanged", () => {
   const store = new EconomyStore({ storage: new MemoryStorage() });
   const before = store.snapshot;
@@ -111,6 +131,7 @@ test("economy persists and normalizes damaged fields independently", () => {
       dust: STARTING_DUST,
       hints: { move: 2, undo: 0, rescue: 1 },
       claimedCampaignLevels: [0, 2],
+      rewardedAvailableAt: 0,
     },
   );
 });

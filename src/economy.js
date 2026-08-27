@@ -1,5 +1,6 @@
 export const ECONOMY_STORAGE_KEY = "garden-js.economy.v1";
 export const STARTING_DUST = 30;
+export const REWARDED_AD_COOLDOWN_MS = 60_000;
 
 export const HintType = Object.freeze({
   MOVE: "move",
@@ -33,8 +34,8 @@ export const HINT_PRODUCTS = Object.freeze([
     hint: HintType.RESCUE,
     title: "СПАСЕНИЕ",
     titleEn: "RESCUE",
-    description: "Продолжает Endless после тупика без рейтинга",
-    descriptionEn: "Continues an unranked Endless run after a dead end",
+    description: "Возвращает к последней разрешимой позиции и блокирует тупиковый ход",
+    descriptionEn: "Returns to the last solvable position and blocks the dead-end move",
     amount: 1,
     price: 60,
   }),
@@ -78,6 +79,7 @@ function initialSnapshot(startingDust = STARTING_DUST) {
     dust: startingDust,
     hints: Object.fromEntries(HINT_TYPES.map((type) => [type, 0])),
     claimedCampaignLevels: [],
+    rewardedAvailableAt: 0,
   };
 }
 
@@ -102,6 +104,7 @@ export function normalizeEconomy(value) {
       ]),
     ),
     claimedCampaignLevels,
+    rewardedAvailableAt: nonNegativeInteger(value.rewardedAvailableAt),
   };
 }
 
@@ -222,6 +225,51 @@ export class EconomyStore {
     };
     this.#persist();
     return Object.freeze({ amount, snapshot: this.snapshot });
+  }
+
+  rewardedWaitMs(now = Date.now()) {
+    if (!Number.isFinite(now)) throw new TypeError("now must be finite");
+    return Math.max(0, this.#snapshot.rewardedAvailableAt - now);
+  }
+
+  grantRewardedHint(type, {
+    amount = rewardedAmountForHint(type),
+    now = Date.now(),
+    cooldownMs = REWARDED_AD_COOLDOWN_MS,
+  } = {}) {
+    if (!HINT_TYPES.includes(type)) {
+      throw new RangeError(`Unknown hint type: ${type}`);
+    }
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      throw new RangeError("hint grant amount must be a positive safe integer");
+    }
+    if (!Number.isFinite(now) || !Number.isSafeInteger(cooldownMs) || cooldownMs < 0) {
+      throw new RangeError("rewarded timing values are invalid");
+    }
+    const waitMs = this.rewardedWaitMs(now);
+    if (waitMs > 0) {
+      return Object.freeze({
+        ok: false,
+        reason: "cooldown",
+        waitMs,
+        snapshot: this.snapshot,
+      });
+    }
+    this.#snapshot = {
+      ...this.#snapshot,
+      rewardedAvailableAt: Math.floor(now + cooldownMs),
+      hints: {
+        ...this.#snapshot.hints,
+        [type]: safeAdd(this.#snapshot.hints[type], amount),
+      },
+    };
+    this.#persist();
+    return Object.freeze({
+      ok: true,
+      reason: "rewarded",
+      amount,
+      snapshot: this.snapshot,
+    });
   }
 
   claimCampaignLevel(level, plateCellCount) {

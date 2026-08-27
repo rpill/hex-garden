@@ -66,6 +66,7 @@ export {
 export {
   ECONOMY_STORAGE_KEY,
   HINT_PRODUCTS,
+  REWARDED_AD_COOLDOWN_MS,
   REWARDED_HINT_AMOUNTS,
   STARTING_DUST,
   EconomyStore,
@@ -88,6 +89,12 @@ export {
   SettingsStore,
   normalizeSettings,
 } from "./settings.js";
+export {
+  SolveStatus,
+  findLastSolvableSnapshot,
+  findWinningRoute,
+  moveKey,
+} from "./solver.js";
 export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,

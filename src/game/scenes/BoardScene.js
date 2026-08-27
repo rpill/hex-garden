@@ -36,6 +36,12 @@ import {
 import { PlayMode } from "../modes.js";
 import { classifyBoardViewport } from "../responsive-layout.js";
 import {
+  SolveStatus,
+  findLastSolvableSnapshot,
+  findWinningRoute,
+  moveKey,
+} from "../../solver.js";
+import {
   TUTORIAL_GUIDED_MOVE_COUNT,
   createTutorialLevel,
   findLongestEmptyNeighbourRun,
@@ -154,6 +160,11 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
     this.endlessBoardStartScore = 0;
+    this.certifiedSolution = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
   }
 
   uiText(russian, english) {
@@ -201,6 +212,11 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
     this.endlessBoardStartScore = 0;
+    this.certifiedSolution = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
   }
 
   create() {
@@ -321,6 +337,10 @@ export class BoardScene extends Phaser.Scene {
       this.endlessBoardStartScore = this.endlessScoreState.score;
     }
     this.removalHistory = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
     this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
       this.campaignScoreTween?.stop();
@@ -366,6 +386,11 @@ export class BoardScene extends Phaser.Scene {
       this.plateRadius = record.plateRadius ?? 5;
       this.levelDefinition = record.definition;
       this.initialPieces = record.pieces.map((piece) => ({ ...piece }));
+      this.certifiedSolution = record.solution.map((move) =>
+        move.map((position) => ({ ...position })),
+      );
+      this.knownWinningRoute = this.certifiedSolution;
+      this.positionSolveStatus = SolveStatus.SOLVED;
       this.tutorialSolution =
         this.mode === PlayMode.TUTORIAL
           ? record.solution.map((move) => move.map((position) => ({ ...position })))
@@ -456,6 +481,10 @@ export class BoardScene extends Phaser.Scene {
         this.progress.snapshot.levelScores[this.level] === 0;
     }
     this.removalHistory = [];
+    this.knownWinningRoute = this.certifiedSolution;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
     this.clearMoveHint(false);
     this.board = new GardenBoard(this.initialPieces);
     this.clearPanelHighlight(false);
@@ -472,6 +501,7 @@ export class BoardScene extends Phaser.Scene {
       this.mechanicCardVisible ||
       this.economyModalVisible ||
       this.completionOverlay?.visible ||
+      this.positionDeadEnd ||
       this.endlessRunOver ||
       !this.board
     ) {
@@ -479,6 +509,17 @@ export class BoardScene extends Phaser.Scene {
     }
     if (!this.tutorialAllowsPiece(piece)) {
       this.status.setText("НАЖМИТЕ НА ПУЛЬСИРУЮЩИЕ АТОМЫ");
+      return;
+    }
+    if (this.wouldCompleteBlockedMove(piece)) {
+      this.board.clearSelection();
+      this.status.setText(
+        this.uiText(
+          "ЭТОТ ХОД УЖЕ ПРИВОДИЛ В ТУПИК — ВЫБЕРИТЕ ДРУГОЙ",
+          "THIS MOVE ALREADY LED TO A DEAD END — CHOOSE ANOTHER",
+        ),
+      );
+      this.render();
       return;
     }
     const beforeRemoval = {
@@ -499,6 +540,7 @@ export class BoardScene extends Phaser.Scene {
     } else if (result.kind === "deselected") {
       this.status.setText("");
     } else if (result.kind === "removed") {
+      this.blockedMoveKey = undefined;
       this.removalHistory.push(beforeRemoval);
       if (this.removalHistory.length > 64) this.removalHistory.shift();
       this.clearMoveHint(false);
@@ -611,15 +653,11 @@ export class BoardScene extends Phaser.Scene {
           });
         }
         this.setBusy(false);
-      } else if (
-        this.mode === PlayMode.STANDARD &&
-        this.board.legalMoves().length === 0
-      ) {
-        this.endlessRunOver = true;
-        message =
-          `RUN OVER   SCORE ${formatScore(this.endlessScoreState.score)}   ` +
-          `STREAK ${this.endlessScoreState.streak}`;
-        this.setBusy(false);
+      } else {
+        const analysis = this.analyzeCurrentPosition();
+        if (analysis.status === SolveStatus.DEAD_END) {
+          message = this.deadEndMessage();
+        }
       }
       this.status.setText(message);
       this.rebuildPieceViews();
@@ -826,12 +864,65 @@ export class BoardScene extends Phaser.Scene {
       const typeVisible = visible &&
         (type !== HintType.RESCUE || this.mode === PlayMode.STANDARD);
       const count = snapshot.hints[type];
+      const actionAvailable =
+        (type !== HintType.MOVE || !this.positionDeadEnd) &&
+        (type !== HintType.UNDO || !this.endlessRunOver) &&
+        (type !== HintType.RESCUE || this.positionDeadEnd);
       button
         .setText(`${labels[type]} ${count > 0 ? `×${count}` : "+"}`)
-        .setVisible(typeVisible);
+        .setVisible(typeVisible)
+        .setAlpha(actionAvailable ? 1 : 0.42);
       if (typeVisible) button.setInteractive({ useHandCursor: true });
       else button.disableInteractive();
     }
+  }
+
+  wouldCompleteBlockedMove(piece) {
+    if (!this.blockedMoveKey || !this.board?.isFree(piece)) return false;
+    const selected = this.board.selected;
+    if (selected.length === 0 && piece.type !== Atom.GOLD) return false;
+    return moveKey([...selected, piece]) === this.blockedMoveKey;
+  }
+
+  deadEndMessage() {
+    return this.mode === PlayMode.STANDARD
+      ? this.uiText(
+          "ТУПИК: ИЗ ЭТОЙ ПОЗИЦИИ ПОЛЕ НЕ ОЧИСТИТЬ — ИСПОЛЬЗУЙТЕ СПАСЕНИЕ ИЛИ НАЧНИТЕ ЗАНОВО",
+          "DEAD END: THIS BOARD CANNOT BE CLEARED — USE RESCUE OR START OVER",
+        )
+      : this.uiText(
+          "ТУПИК: ИЗ ЭТОЙ ПОЗИЦИИ ПОЛЕ НЕ ОЧИСТИТЬ — НАЧНИТЕ УРОВЕНЬ ЗАНОВО",
+          "DEAD END: THIS BOARD CANNOT BE CLEARED — RESTART THE LEVEL",
+        );
+  }
+
+  analyzeCurrentPosition({ maxMilliseconds = 90 } = {}) {
+    if (!this.board || this.board.won) {
+      this.positionSolveStatus = SolveStatus.SOLVED;
+      this.positionDeadEnd = false;
+      this.knownWinningRoute = [];
+      return { status: SolveStatus.SOLVED, route: [] };
+    }
+    if (this.board.legalMoves().length === 0) {
+      this.positionSolveStatus = SolveStatus.DEAD_END;
+      this.positionDeadEnd = true;
+      this.knownWinningRoute = [];
+      if (this.mode === PlayMode.STANDARD) this.endlessRunOver = true;
+      return { status: SolveStatus.DEAD_END, route: [] };
+    }
+    const analysis = findWinningRoute(this.board, {
+      preferredSolution: this.certifiedSolution,
+      maxMilliseconds,
+      maxVisited: 80_000,
+    });
+    this.positionSolveStatus = analysis.status;
+    this.positionDeadEnd = analysis.status === SolveStatus.DEAD_END;
+    this.knownWinningRoute =
+      analysis.status === SolveStatus.SOLVED ? analysis.route : [];
+    if (this.mode === PlayMode.STANDARD && this.positionDeadEnd) {
+      this.endlessRunOver = true;
+    }
+    return analysis;
   }
 
   useHint(type) {
@@ -843,6 +934,40 @@ export class BoardScene extends Phaser.Scene {
     ) {
       return;
     }
+    if (type === HintType.MOVE && this.positionDeadEnd) {
+      this.status.setText(this.deadEndMessage());
+      return;
+    }
+    if (type === HintType.UNDO && this.endlessRunOver) {
+      this.status.setText(
+        this.uiText(
+          "В ТУПИКЕ ОБЫЧНАЯ ОТМЕНА НЕ СПИСЫВАЕТСЯ — ИСПОЛЬЗУЙТЕ СПАСЕНИЕ",
+          "NORMAL UNDO IS NOT SPENT IN A DEAD END — USE RESCUE",
+        ),
+      );
+      return;
+    }
+    if (
+      type === HintType.RESCUE &&
+      (this.mode !== PlayMode.STANDARD || !this.positionDeadEnd)
+    ) {
+      this.status.setText(
+        this.uiText(
+          "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ДОКАЗАННОГО ТУПИКА В ENDLESS",
+          "RESCUE IS AVAILABLE ONLY AFTER A VERIFIED ENDLESS DEAD END",
+        ),
+      );
+      return;
+    }
+    if (type === HintType.RESCUE && this.removalHistory.length === 0) {
+      this.status.setText(
+        this.uiText(
+          "ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН",
+          "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT",
+        ),
+      );
+      return;
+    }
     if (this.economy.snapshot.hints[type] <= 0) {
       this.openEconomyModal(type);
       return;
@@ -850,11 +975,27 @@ export class BoardScene extends Phaser.Scene {
 
     if (type === HintType.MOVE) {
       if (this.board.won) return;
-      const move = this.board.legalMoves()[0];
-      if (!move) {
-        this.status.setText("ДОСТУПНЫХ ХОДОВ НЕТ — ИСПОЛЬЗУЙТЕ ОТМЕНУ ИЛИ RESTART");
+      const analysis =
+        this.positionSolveStatus === SolveStatus.SOLVED &&
+        this.knownWinningRoute.length > 0
+          ? { status: SolveStatus.SOLVED, route: this.knownWinningRoute }
+          : this.analyzeCurrentPosition({ maxMilliseconds: 180 });
+      if (analysis.status === SolveStatus.DEAD_END) {
+        this.status.setText(this.deadEndMessage());
+        this.updateEconomyUi();
+        this.render();
         return;
       }
+      if (analysis.status === SolveStatus.UNKNOWN || analysis.route.length === 0) {
+        this.status.setText(
+          this.uiText(
+            "НЕ УДАЛОСЬ ПОДТВЕРДИТЬ БЕЗОПАСНЫЙ ХОД — БУСТ НЕ СПИСАН",
+            "NO SAFE MOVE COULD BE VERIFIED — BOOSTER NOT SPENT",
+          ),
+        );
+        return;
+      }
+      const move = analysis.route[0];
       if (!this.economy.consumeHint(type)) return;
       this.markEndlessAssisted();
       this.clearMoveHint(false);
@@ -864,7 +1005,12 @@ export class BoardScene extends Phaser.Scene {
         this.activeHintKeys.clear();
         this.render();
       });
-      this.status.setText("ПОДСВЕЧЕН ДОСТУПНЫЙ ХОД");
+      this.status.setText(
+        this.uiText(
+          "ПОДСВЕЧЕН ХОД, ДЛЯ КОТОРОГО НАЙДЕН ПУТЬ ДО ПОЛНОЙ ЗАЧИСТКИ",
+          "HIGHLIGHTED MOVE HAS A VERIFIED PATH TO A FULL CLEAR",
+        ),
+      );
       this.render();
       this.updateEconomyUi();
       return;
@@ -886,17 +1032,41 @@ export class BoardScene extends Phaser.Scene {
     }
 
     if (type === HintType.RESCUE) {
-      if (this.mode !== PlayMode.STANDARD || !this.endlessRunOver) {
-        this.status.setText("СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ТУПИКА В ENDLESS");
+      if (this.mode !== PlayMode.STANDARD || !this.positionDeadEnd) {
+        this.status.setText(this.uiText("СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ДОКАЗАННОГО ТУПИКА В ENDLESS", "RESCUE IS AVAILABLE ONLY AFTER A VERIFIED ENDLESS DEAD END"));
         return;
       }
       if (this.removalHistory.length === 0) {
-        this.status.setText("НЕТ СОСТОЯНИЯ ДЛЯ ВОССТАНОВЛЕНИЯ");
+        this.status.setText(this.uiText("ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН", "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT"));
+        return;
+      }
+      const rescue = findLastSolvableSnapshot(
+        this.removalHistory,
+        this.board.pieces(),
+        {
+          preferredSolution: this.certifiedSolution,
+          maxMilliseconds: 240,
+          maxVisited: 160_000,
+        },
+      );
+      if (rescue.status !== SolveStatus.SOLVED) {
+        this.status.setText(
+          rescue.status === SolveStatus.UNKNOWN
+            ? this.uiText("НЕ УДАЛОСЬ НАДЁЖНО НАЙТИ ТОЧКУ СПАСЕНИЯ — БУСТ НЕ СПИСАН", "NO SAFE RESCUE POINT COULD BE VERIFIED — BOOSTER NOT SPENT")
+            : this.uiText("В ЭТОМ ЗАБЕГЕ НЕТ РАЗРЕШИМОЙ ТОЧКИ ВОЗВРАТА — БУСТ НЕ СПИСАН", "THIS RUN HAS NO SOLVABLE RESTORE POINT — BOOSTER NOT SPENT"),
+        );
         return;
       }
       if (!this.economy.consumeHint(type)) return;
       this.markEndlessAssisted();
-      this.restoreLastRemoval("ЗАБЕГ ПРОДОЛЖЕН   ASSISTED");
+      this.restoreHistorySnapshot(
+        rescue.index,
+        this.uiText("ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ   ·   ТУПИКОВЫЙ ХОД ЗАБЛОКИРОВАН", "RESTORED LAST SOLVABLE POSITION   ·   DEAD-END MOVE BLOCKED"),
+        {
+          blockedMove: rescue.blockedMove,
+          winningRoute: rescue.route,
+        },
+      );
     }
   }
 
@@ -905,8 +1075,13 @@ export class BoardScene extends Phaser.Scene {
   }
 
   restoreLastRemoval(message) {
-    const snapshot = this.removalHistory.pop();
+    this.restoreHistorySnapshot(this.removalHistory.length - 1, message);
+  }
+
+  restoreHistorySnapshot(index, message, { blockedMove = [], winningRoute } = {}) {
+    const snapshot = this.removalHistory[index];
     if (!snapshot) return;
+    this.removalHistory.splice(index);
     this.board = new GardenBoard(snapshot.pieces);
     this.endlessScoreState = Object.freeze({ ...snapshot.endlessScoreState });
     this.campaignLevelScore = snapshot.campaignLevelScore;
@@ -916,6 +1091,10 @@ export class BoardScene extends Phaser.Scene {
     this.endlessScoreTween?.stop();
     this.campaignScoreTween?.stop();
     this.endlessRunOver = false;
+    this.positionDeadEnd = false;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
+    this.blockedMoveKey = blockedMove.length > 0 ? moveKey(blockedMove) : undefined;
     this.clearPanelHighlight(false);
     this.clearMoveHint(false);
     this.status.setText(message);
@@ -938,7 +1117,9 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalVisible = true;
     this.economyModalProduct = product;
     this.economyModalMessage.setText("").setVisible(true);
-    this.economyModalTitle.setText(product.title).setVisible(true);
+    this.economyModalTitle
+      .setText(this.english ? product.titleEn : product.title)
+      .setVisible(true);
     this.economyModalBody.setVisible(true);
     this.economyModalBuy
       .setVisible(true)
@@ -967,9 +1148,14 @@ export class BoardScene extends Phaser.Scene {
       .setText(`${this.uiText("КУПИТЬ", "BUY")} ×${product.amount}  /  ${product.price} ${this.uiText("ПЫЛИ", "DUST")}`)
       .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
     const rewardedAmount = rewardedAmountForHint(product.hint);
-    this.economyModalAd.setText(
-      `${this.uiText("СМОТРЕТЬ РЕКЛАМУ", "WATCH AD")}  /  +${rewardedAmount}`,
-    );
+    const waitSeconds = Math.ceil(this.economy.rewardedWaitMs() / 1000);
+    this.economyModalAd
+      .setText(
+        waitSeconds > 0
+          ? `${this.uiText("РЕКЛАМА ЧЕРЕЗ", "AD IN")} ${waitSeconds}${this.uiText("с", "s")}`
+          : `${this.uiText("СМОТРЕТЬ РЕКЛАМУ", "WATCH AD")}  /  +${rewardedAmount}`,
+      )
+      .setAlpha(waitSeconds > 0 ? 0.48 : 1);
   }
 
   purchaseEconomyModalProduct() {
@@ -990,6 +1176,16 @@ export class BoardScene extends Phaser.Scene {
 
   async showRewardedForEconomyModal() {
     if (this.rewardedAdPending || !this.economyModalProduct) return;
+    const waitMs = this.economy.rewardedWaitMs();
+    if (waitMs > 0) {
+      this.economyModalMessage
+        .setText(
+          `${this.uiText("СЛЕДУЮЩАЯ РЕКЛАМА ЧЕРЕЗ", "NEXT AD IN")} ${Math.ceil(waitMs / 1000)}${this.uiText("с", "s")}`,
+        )
+        .setColor("#e89070");
+      this.refreshEconomyModal();
+      return;
+    }
     const product = this.economyModalProduct;
     const amount = rewardedAmountForHint(product.hint);
     this.rewardedAdPending = true;
@@ -1007,10 +1203,18 @@ export class BoardScene extends Phaser.Scene {
     const result = await this.platform.showRewarded();
     this.rewardedAdPending = false;
     if (result.status === RewardedAdStatus.REWARDED) {
-      this.economy.grantHint(product.hint, amount);
+      const grant = this.economy.grantRewardedHint(product.hint, { amount });
+      if (grant.ok) {
+        this.updateEconomyUi();
+        this.closeEconomyModal();
+        this.status.setText(
+          `${this.uiText("ПОЛУЧЕНО", "RECEIVED")}: ${this.english ? product.titleEn : product.title} +${amount}`,
+        );
+        return;
+      }
       this.economyModalMessage
-        .setText(`${this.uiText("ПОЛУЧЕНО", "RECEIVED")}: ${this.english ? product.titleEn : product.title} +${amount}`)
-        .setColor("#c8edc5");
+        .setText(this.uiText("РЕКЛАМНАЯ НАГРАДА УЖЕ ПОЛУЧЕНА", "AD REWARD ALREADY CLAIMED"))
+        .setColor("#e89070");
     } else if (result.status === RewardedAdStatus.CLOSED) {
       this.economyModalMessage
         .setText(this.uiText("НАГРАДА НЕ ПОЛУЧЕНА", "NO REWARD RECEIVED"))
@@ -1687,6 +1891,9 @@ export class BoardScene extends Phaser.Scene {
       const isSelected = selected.has(hexKey(view.piece));
       const isPanelMatch = this.activePanelType === view.piece.type;
       const isHinted = this.activeHintKeys.has(hexKey(view.piece));
+      const isBlocked = this.blockedMoveKey
+        ?.split("|")
+        .includes(hexKey(view.piece));
       const radius = this.hexSize * 0.7;
       const alpha = free ? 1 : 0.4;
 
@@ -1706,11 +1913,13 @@ export class BoardScene extends Phaser.Scene {
         );
       }
       this.atomGraphics.lineStyle(
-        isSelected || isPanelMatch || isHinted
+        isSelected || isPanelMatch || isHinted || isBlocked
           ? Math.max(2, this.hexSize * 0.12)
           : Math.max(1, this.hexSize * 0.045),
         isSelected
           ? 0xffffff
+          : isBlocked
+          ? 0xe87070
           : isHinted
           ? 0x8ed18c
           : isPanelMatch
