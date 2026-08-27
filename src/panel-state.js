@@ -17,13 +17,21 @@ export const PANEL_COMMON_TYPES = Object.freeze([
   Atom.EARTH,
 ]);
 
-export function panelTypesForVariant(variant) {
-  return [
+const PANEL_OPPOSITE_TYPES = Object.freeze([Atom.VITAE, Atom.MORS]);
+
+export function panelTypesForVariant(variant, initialBoardOrPieces) {
+  const supportedTypes = [
     ...PANEL_COMMON_TYPES,
     ...(variant === "quintessence" ? [Atom.QUINTESSENCE] : []),
+    ...PANEL_OPPOSITE_TYPES,
     Atom.QUICKSILVER,
     ...PANEL_METAL_TYPES,
   ];
+  if (initialBoardOrPieces === undefined) return supportedTypes;
+  const initialTypes = new Set(
+    piecesFrom(initialBoardOrPieces).map((piece) => piece.type),
+  );
+  return supportedTypes.filter((type) => initialTypes.has(type));
 }
 
 function piecesFrom(boardOrPieces) {
@@ -49,12 +57,14 @@ export function createPanelState(boardOrPieces, options = {}) {
 
   const variant = options.variant ?? "standard";
   const activeType = options.activeType ?? null;
+  const visibleTypes =
+    options.types ?? panelTypesForVariant(variant);
   const quintessenceCount = counts.get(Atom.QUINTESSENCE) ?? 0;
   const currentMetal = PANEL_METAL_TYPES.find(
     (type) => (counts.get(type) ?? 0) > 0,
   );
 
-  const entries = panelTypesForVariant(variant).map((type) => {
+  const entries = visibleTypes.map((type) => {
     const count = counts.get(type) ?? 0;
     const metal = isMetal(type);
     const depleted = count === 0;

@@ -13,7 +13,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
 - previous unlocked level, next unlocked level, restart, and menu/level-select controls;
 - direct selection/removal behavior;
-- the functional atom inventory panel: remaining Salt/elements/Hg and, in quintessence layouts, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
+- the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 
 ## Rules contract
 

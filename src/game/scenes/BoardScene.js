@@ -5,7 +5,11 @@ import { BrowserLevelGenerator } from "../../browser.js";
 import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
-import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
+import {
+  PANEL_METAL_TYPES,
+  createPanelState,
+  panelTypesForVariant,
+} from "../../panel-state.js";
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
@@ -96,6 +100,7 @@ export class BoardScene extends Phaser.Scene {
     this.levelDefinition = undefined;
     this.pieceViews = new Map();
     this.panelViews = new Map();
+    this.panelTypes = [];
     this.activePanelType = null;
     this.panelHighlightTimer = undefined;
     this.tutorialStep = 0;
@@ -132,6 +137,7 @@ export class BoardScene extends Phaser.Scene {
   create() {
     this.pieceViews = new Map();
     this.panelViews = new Map();
+    this.panelTypes = [];
     this.generator = new BrowserLevelGenerator();
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics();
@@ -195,6 +201,7 @@ export class BoardScene extends Phaser.Scene {
     this.hideMechanicCard();
     this.status.setText("GENERATING");
     this.clearPieceViews();
+    this.rebuildPanelViews();
     this.render();
 
     try {
@@ -355,8 +362,10 @@ export class BoardScene extends Phaser.Scene {
       view.hitZone.destroy();
     }
     this.panelViews.clear();
+    this.panelLayout = undefined;
+    this.panelTypes = panelTypesForVariant(this.variant, this.initialPieces);
 
-    for (const type of panelTypesForVariant(this.variant)) {
+    for (const type of this.panelTypes) {
       const label = makeText(this, ATOM_LABELS[type], 14, "#111111")
         .setOrigin(0.5)
         .setDepth(6);
@@ -376,7 +385,10 @@ export class BoardScene extends Phaser.Scene {
 
   selectPanelType(type) {
     if (this.busy || this.mechanicCardVisible || !this.board) return;
-    const state = createPanelState(this.board, { variant: this.variant });
+    const state = createPanelState(this.board, {
+      variant: this.variant,
+      types: this.panelTypes,
+    });
     const entry = state.entries.find((candidate) => candidate.type === type);
     if (!entry || entry.depleted) return;
     if (this.activePanelType === type) {
@@ -628,8 +640,17 @@ export class BoardScene extends Phaser.Scene {
   }
 
   layoutPanel(width, height, compact) {
-    const types = panelTypesForVariant(this.variant);
-    const panelWidth = Math.min(width - 12, compact ? 520 : 680);
+    const types = this.panelTypes;
+    if (types.length === 0) {
+      this.panelLayout = undefined;
+      this.panelGraphics.clear();
+      return;
+    }
+    const panelWidth = Math.min(
+      width - 12,
+      compact ? 520 : 680,
+      Math.max(96, types.length * (compact ? 44 : 50)),
+    );
     const left = (width - panelWidth) / 2;
     const step = panelWidth / types.length;
     const radius = Math.max(10, Math.min(18, step * 0.38));
@@ -747,6 +768,7 @@ export class BoardScene extends Phaser.Scene {
     const state = createPanelState(this.board, {
       variant: this.variant,
       activeType: this.activePanelType,
+      types,
     });
     if (
       this.activePanelType !== null &&
@@ -762,15 +784,34 @@ export class BoardScene extends Phaser.Scene {
     this.panelGraphics.lineStyle(1, 0x555555, 1);
     this.panelGraphics.strokeRect(left, y - radius - 9, width, radius * 2 + 18);
 
+    const saltIndex = types.indexOf(Atom.SALT);
+    const oppositeStartIndex = types.findIndex(
+      (type) => type === Atom.VITAE || type === Atom.MORS,
+    );
     const quicksilverIndex = types.indexOf(Atom.QUICKSILVER);
-    const metalStartIndex = types.indexOf(Atom.LEAD);
-    for (const boundary of [1, quicksilverIndex, metalStartIndex]) {
+    const metalStartIndex = types.findIndex((type) =>
+      PANEL_METAL_TYPES.includes(type),
+    );
+    const boundaries = new Set([
+      saltIndex >= 0 && saltIndex < types.length - 1 ? saltIndex + 1 : -1,
+      oppositeStartIndex > 0 ? oppositeStartIndex : -1,
+      quicksilverIndex > 0 ? quicksilverIndex : -1,
+      metalStartIndex > 0 ? metalStartIndex : -1,
+    ]);
+    for (const boundary of boundaries) {
+      if (boundary <= 0 || boundary >= types.length) continue;
       const x = left + step * boundary;
       this.panelGraphics.lineStyle(1, 0x686868, 0.8);
       this.panelGraphics.lineBetween(x, y - radius, x, y + radius);
     }
 
-    for (let index = metalStartIndex; index < types.length - 1; index += 1) {
+    for (let index = 0; index < types.length - 1; index += 1) {
+      if (
+        !PANEL_METAL_TYPES.includes(types[index]) ||
+        !PANEL_METAL_TYPES.includes(types[index + 1])
+      ) {
+        continue;
+      }
       const fromX = left + step * (index + 0.5) + radius + 2;
       const toX = left + step * (index + 1.5) - radius - 2;
       if (toX <= fromX) continue;

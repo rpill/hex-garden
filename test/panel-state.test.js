@@ -24,7 +24,7 @@ test("standard panel reports inventory and exposes the metal chain", () => {
   const state = createPanelState(boardPieces, { variant: "standard" });
   const byType = new Map(state.entries.map((entry) => [entry.type, entry]));
 
-  assert.equal(state.entries.length, 12);
+  assert.equal(state.entries.length, 14);
   assert.equal(byType.get(Atom.SALT).count, 2);
   assert.equal(byType.get(Atom.FIRE).count, 2);
   assert.equal(byType.get(Atom.QUICKSILVER).count, 1);
@@ -52,13 +52,15 @@ test("removing a metal advances the panel from lead toward gold", () => {
 
 test("quintessence panel shows both Hg and Q", () => {
   const types = panelTypesForVariant("quintessence");
-  assert.deepEqual(types.slice(0, 7), [
+  assert.deepEqual(types.slice(0, 9), [
     Atom.SALT,
     Atom.AIR,
     Atom.FIRE,
     Atom.WATER,
     Atom.EARTH,
     Atom.QUINTESSENCE,
+    Atom.VITAE,
+    Atom.MORS,
     Atom.QUICKSILVER,
   ]);
 
@@ -71,4 +73,35 @@ test("quintessence panel shows both Hg and Q", () => {
   assert.equal(byType.get(Atom.QUICKSILVER).count, 1);
   assert.equal(byType.get(Atom.QUINTESSENCE).selected, true);
   assert.equal(byType.get(Atom.AIR).warning, false);
+});
+
+test("level panel contains only types present in the initial layout", () => {
+  const initialPieces = pieces(
+    Atom.SALT,
+    Atom.AIR,
+    Atom.AIR,
+    Atom.FIRE,
+    Atom.VITAE,
+    Atom.QUICKSILVER,
+    Atom.LEAD,
+  );
+  const types = panelTypesForVariant("standard", initialPieces);
+  assert.deepEqual(types, [
+    Atom.SALT,
+    Atom.AIR,
+    Atom.FIRE,
+    Atom.VITAE,
+    Atom.QUICKSILVER,
+    Atom.LEAD,
+  ]);
+
+  const state = createPanelState(
+    pieces(Atom.SALT, Atom.FIRE, Atom.QUICKSILVER, Atom.LEAD),
+    { variant: "standard", types },
+  );
+  const byType = new Map(state.entries.map((entry) => [entry.type, entry]));
+  assert.equal(byType.get(Atom.AIR).depleted, true);
+  assert.equal(byType.has(Atom.WATER), false);
+  assert.equal(byType.has(Atom.TIN), false);
+  assert.equal(byType.get(Atom.LEAD).current, true);
 });
