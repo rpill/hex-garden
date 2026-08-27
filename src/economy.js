@@ -60,10 +60,10 @@ function safeAdd(left, right) {
   return result;
 }
 
-function initialSnapshot() {
+function initialSnapshot(startingDust = STARTING_DUST) {
   return {
     version: 1,
-    dust: STARTING_DUST,
+    dust: startingDust,
     hints: Object.fromEntries(HINT_TYPES.map((type) => [type, 0])),
     claimedCampaignLevels: [],
   };
@@ -117,10 +117,19 @@ export function productForHint(type) {
 
 export class EconomyStore {
   #snapshot;
+  #startingDust;
   #storage;
   #storageKey;
 
-  constructor({ storage = defaultStorage(), storageKey = ECONOMY_STORAGE_KEY } = {}) {
+  constructor({
+    storage = defaultStorage(),
+    storageKey = ECONOMY_STORAGE_KEY,
+    startingDust = STARTING_DUST,
+  } = {}) {
+    if (!Number.isSafeInteger(startingDust) || startingDust < 0) {
+      throw new RangeError("startingDust must be a non-negative safe integer");
+    }
+    this.#startingDust = startingDust;
     this.#storage = storage;
     this.#storageKey = storageKey;
     this.#snapshot = this.#load();
@@ -212,7 +221,7 @@ export class EconomyStore {
   }
 
   reset() {
-    this.#snapshot = initialSnapshot();
+    this.#snapshot = initialSnapshot(this.#startingDust);
     try {
       this.#storage?.removeItem?.(this.#storageKey);
     } catch {
@@ -226,9 +235,9 @@ export class EconomyStore {
       const serialized = this.#storage?.getItem?.(this.#storageKey);
       return serialized
         ? normalizeEconomy(JSON.parse(serialized))
-        : initialSnapshot();
+        : initialSnapshot(this.#startingDust);
     } catch {
-      return initialSnapshot();
+      return initialSnapshot(this.#startingDust);
     }
   }
 

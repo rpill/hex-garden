@@ -37,6 +37,18 @@ test("economy starts with dust and empty purchased hint inventory", () => {
   });
 });
 
+test("an isolated test economy can start with a large disposable balance", () => {
+  const store = new EconomyStore({ storage: null, startingDust: 999_999 });
+  assert.equal(store.snapshot.dust, 999_999);
+  store.purchase(productForHint(HintType.RESCUE).id);
+  assert.equal(store.snapshot.dust, 999_939);
+  assert.equal(store.reset().dust, 999_999);
+  assert.throws(
+    () => new EconomyStore({ storage: null, startingDust: -1 }),
+    /startingDust/,
+  );
+});
+
 test("shop purchases charges rather than direct hint effects", () => {
   const store = new EconomyStore({ storage: new MemoryStorage() });
   const product = productForHint(HintType.MOVE);

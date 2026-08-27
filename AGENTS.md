@@ -21,6 +21,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 ## Economy
 
 - A new profile starts with 30 dust.
+- The `?test=all` campaign-test profile starts with 999,999 non-persistent dust so every shop and hint flow can be exercised without affecting the normal save.
 - The first clear of each campaign level awards 8/12/18 dust for its 37/61/91-cell plate. Claims are idempotent and old completed campaign levels are credited when the economy loads.
 - Endless clears award 2/4/6 dust for 37/61/91-cell fields.
 - The shop sells three Move hints for 30 dust, two Undo items for 50 dust, and one Endless Rescue for 60 dust.
