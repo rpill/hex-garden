@@ -170,7 +170,10 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
     this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
     this.nextButton = makeButton(this, ">", () => this.changeLevel(1));
-    this.menuButton = makeButton(this, "MENU", () => this.leaveBoard());
+    this.levelsButton = makeButton(this, "LEVELS", () =>
+      this.openLevelSelect(),
+    );
+    this.menuButton = makeButton(this, "MENU", () => this.openMainMenu());
 
     this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
     this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
@@ -263,11 +266,24 @@ export class BoardScene extends Phaser.Scene {
 
   leaveBoard() {
     this.generationToken += 1;
-    this.scene.start(
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL
-        ? "level-select"
-        : "menu",
-    );
+    if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL) {
+      this.scene.start("level-select");
+    } else {
+      this.scene.start("menu");
+    }
+  }
+
+  openLevelSelect() {
+    if (this.mode !== PlayMode.CAMPAIGN && this.mode !== PlayMode.TUTORIAL) {
+      return;
+    }
+    this.generationToken += 1;
+    this.scene.start("level-select");
+  }
+
+  openMainMenu() {
+    this.generationToken += 1;
+    this.scene.start("menu");
   }
 
   restartLevel() {
@@ -559,6 +575,7 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton.setAlpha(value || previousUnavailable ? 0.45 : 1);
     this.restartButton.setAlpha(alpha);
     this.nextButton.setAlpha(value || nextUnavailable ? 0.45 : 1);
+    this.levelsButton.setAlpha(1);
     this.menuButton.setAlpha(1);
   }
 
@@ -568,7 +585,9 @@ export class BoardScene extends Phaser.Scene {
     const compact = width < 560;
 
     this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
-    this.status.setFontSize(compact ? 11 : 14).setPosition(10, height - 126);
+    this.status
+      .setFontSize(compact ? 11 : 14)
+      .setPosition(10, compact ? height - 144 : height - 126);
     this.tutorialText
       .setFontSize(compact ? 10 : 13)
       .setPosition(width / 2, compact ? 57 : 60)
@@ -579,7 +598,18 @@ export class BoardScene extends Phaser.Scene {
     this.restartButton.setPosition(width / 2, controlsY);
     this.previousButton.setPosition(width / 2 - gap, controlsY);
     this.nextButton.setPosition(width / 2 + gap, controlsY);
-    this.menuButton.setPosition(compact ? width - 48 : width - 70, controlsY);
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    const navigationY = compact ? height - 104 : controlsY;
+    this.levelsButton
+      .setPosition(compact ? width - 126 : width - 158, navigationY)
+      .setVisible(campaignNavigation);
+    if (campaignNavigation) {
+      this.levelsButton.setInteractive({ useHandCursor: true });
+    } else {
+      this.levelsButton.disableInteractive();
+    }
+    this.menuButton.setPosition(compact ? width - 46 : width - 70, navigationY);
     this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "ИГРАТЬ" : ">");
 
     this.layoutPanel(width, height, compact);
@@ -717,11 +747,7 @@ export class BoardScene extends Phaser.Scene {
         ? `ОБУЧЕНИЕ / ОСНОВЫ   ${count}/${total}`
         : `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
-    this.menuButton.setText(
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL
-        ? "LEVELS"
-        : "MENU",
-    );
+    this.menuButton.setText("MENU");
 
     this.renderPanel();
     this.cellGraphics.clear();

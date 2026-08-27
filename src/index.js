@@ -41,6 +41,11 @@ export {
   normalizeCampaignProgress,
 } from "./campaign-progress.js";
 export {
+  STANDARD_ENDLESS_REQUIRED_COMPLETIONS,
+  STANDARD_ENDLESS_UNLOCK_LEVEL,
+  standardEndlessAccess,
+} from "./mode-access.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,

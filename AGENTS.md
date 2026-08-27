@@ -2,14 +2,14 @@
 
 ## Current phase
 
-This project is a mechanics, progression, and level-generation test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate, while the existing `standard` and `quintessence` generators remain independent endless modes. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu and campaign level-select screen are required. Do not add product styling yet: no settings, generic hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial and mechanic-introduction cards are part of the current progression contract.
+This project is a mechanics, progression, and level-generation test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu and campaign level-select screen are required. Do not add product styling yet: no fake or nonfunctional settings, generic hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial and mechanic-introduction cards are part of the current progression contract.
 
 The runtime should expose only what is needed to inspect the board and progression:
 
 - campaign plates of 37, 61, or 91 cells, plus the endless 91-cell plate;
 - the current variable-size campaign layout or 55-piece endless layout;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
-- a minimal start menu for `CAMPAIGN`, `STANDARD / ENDLESS`, and `Q MODE / ENDLESS`;
+- a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
 - previous unlocked level, next unlocked level, restart, and menu/level-select controls;
 - direct selection/removal behavior;
@@ -43,7 +43,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Levels 4-9 introduce Quicksilver and one successive metal per level through Gold on 37-cell plates.
 - Levels 10-16 combine the complete standard rules on selected variable masks within a 61-cell capacity.
 - Levels 17-24 use selected full standard 55-piece layouts within a 91-cell capacity.
-- Quintessence stays out of the main campaign and remains available in `Q MODE / ENDLESS`.
+- Quintessence stays out of the main campaign and public menu.
 - Generation constructs multiple certified candidates and rejects filler: a selected campaign level must expose early choices and at least one dangerous alternative according to the route analyzer.
 - Every generated campaign record contains a solution certificate replayed through `GardenBoard.select()`, plate geometry, a mechanics definition, candidate-selection data, and difficulty measurements.
 - Campaign level indices are zero-based internally and limited to `0..23`.
@@ -89,6 +89,6 @@ Before handoff:
 3. Verify exact 55-piece counts for both endless variants.
 4. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
 5. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
-6. Smoke-test the start menu, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, both endless modes, board return controls, and phone portrait layout.
+6. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, both board return controls, and phone portrait layout. Keep the internal quintessence generator covered by automated tests.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.
