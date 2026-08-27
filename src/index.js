@@ -82,6 +82,13 @@ export {
   getYandexGamesAdapter,
 } from "./platform/yandex-games.js";
 export {
+  DEFAULT_SETTINGS,
+  Language,
+  SETTINGS_STORAGE_KEY,
+  SettingsStore,
+  normalizeSettings,
+} from "./settings.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,

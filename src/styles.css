@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  font-family: Consolas, "Courier New", monospace;
-  background: #151515;
+  font-family: Inter, Arial, "Segoe UI", sans-serif;
+  background: #111714;
   touch-action: none;
 }
 
@@ -17,7 +17,16 @@ body,
   min-height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #151515;
+  background: #111714;
+}
+
+@supports (height: 100dvh) {
+  html,
+  body,
+  #game-root {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
 }
 
 body {

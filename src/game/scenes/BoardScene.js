@@ -27,12 +27,14 @@ import {
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
+import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
 import {
   RewardedAdStatus,
   getYandexGamesAdapter,
 } from "../../platform/yandex-games.js";
 import { PlayMode } from "../modes.js";
+import { classifyBoardViewport } from "../responsive-layout.js";
 import {
   TUTORIAL_GUIDED_MOVE_COUNT,
   createTutorialLevel,
@@ -72,21 +74,21 @@ const ATOM_LABELS = Object.freeze({
 });
 
 const ATOM_COLORS = Object.freeze({
-  [Atom.SALT]: 0xb8b8b8,
-  [Atom.AIR]: 0xb8c8d8,
-  [Atom.FIRE]: 0xc87868,
-  [Atom.WATER]: 0x688fae,
-  [Atom.EARTH]: 0x82966f,
-  [Atom.QUICKSILVER]: 0xc8c8c8,
-  [Atom.GOLD]: 0xb89a55,
-  [Atom.SILVER]: 0x9fabb5,
-  [Atom.COPPER]: 0xa97255,
-  [Atom.IRON]: 0x737980,
-  [Atom.TIN]: 0x8f9494,
-  [Atom.LEAD]: 0x5f6570,
-  [Atom.VITAE]: 0xd2c19c,
-  [Atom.MORS]: 0x706775,
-  [Atom.QUINTESSENCE]: 0xa493b7,
+  [Atom.SALT]: 0xd8d6cf,
+  [Atom.AIR]: 0xc7d9e8,
+  [Atom.FIRE]: 0xd98370,
+  [Atom.WATER]: 0x76a8c8,
+  [Atom.EARTH]: 0x93ad78,
+  [Atom.QUICKSILVER]: 0xd7d9db,
+  [Atom.GOLD]: 0xc8a84e,
+  [Atom.SILVER]: 0xaebbc6,
+  [Atom.COPPER]: 0xb77958,
+  [Atom.IRON]: 0x858c92,
+  [Atom.TIN]: 0xa2aaa8,
+  [Atom.LEAD]: 0x69717d,
+  [Atom.VITAE]: 0xd8c58e,
+  [Atom.MORS]: 0x86778d,
+  [Atom.QUINTESSENCE]: 0xb49bc8,
 });
 
 const LOCKED_ATOM_NAMES = Object.freeze({
@@ -100,17 +102,18 @@ const LOCKED_ATOM_NAMES = Object.freeze({
 
 function makeText(scene, text, size, color = "#d8d8d8") {
   return scene.add.text(0, 0, text, {
-    fontFamily: 'Consolas, "Courier New", monospace',
+    fontFamily: 'Inter, Arial, "Segoe UI", sans-serif',
     fontSize: `${size}px`,
     color,
-  });
+  }).setResolution(Math.min(2, globalThis.devicePixelRatio || 1));
 }
 
 function makeButton(scene, label, onClick) {
   const text = makeText(scene, label, 16, "#e5e5e5")
     .setOrigin(0.5)
-    .setPadding(12, 8)
-    .setBackgroundColor("#292929")
+    .setPadding(14, 10)
+    .setFontStyle("bold")
+    .setBackgroundColor("#29332e")
     .setInteractive({ useHandCursor: true });
   text.on("pointerdown", onClick);
   return text;
@@ -153,8 +156,13 @@ export class BoardScene extends Phaser.Scene {
     this.endlessBoardStartScore = 0;
   }
 
+  uiText(russian, english) {
+    return this.english ? english : russian;
+  }
+
   init(data = {}) {
     this.progress = getCampaignProgress(this);
+    this.english = getSettings(this).snapshot.language === "en";
     this.mode = Object.values(PlayMode).includes(data.mode)
       ? data.mode
       : PlayMode.CAMPAIGN;
@@ -202,6 +210,7 @@ export class BoardScene extends Phaser.Scene {
     this.panelViews = new Map();
     this.panelTypes = [];
     this.generator = new BrowserLevelGenerator();
+    this.chromeGraphics = this.add.graphics().setDepth(-2);
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics();
     this.panelGraphics = this.add.graphics().setDepth(4);
@@ -211,8 +220,8 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
       .setDepth(30)
       .setVisible(false);
-    this.header = makeText(this, "", 16).setOrigin(0.5);
-    this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
+    this.header = makeText(this, "", 16).setOrigin(0.5).setDepth(10);
+    this.status = makeText(this, "", 14, "#b8c3bd").setOrigin(0.5).setDepth(10);
     this.endlessHud = makeText(this, "", 13, "#f0d58a")
       .setOrigin(0.5)
       .setDepth(10);
@@ -236,7 +245,7 @@ export class BoardScene extends Phaser.Scene {
       .setAlign("center")
       .setDepth(21)
       .setVisible(false);
-    this.mechanicCardHint = makeText(this, "НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", 12, "#f0d58a")
+    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#f0d58a")
       .setOrigin(0.5)
       .setDepth(21)
       .setVisible(false);
@@ -256,27 +265,27 @@ export class BoardScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(31)
       .setVisible(false);
-    this.economyModalBuy = makeButton(this, "КУПИТЬ", () =>
+    this.economyModalBuy = makeButton(this, this.uiText("КУПИТЬ", "BUY"), () =>
       this.purchaseEconomyModalProduct(),
     ).setDepth(31).setVisible(false).disableInteractive();
-    this.economyModalAd = makeButton(this, "РЕКЛАМА", () =>
+    this.economyModalAd = makeButton(this, this.uiText("РЕКЛАМА", "AD"), () =>
       this.showRewardedForEconomyModal(),
     ).setDepth(31).setVisible(false).disableInteractive();
-    this.economyModalClose = makeButton(this, "ЗАКРЫТЬ", () =>
+    this.economyModalClose = makeButton(this, this.uiText("ЗАКРЫТЬ", "CLOSE"), () =>
       this.closeEconomyModal(),
     ).setDepth(31).setVisible(false).disableInteractive();
 
-    this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
-    this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
-    this.nextButton = makeButton(this, ">", () => this.changeLevel(1));
-    this.levelsButton = makeButton(this, "LEVELS", () =>
+    this.previousButton = makeButton(this, "‹", () => this.changeLevel(-1)).setDepth(10);
+    this.restartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartLevel()).setDepth(10);
+    this.nextButton = makeButton(this, "›", () => this.changeLevel(1)).setDepth(10);
+    this.levelsButton = makeButton(this, this.uiText("УРОВНИ", "LEVELS"), () =>
       this.openLevelSelect(),
-    );
-    this.menuButton = makeButton(this, "MENU", () => this.openMainMenu());
+    ).setDepth(10);
+    this.menuButton = makeButton(this, this.uiText("←  МЕНЮ", "←  MENU"), () => this.openMainMenu()).setDepth(10);
     this.hintButtons = new Map([
-      [HintType.MOVE, makeButton(this, "ХОД +", () => this.useHint(HintType.MOVE))],
-      [HintType.UNDO, makeButton(this, "ОТМЕНА +", () => this.useHint(HintType.UNDO))],
-      [HintType.RESCUE, makeButton(this, "СПАСТИ +", () => this.useHint(HintType.RESCUE))],
+      [HintType.MOVE, makeButton(this, "✦  ХОД +", () => this.useHint(HintType.MOVE)).setDepth(10)],
+      [HintType.UNDO, makeButton(this, "↶  ОТМЕНА +", () => this.useHint(HintType.UNDO)).setDepth(10)],
+      [HintType.RESCUE, makeButton(this, "◆  СПАСТИ +", () => this.useHint(HintType.RESCUE)).setDepth(10)],
     ]);
     this.completionOverlay = new CompletionOverlay(this);
 
@@ -296,10 +305,6 @@ export class BoardScene extends Phaser.Scene {
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
-      this.clearPanelHighlight(false);
-      this.clearMoveHint(false);
-      this.endlessScoreTween?.stop();
-      this.campaignScoreTween?.stop();
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
@@ -635,8 +640,8 @@ export class BoardScene extends Phaser.Scene {
     const campaignComplete = snapshot.campaignCompleted;
     this.completionOverlay.show(
       {
-        title: campaignComplete ? "КАМПАНИЯ ЗАВЕРШЕНА" : "УРОВЕНЬ ПРОЙДЕН",
-        subtitle: `УРОВЕНЬ ${String(this.level + 1).padStart(2, "0")} / ${PROGRESSION_LEVEL_COUNT}`,
+        title: campaignComplete ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE") : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE"),
+        subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${PROGRESSION_LEVEL_COUNT}`,
         scoreAward,
         totalScore: snapshot.campaignScore,
         dustAward,
@@ -645,16 +650,16 @@ export class BoardScene extends Phaser.Scene {
         progressEnd: completed,
         progressMax: PROGRESSION_LEVEL_COUNT,
         progressText: (value) =>
-          `ПРОГРЕСС КАМПАНИИ  ${Math.round(value)} / ${PROGRESSION_LEVEL_COUNT}`,
+          `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${PROGRESSION_LEVEL_COUNT}`,
         unlockText: unlockedEndless
-          ? "ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS"
+          ? this.uiText("ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS", "NEW MODE UNLOCKED: ENDLESS")
           : campaignComplete
-          ? "ВСЕ УРОВНИ ПРОЙДЕНЫ"
-          : `ОТКРЫТ УРОВЕНЬ ${Math.min(PROGRESSION_LEVEL_COUNT, this.level + 2)}`,
+          ? this.uiText("ВСЕ УРОВНИ ПРОЙДЕНЫ", "ALL LEVELS COMPLETE")
+          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(PROGRESSION_LEVEL_COUNT, this.level + 2)}`,
         continueLabel: campaignComplete
-          ? "К РЕЗУЛЬТАТАМ"
-          : "СЛЕДУЮЩИЙ УРОВЕНЬ",
-        exitLabel: "К ВЫБОРУ УРОВНЕЙ",
+          ? this.uiText("К РЕЗУЛЬТАТАМ", "VIEW RESULTS")
+          : this.uiText("СЛЕДУЮЩИЙ УРОВЕНЬ", "NEXT LEVEL"),
+        exitLabel: this.uiText("К ВЫБОРУ УРОВНЕЙ", "LEVEL SELECT"),
       },
       {
         onContinue: () => {
@@ -672,8 +677,8 @@ export class BoardScene extends Phaser.Scene {
     const progressMax = next?.streak ?? Math.max(1, streak);
     this.completionOverlay.show(
       {
-        title: "ПОЛЕ ОЧИЩЕНО",
-        subtitle: `ПОЛЕ ${String(this.level + 1).padStart(2, "0")}   ·   СЕРИЯ ${streak}`,
+        title: this.uiText("ПОЛЕ ОЧИЩЕНО", "BOARD CLEARED"),
+        subtitle: `${this.uiText("ПОЛЕ", "BOARD")} ${String(this.level + 1).padStart(2, "0")}   ·   ${this.uiText("СЕРИЯ", "STREAK")} ${streak}`,
         scoreAward:
           this.endlessScoreState.score - this.endlessBoardStartScore,
         totalScore: this.endlessScoreState.score,
@@ -684,13 +689,13 @@ export class BoardScene extends Phaser.Scene {
         progressMax,
         progressText: (value) =>
           next
-            ? `СЕРИЯ  ${Math.round(value)} / ${next.streak}   ДО ×${formatMultiplier(next.multiplier)}`
-            : `СЕРИЯ  ${Math.round(value)}   ·   МАКСИМАЛЬНЫЙ МНОЖИТЕЛЬ`,
+            ? `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)} / ${next.streak}   ${this.uiText("ДО", "TO")} ×${formatMultiplier(next.multiplier)}`
+            : `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)}   ·   ${this.uiText("МАКСИМАЛЬНЫЙ МНОЖИТЕЛЬ", "MAX MULTIPLIER")}`,
         unlockText:
-          `БОНУС ОЧИСТКИ ×${formatMultiplier(clearScore.multiplier)}` +
+          `${this.uiText("БОНУС ОЧИСТКИ", "CLEAR BONUS")} ×${formatMultiplier(clearScore.multiplier)}` +
           (this.endlessAssisted ? "   ·   ASSISTED" : ""),
-        continueLabel: "СЛЕДУЮЩЕЕ ПОЛЕ",
-        exitLabel: "ЗАВЕРШИТЬ ЗАБЕГ",
+        continueLabel: this.uiText("СЛЕДУЮЩЕЕ ПОЛЕ", "NEXT BOARD"),
+        exitLabel: this.uiText("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"),
       },
       {
         onContinue: () => this.changeLevel(1),
@@ -785,13 +790,13 @@ export class BoardScene extends Phaser.Scene {
     const multiplier = streakMultiplier(streak);
     const next = nextStreakMultiplier(streak);
     const nextLabel = next
-      ? `NEXT ×${formatMultiplier(next.multiplier)} AT ${next.streak}`
-      : `MAX ×${formatMultiplier(multiplier)}`;
+      ? `${this.uiText("ДАЛЬШЕ", "NEXT")} ×${formatMultiplier(next.multiplier)} ${this.uiText("НА", "AT")} ${next.streak}`
+      : `${this.uiText("МАКС", "MAX")} ×${formatMultiplier(multiplier)}`;
     const separator = this.scale.width < 560 ? "\n" : "   ";
     const assisted = this.endlessAssisted ? "   ASSISTED" : "";
     this.endlessHud.setText(
-      `SCORE ${formatScore(this.displayedEndlessScore)}   ` +
-        `STREAK ${streak}   ×${formatMultiplier(multiplier)}` +
+      `${this.uiText("СЧЁТ", "SCORE")} ${formatScore(this.displayedEndlessScore)}   ` +
+        `${this.uiText("СЕРИЯ", "STREAK")} ${streak}   ×${formatMultiplier(multiplier)}` +
         `${assisted}${separator}${nextLabel}`,
     );
   }
@@ -801,7 +806,7 @@ export class BoardScene extends Phaser.Scene {
     this.campaignHud?.setVisible(visible);
     if (!visible || !this.campaignHud) return;
     this.campaignHud.setText(
-      `CAMPAIGN SCORE ${formatScore(this.displayedCampaignScore)}`,
+      `${this.uiText("СЧЁТ КАМПАНИИ", "CAMPAIGN SCORE")} ${formatScore(this.displayedCampaignScore)}`,
     );
   }
 
@@ -810,12 +815,12 @@ export class BoardScene extends Phaser.Scene {
     const snapshot = this.economy.snapshot;
     const visible =
       this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.STANDARD;
-    this.dustHud?.setText(`ПЫЛЬ ${formatScore(snapshot.dust)}`).setVisible(visible);
+    this.dustHud?.setText(`${this.uiText("ПЫЛЬ", "DUST")} ${formatScore(snapshot.dust)}`).setVisible(visible);
 
     const labels = {
-      [HintType.MOVE]: "ХОД",
-      [HintType.UNDO]: "ОТМЕНА",
-      [HintType.RESCUE]: "СПАСТИ",
+      [HintType.MOVE]: this.uiText("✦  ХОД", "✦  HINT"),
+      [HintType.UNDO]: this.uiText("↶  ОТМЕНА", "↶  UNDO"),
+      [HintType.RESCUE]: this.uiText("◆  СПАСТИ", "◆  RESCUE"),
     };
     for (const [type, button] of this.hintButtons) {
       const typeVisible = visible &&
@@ -954,14 +959,16 @@ export class BoardScene extends Phaser.Scene {
     if (!product || !this.economyModalVisible) return;
     const snapshot = this.economy.snapshot;
     this.economyModalBody.setText(
-      `${product.description}\n\nВ ИНВЕНТАРЕ: ${snapshot.hints[product.hint]}\nБАЛАНС: ${formatScore(snapshot.dust)} ПЫЛИ`,
+      `${this.english ? product.descriptionEn : product.description}\n\n` +
+      `${this.uiText("В ИНВЕНТАРЕ", "OWNED")}: ${snapshot.hints[product.hint]}\n` +
+      `${this.uiText("БАЛАНС", "BALANCE")}: ${formatScore(snapshot.dust)} ${this.uiText("ПЫЛИ", "DUST")}`,
     );
     this.economyModalBuy
-      .setText(`КУПИТЬ ×${product.amount}  /  ${product.price} ПЫЛИ`)
+      .setText(`${this.uiText("КУПИТЬ", "BUY")} ×${product.amount}  /  ${product.price} ${this.uiText("ПЫЛИ", "DUST")}`)
       .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
     const rewardedAmount = rewardedAmountForHint(product.hint);
     this.economyModalAd.setText(
-      `СМОТРЕТЬ РЕКЛАМУ  /  +${rewardedAmount}`,
+      `${this.uiText("СМОТРЕТЬ РЕКЛАМУ", "WATCH AD")}  /  +${rewardedAmount}`,
     );
   }
 
@@ -973,8 +980,8 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalMessage
       .setText(
         result.ok
-          ? `КУПЛЕНО: +${product.amount}`
-          : `НЕ ХВАТАЕТ ${product.price - result.snapshot.dust} ПЫЛИ`,
+          ? `${this.uiText("КУПЛЕНО", "PURCHASED")}: +${product.amount}`
+          : `${this.uiText("НЕ ХВАТАЕТ", "NEED")} ${product.price - result.snapshot.dust} ${this.uiText("ПЫЛИ", "DUST")}`,
       )
       .setColor(result.ok ? "#c8edc5" : "#e89070");
     this.updateEconomyUi();
@@ -989,8 +996,8 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalMessage
       .setText(
         this.platform.isSimulated
-          ? "ТЕСТОВАЯ РЕКЛАМА..."
-          : "ЗАГРУЗКА РЕКЛАМЫ...",
+          ? this.uiText("ТЕСТОВАЯ РЕКЛАМА...", "TEST AD...")
+          : this.uiText("ЗАГРУЗКА РЕКЛАМЫ...", "LOADING AD..."),
       )
       .setColor("#f0d58a");
     this.economyModalBuy.disableInteractive().setAlpha(0.4);
@@ -1002,19 +1009,19 @@ export class BoardScene extends Phaser.Scene {
     if (result.status === RewardedAdStatus.REWARDED) {
       this.economy.grantHint(product.hint, amount);
       this.economyModalMessage
-        .setText(`ПОЛУЧЕНО: ${product.title} +${amount}`)
+        .setText(`${this.uiText("ПОЛУЧЕНО", "RECEIVED")}: ${this.english ? product.titleEn : product.title} +${amount}`)
         .setColor("#c8edc5");
     } else if (result.status === RewardedAdStatus.CLOSED) {
       this.economyModalMessage
-        .setText("НАГРАДА НЕ ПОЛУЧЕНА")
+        .setText(this.uiText("НАГРАДА НЕ ПОЛУЧЕНА", "NO REWARD RECEIVED"))
         .setColor("#e89070");
     } else if (result.status === RewardedAdStatus.BUSY) {
       this.economyModalMessage
-        .setText("РЕКЛАМА УЖЕ ОТКРЫТА")
+        .setText(this.uiText("РЕКЛАМА УЖЕ ОТКРЫТА", "AD IS ALREADY OPEN"))
         .setColor("#e89070");
     } else {
       this.economyModalMessage
-        .setText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА")
+        .setText(this.uiText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА", "AD IS CURRENTLY UNAVAILABLE"))
         .setColor("#e89070");
     }
     if (!this.economyModalVisible) return;
@@ -1053,6 +1060,7 @@ export class BoardScene extends Phaser.Scene {
     for (const piece of this.board.pieces()) {
       const label = makeText(this, ATOM_LABELS[piece.type], 16, "#111111")
         .setOrigin(0.5)
+        .setFontStyle("bold")
         .setDepth(2);
       const hitZone = this.add.zone(0, 0, 56, 56).setDepth(3);
       hitZone.setInteractive(
@@ -1159,14 +1167,14 @@ export class BoardScene extends Phaser.Scene {
     }
 
     const messages = [
-      "АТОМ СВОБОДЕН, ЕСЛИ РЯДОМ 3+ ПУСТЫЕ ЯЧЕЙКИ ПОДРЯД\nЗЕЛЁНЫЕ 1-2-3 = СВОБОДЕН. УБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ВОЗДУХА",
-      "УДАЛЕНИЕ ПАРЫ ОТКРЫВАЕТ НОВУЮ СТОРОНУ ИЗ 3 ЯЧЕЕК\nУБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ОГНЯ",
-      "МЕНЬШЕ 3 ПУСТЫХ ЯЧЕЕК ПОДРЯД = ЗАБЛОКИРОВАН\nОЧИСТИТЕ ОСТАТОК ПОЛЯ БЕЗ ПОДСКАЗКИ",
+      this.uiText("АТОМ СВОБОДЕН, ЕСЛИ РЯДОМ 3+ ПУСТЫЕ ЯЧЕЙКИ ПОДРЯД\nЗЕЛЁНЫЕ 1-2-3 = СВОБОДЕН. УБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ВОЗДУХА", "AN ATOM IS FREE WITH 3+ CONSECUTIVE EMPTY CELLS\nGREEN 1-2-3 = FREE. REMOVE THE PULSING AIR PAIR"),
+      this.uiText("УДАЛЕНИЕ ПАРЫ ОТКРЫВАЕТ НОВУЮ СТОРОНУ ИЗ 3 ЯЧЕЕК\nУБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ОГНЯ", "REMOVING A PAIR OPENS A NEW SIDE OF 3 CELLS\nREMOVE THE PULSING FIRE PAIR"),
+      this.uiText("МЕНЬШЕ 3 ПУСТЫХ ЯЧЕЕК ПОДРЯД = ЗАБЛОКИРОВАН\nОЧИСТИТЕ ОСТАТОК ПОЛЯ БЕЗ ПОДСКАЗКИ", "FEWER THAN 3 CONSECUTIVE EMPTY CELLS = LOCKED\nCLEAR THE REST WITHOUT GUIDANCE"),
     ];
     this.tutorialText
       .setText(
         this.board?.won
-          ? "ОБУЧЕНИЕ ЗАВЕРШЕНО\nПЕРЕХОДИТЕ К УРОВНЮ 1"
+          ? this.uiText("ОБУЧЕНИЕ ЗАВЕРШЕНО\nПЕРЕХОДИТЕ К УРОВНЮ 1", "TUTORIAL COMPLETE\nCONTINUE TO LEVEL 1")
           : messages[Math.min(this.tutorialStep, messages.length - 1)],
       )
       .setVisible(true);
@@ -1239,10 +1247,13 @@ export class BoardScene extends Phaser.Scene {
   }
 
   showMechanicCardForLevel() {
-    const text =
+    const introduction =
       this.mode === PlayMode.CAMPAIGN && !this.progress.isCompleted(this.level)
-        ? mechanicIntroductionForLevel(this.level)?.text
+        ? mechanicIntroductionForLevel(this.level)
         : undefined;
+    const text = introduction
+      ? this.english ? introduction.textEn : introduction.text
+      : undefined;
     if (!text) {
       this.hideMechanicCard();
       return;
@@ -1250,7 +1261,7 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardVisible = true;
     this.mechanicCardText.setText(text).setVisible(true);
     this.mechanicCardHint
-      .setText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ")
+      .setText(this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"))
       .setVisible(true);
     this.mechanicCardHitZone
       .setVisible(true)
@@ -1310,114 +1321,161 @@ export class BoardScene extends Phaser.Scene {
   layout() {
     const width = this.scale.width;
     const height = this.scale.height;
-    const compact = width < 560;
-    const shortLandscape = height < 520 && width >= 560;
+    const { compact, portrait, sideDock } = classifyBoardViewport(width, height);
+    const margin = compact ? 10 : 18;
+    const contentLeft = sideDock ? 154 : 0;
+    const contentWidth = width - contentLeft;
+    const contentCenter = contentLeft + contentWidth / 2;
+    const topBarHeight = portrait ? 142 : sideDock ? 78 : 86;
 
-    this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
+    this.chromeGraphics.clear();
+    this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
+    this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, width, topBarHeight);
+    this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, topBarHeight, width, topBarHeight);
+    if (sideDock) {
+      this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, contentLeft, height);
+      this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(contentLeft, 0, contentLeft, height);
+    }
+
+    const topButtonWidth = compact ? 96 : 118;
+    this.menuButton
+      .setFontSize(compact ? 11 : 12)
+      .setFixedSize(topButtonWidth, 42)
+      .setPosition(margin + topButtonWidth / 2, 28);
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    this.levelsButton
+      .setFontSize(compact ? 10 : 12)
+      .setFixedSize(compact ? 92 : 112, 42)
+      .setPosition(width - margin - (compact ? 46 : 56), 28)
+      .setVisible(campaignNavigation);
+    if (campaignNavigation) this.levelsButton.setInteractive({ useHandCursor: true });
+    else this.levelsButton.disableInteractive();
+
+    this.header
+      .setFontSize(compact ? 12 : 15)
+      .setFontStyle("bold")
+      .setPosition(contentCenter, portrait ? 74 : 27);
     this.endlessHud
-      .setFontSize(compact ? 10 : 12)
-      .setPosition(width / 2, compact ? 58 : 52);
+      .setFontSize(compact ? 11 : 12)
+      .setPosition(contentCenter, portrait ? 104 : 58);
     this.campaignHud
-      .setFontSize(compact ? 10 : 12)
-      .setPosition(width / 2, 52);
+      .setFontSize(compact ? 11 : 12)
+      .setPosition(contentCenter, portrait ? 104 : 58);
     this.dustHud
-      .setFontSize(compact ? 9 : 11)
-      .setPosition(width - 10, 25);
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width - margin, portrait ? 128 : 58);
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();
-    this.status
-      .setFontSize(compact ? 11 : 14)
-      .setPosition(
-        10,
-        shortLandscape ? height - 94 : compact ? height - 178 : height - 160,
-      );
     this.tutorialText
-      .setFontSize(compact ? 10 : 13)
-      .setPosition(width / 2, compact ? 57 : 60)
-      .setWordWrapWidth(Math.max(220, width - 24));
+      .setFontSize(compact ? 11 : 13)
+      .setPosition(contentCenter, portrait ? 111 : 56)
+      .setWordWrapWidth(Math.max(220, contentWidth - 28));
 
-    const controlsY = height - 22;
-    const gap = 68;
-    this.restartButton.setPosition(width / 2, controlsY);
+    this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
+    const panelTop = this.panelLayout?.top ?? height - 68;
+    if (!sideDock) {
+      const dockTop = Math.max(topBarHeight + 120, panelTop - 144);
+      this.chromeGraphics.fillStyle(0x151d19, 0.98).fillRect(0, dockTop, width, height - dockTop);
+      this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, dockTop, width, dockTop);
+    }
+    const hintEntries = [...this.hintButtons.entries()].filter(
+      ([type]) =>
+        (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
+        this.mode === PlayMode.STANDARD,
+    );
+
+    let boardBottom;
+    if (sideDock) {
+      const sideX = contentLeft / 2;
+      this.menuButton.setPosition(sideX, 28);
+      this.levelsButton
+        .setFixedSize(118, 42)
+        .setPosition(sideX, 78);
+      hintEntries.forEach(([, button], index) => {
+        button
+          .setFontSize(10)
+          .setFixedSize(124, 44)
+          .setPosition(sideX, 142 + index * 54);
+      });
+      this.restartButton.setFixedSize(124, 44).setPosition(sideX, height - 80);
+      this.previousButton.setFixedSize(48, 44).setPosition(sideX - 33, height - 30);
+      this.nextButton.setFixedSize(48, 44).setPosition(sideX + 33, height - 30);
+      this.status
+        .setFontSize(11)
+        .setWordWrapWidth(Math.max(240, contentWidth - 30))
+        .setPosition(contentCenter, panelTop - 18);
+      boardBottom = panelTop - 44;
+    } else {
+      const hintsY = panelTop - 58;
+      const controlsY = hintsY - 58;
+      const statusY = controlsY - 42;
+      const navGap = compact ? 72 : 86;
+      const actionWidth = Math.min(
+        compact ? 168 : 190,
+        Math.max(104, (contentWidth - margin * 2) / Math.max(1, hintEntries.length) - 8),
+      );
+      const actionStep = actionWidth + 8;
+      const actionLeft = contentCenter - actionStep * (hintEntries.length - 1) / 2;
+      hintEntries.forEach(([, button], index) => {
+        button
+          .setFontSize(compact ? 11 : 12)
+          .setFixedSize(actionWidth, 46)
+          .setPosition(actionLeft + actionStep * index, hintsY);
+      });
+      this.restartButton
+        .setFontSize(compact ? 10 : 12)
+        .setFixedSize(compact ? 116 : 138, 44)
+        .setPosition(contentCenter, controlsY);
+      this.previousButton
+        .setFontSize(20)
+        .setFixedSize(48, 44)
+        .setPosition(contentCenter - navGap, controlsY);
+      this.nextButton
+        .setFontSize(this.mode === PlayMode.TUTORIAL ? 11 : 20)
+        .setFixedSize(this.mode === PlayMode.TUTORIAL ? 112 : 48, 44)
+        .setPosition(
+          contentCenter + (this.mode === PlayMode.TUTORIAL ? navGap + 28 : navGap),
+          controlsY,
+        );
+      this.status
+        .setFontSize(compact ? 10 : 12)
+        .setWordWrapWidth(Math.max(240, contentWidth - 32))
+        .setPosition(contentCenter, statusY);
+      boardBottom = statusY - 22;
+    }
+
     this.restartButton.setText(
-      this.mode === PlayMode.STANDARD ? "NEW RUN" : "RESTART",
+      this.mode === PlayMode.STANDARD ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN") : this.uiText("ЗАНОВО", "RESTART"),
     );
     this.previousButton
-      .setPosition(width / 2 - gap, controlsY)
       .setVisible(this.mode !== PlayMode.STANDARD);
     if (this.mode === PlayMode.STANDARD) {
       this.previousButton.disableInteractive();
     } else {
       this.previousButton.setInteractive({ useHandCursor: true });
     }
-    this.nextButton.setPosition(width / 2 + gap, controlsY);
-    const campaignNavigation =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
-    const navigationY = compact ? height - 178 : controlsY;
-    this.levelsButton
-      .setPosition(compact ? width - 126 : width - 158, navigationY)
-      .setVisible(campaignNavigation);
-    if (campaignNavigation) {
-      this.levelsButton.setInteractive({ useHandCursor: true });
-    } else {
-      this.levelsButton.disableInteractive();
-    }
-    this.menuButton.setPosition(compact ? width - 46 : width - 70, navigationY);
-    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "ИГРАТЬ" : ">");
+    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? this.uiText("ИГРАТЬ", "PLAY") : "›");
 
-    const visibleHints = [...this.hintButtons.entries()].filter(
-      ([type]) =>
-        (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
-        this.mode === PlayMode.STANDARD,
-    );
-    const hintWidth = Math.min(
-      compact ? 102 : 118,
-      Math.max(72, (width - 20) / Math.max(1, visibleHints.length) - 6),
-    );
-    const hintGap = hintWidth + 6;
-    const hintLeft = width / 2 - hintGap * (visibleHints.length - 1) / 2;
-    visibleHints.forEach(([, button], index) => {
-      button
-        .setFontSize(compact ? 10 : shortLandscape ? 9 : 12)
-        .setFixedSize(
-          shortLandscape ? 102 : hintWidth,
-          compact ? 32 : 36,
-        )
-        .setPosition(
-          shortLandscape ? 66 : hintLeft + hintGap * index,
-          shortLandscape ? 118 + index * 48 : height - 132,
-        );
-    });
-
-    this.layoutPanel(width, height, compact);
-
-    const topBarHeight =
-      this.mode === PlayMode.TUTORIAL
-        ? TOP_BAR_HEIGHT + 54
-      : this.mode === PlayMode.STANDARD
-        ? TOP_BAR_HEIGHT + (compact ? 48 : 30)
-        : this.mode === PlayMode.CAMPAIGN
-        ? TOP_BAR_HEIGHT + 28
-        : TOP_BAR_HEIGHT;
-    const bottomBarHeight = shortLandscape ? 100 : BOTTOM_BAR_HEIGHT;
-    const boardHeight = Math.max(100, height - topBarHeight - bottomBarHeight);
-    const boardWidth = Math.max(100, width - (shortLandscape ? 170 : 16));
+    const boardTop = topBarHeight + 10;
+    const boardHeight = Math.max(100, boardBottom - boardTop);
+    const boardWidth = Math.max(100, contentWidth - margin * 2);
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
     const plateHeight = this.plateRadius * 3 + 2.2;
     this.hexSize = Math.max(
       9,
-      Math.min(boardWidth / plateWidth, boardHeight / plateHeight),
+      Math.min(48, boardWidth / plateWidth, boardHeight / plateHeight),
     );
-    this.boardCenterX = width / 2;
-    this.boardCenterY = topBarHeight + boardHeight / 2;
+    this.boardCenterX = contentCenter;
+    this.boardCenterY = boardTop + boardHeight / 2;
 
     for (const view of this.pieceViews.values()) {
       const position = this.hexToScreen(view.piece);
-      const hitDiameter = this.hexSize * 1.44;
+      const hitDiameter = Math.max(42, this.hexSize * 1.56);
       view.label
         .setPosition(position.x, position.y)
-        .setFontSize(Math.max(9, Math.floor(this.hexSize * 0.55)));
+        .setFontSize(Math.max(11, Math.floor(this.hexSize * 0.57)));
       view.hitZone.setPosition(position.x, position.y).setSize(hitDiameter, hitDiameter);
       view.hitZone.input.hitArea.setTo(
         hitDiameter / 2,
@@ -1496,33 +1554,61 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardHint.setPosition(width / 2, y + cardHeight - 28);
   }
 
-  layoutPanel(width, height, compact) {
+  layoutPanel(contentLeft, contentWidth, width, height, compact) {
     const types = this.panelTypes;
     if (types.length === 0) {
       this.panelLayout = undefined;
       this.panelGraphics.clear();
       return;
     }
+    const useTwoRows = compact && types.length > 9;
+    const columns = useTwoRows ? Math.ceil(types.length / 2) : types.length;
+    const rows = Math.ceil(types.length / columns);
+    const desiredWidth = columns * (compact ? 48 : 52);
     const panelWidth = Math.min(
-      width - 12,
-      compact ? 520 : 680,
-      Math.max(96, types.length * (compact ? 44 : 50)),
+      contentWidth - 16,
+      compact ? 560 : 760,
+      Math.max(116, desiredWidth),
     );
-    const left = (width - panelWidth) / 2;
-    const step = panelWidth / types.length;
-    const radius = Math.max(10, Math.min(18, step * 0.38));
-    const shortLandscape = height < 520 && width >= 560;
-    const y = height - (shortLandscape ? 58 : 76);
+    const left = contentLeft + (contentWidth - panelWidth) / 2;
+    const step = panelWidth / columns;
+    const radius = Math.max(12, Math.min(compact ? 18 : 20, step * 0.34));
+    const rowHeight = Math.max(38, radius * 2 + 8);
+    const panelHeight = rows * rowHeight + 16;
+    const top = height - panelHeight - 8;
+    const entries = types.map((type, index) => {
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      const rowCount = Math.min(columns, types.length - row * columns);
+      const rowWidth = step * rowCount;
+      const rowLeft = contentLeft + (contentWidth - rowWidth) / 2;
+      return {
+        type,
+        row,
+        column,
+        x: rowLeft + step * (column + 0.5),
+        y: top + 8 + rowHeight * (row + 0.5),
+      };
+    });
 
-    this.panelLayout = { left, width: panelWidth, y, radius, step, types };
-    types.forEach((type, index) => {
+    this.panelLayout = {
+      left,
+      width: panelWidth,
+      top,
+      height: panelHeight,
+      radius,
+      step,
+      rows,
+      entries,
+      types,
+    };
+    entries.forEach(({ type, x, y }) => {
       const view = this.panelViews.get(type);
       if (!view) return;
-      const x = left + step * (index + 0.5);
-      const hitDiameter = Math.max(28, radius * 2.25);
+      const hitDiameter = Math.max(40, radius * 2.25);
       view.label
         .setPosition(x, y)
-        .setFontSize(Math.max(9, Math.floor(radius * 0.78)));
+        .setFontSize(Math.max(10, Math.floor(radius * 0.78)));
       view.count
         .setPosition(x + radius * 0.72, y - radius * 0.92)
         .setFontSize(Math.max(8, Math.floor(radius * 0.58)));
@@ -1562,20 +1648,18 @@ export class BoardScene extends Phaser.Scene {
   render() {
     const count = this.board?.size ?? 0;
     const total = this.initialPieces.length || 0;
-    const chapter =
-      this.mode === PlayMode.CAMPAIGN
-        ? (this.levelDefinition?.chapter ?? "campaign").toUpperCase()
-        : (this.boardShape ?? "-").toUpperCase();
     const levelLabel =
       this.mode === PlayMode.CAMPAIGN
         ? `${String(this.level + 1).padStart(2, "0")}/${PROGRESSION_LEVEL_COUNT}`
         : String(this.level + 1).padStart(4, "0");
     this.header.setText(
       this.mode === PlayMode.TUTORIAL
-        ? `ОБУЧЕНИЕ / ОСНОВЫ   ${count}/${total}`
-        : `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
+        ? `${this.uiText("ОБУЧЕНИЕ", "TUTORIAL")}  ·  ${count}/${total}`
+        : this.mode === PlayMode.CAMPAIGN
+        ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}  ·  ${this.uiText("ОСТАЛОСЬ", "LEFT")} ${count}/${total}`
+        : `ENDLESS  ·  ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}  ·  ${count}/${total}`,
     );
-    this.menuButton.setText("MENU");
+    this.menuButton.setText(this.uiText("←  МЕНЮ", "←  MENU"));
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();
@@ -1589,8 +1673,8 @@ export class BoardScene extends Phaser.Scene {
         position.x,
         position.y,
         this.hexSize * 0.96,
-        0x202020,
-        0x4b4b4b,
+        0x171e1b,
+        0x34423a,
       );
     }
 
@@ -1603,25 +1687,41 @@ export class BoardScene extends Phaser.Scene {
       const isSelected = selected.has(hexKey(view.piece));
       const isPanelMatch = this.activePanelType === view.piece.type;
       const isHinted = this.activeHintKeys.has(hexKey(view.piece));
-      const radius = this.hexSize * 0.68;
+      const radius = this.hexSize * 0.7;
+      const alpha = free ? 1 : 0.4;
 
-      this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], free ? 1 : 0.38);
-      this.atomGraphics.fillCircle(position.x, position.y, radius);
+      this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
+      this.atomGraphics.fillCircle(position.x, position.y + Math.max(1, this.hexSize * 0.08), radius * 1.08);
+      this.atomGraphics.fillStyle(0x26312b, alpha);
+      this.atomGraphics.fillCircle(position.x, position.y, radius * 1.04);
+      this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], alpha);
+      this.atomGraphics.fillCircle(position.x, position.y, radius * 0.9);
+      if (free) {
+        this.atomGraphics.fillStyle(0xffffff, 0.12);
+        this.atomGraphics.fillEllipse(
+          position.x - radius * 0.22,
+          position.y - radius * 0.27,
+          radius * 0.62,
+          radius * 0.3,
+        );
+      }
       this.atomGraphics.lineStyle(
         isSelected || isPanelMatch || isHinted
           ? Math.max(2, this.hexSize * 0.12)
-          : 1,
+          : Math.max(1, this.hexSize * 0.045),
         isSelected
           ? 0xffffff
           : isHinted
           ? 0x8ed18c
           : isPanelMatch
           ? 0xf0d58a
-          : 0x111111,
+          : 0x506159,
         1,
       );
-      this.atomGraphics.strokeCircle(position.x, position.y, radius);
-      view.label.setAlpha(free ? 1 : 0.45);
+      this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
+      view.label
+        .setColor(free ? "#121713" : "#1d231f")
+        .setAlpha(free ? 1 : 0.5);
     }
     this.renderTutorialPulse(this.time.now);
   }
@@ -1630,7 +1730,7 @@ export class BoardScene extends Phaser.Scene {
     this.panelGraphics.clear();
     if (!this.panelLayout) return;
 
-    const { left, width, y, radius, step, types } = this.panelLayout;
+    const { left, width, top, height, radius, step, entries, types } = this.panelLayout;
     const state = createPanelState(this.board, {
       variant: this.variant,
       activeType: this.activePanelType,
@@ -1645,10 +1745,10 @@ export class BoardScene extends Phaser.Scene {
       this.activePanelType = null;
     }
 
-    this.panelGraphics.fillStyle(0x181818, 1);
-    this.panelGraphics.fillRect(left, y - radius - 9, width, radius * 2 + 18);
-    this.panelGraphics.lineStyle(1, 0x555555, 1);
-    this.panelGraphics.strokeRect(left, y - radius - 9, width, radius * 2 + 18);
+    this.panelGraphics.fillStyle(0x1b2520, 1);
+    this.panelGraphics.fillRoundedRect(left, top, width, height, 14);
+    this.panelGraphics.lineStyle(1, 0x506159, 1);
+    this.panelGraphics.strokeRoundedRect(left, top, width, height, 14);
 
     const saltIndex = types.indexOf(Atom.SALT);
     const oppositeStartIndex = types.findIndex(
@@ -1666,9 +1766,12 @@ export class BoardScene extends Phaser.Scene {
     ]);
     for (const boundary of boundaries) {
       if (boundary <= 0 || boundary >= types.length) continue;
-      const x = left + step * boundary;
+      const before = entries[boundary - 1];
+      const after = entries[boundary];
+      if (!before || !after || before.row !== after.row) continue;
+      const x = (before.x + after.x) / 2;
       this.panelGraphics.lineStyle(1, 0x686868, 0.8);
-      this.panelGraphics.lineBetween(x, y - radius, x, y + radius);
+      this.panelGraphics.lineBetween(x, before.y - radius, x, before.y + radius);
     }
 
     for (let index = 0; index < types.length - 1; index += 1) {
@@ -1678,19 +1781,24 @@ export class BoardScene extends Phaser.Scene {
       ) {
         continue;
       }
-      const fromX = left + step * (index + 0.5) + radius + 2;
-      const toX = left + step * (index + 1.5) - radius - 2;
+      const from = entries[index];
+      const to = entries[index + 1];
+      if (!from || !to || from.row !== to.row) continue;
+      const fromX = from.x + radius + 2;
+      const toX = to.x - radius - 2;
       if (toX <= fromX) continue;
       this.panelGraphics.lineStyle(1, 0x777777, 0.8);
-      this.panelGraphics.lineBetween(fromX, y, toX, y);
+      this.panelGraphics.lineBetween(fromX, from.y, toX, to.y);
       this.panelGraphics.fillStyle(0x777777, 0.8);
-      this.panelGraphics.fillTriangle(toX, y, toX - 4, y - 3, toX - 4, y + 3);
+      this.panelGraphics.fillTriangle(toX, to.y, toX - 4, to.y - 3, toX - 4, to.y + 3);
     }
 
     state.entries.forEach((entry, index) => {
       const view = this.panelViews.get(entry.type);
       if (!view) return;
-      const x = left + step * (index + 0.5);
+      const position = entries[index];
+      const x = position.x;
+      const y = position.y;
       const alpha = entry.depleted ? 0.18 : entry.locked ? 0.36 : 1;
       this.panelGraphics.fillStyle(ATOM_COLORS[entry.type], alpha);
       this.panelGraphics.fillCircle(x, y, radius);

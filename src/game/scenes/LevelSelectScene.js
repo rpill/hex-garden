@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
+import { getSettings } from "../settings.js";
 import { makeButton, makeText, setButtonEnabled } from "../ui.js";
 
 export class LevelSelectScene extends Phaser.Scene {
@@ -12,19 +13,23 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create() {
     this.progress = getCampaignProgress(this);
+    this.english = getSettings(this).snapshot.language === "en";
     this.title = makeText(
       this,
-      this.progress.testMode ? "CAMPAIGN TEST" : "CAMPAIGN",
+      this.progress.testMode ? "CAMPAIGN TEST" : this.english ? "CAMPAIGN" : "КАМПАНИЯ",
       24,
       "#ededed",
     ).setOrigin(0.5);
     this.summary = makeText(this, "", 12, "#8f8f8f").setOrigin(0.5);
-    this.backButton = makeButton(this, "< MENU", () => {
+    this.backButton = makeButton(this, this.english ? "← MENU" : "← МЕНЮ", () => {
       this.scene.start("menu");
     }, 14);
+    this.settingsButton = makeButton(this, "⚙", () => {
+      this.scene.start("settings", { returnScene: "level-select" });
+    }, 18);
     this.tutorialButton = makeButton(
       this,
-      "00\nLEARN",
+      this.english ? "00\nLEARN" : "00\nУЧИТЬСЯ",
       () => this.scene.start("board", { mode: PlayMode.TUTORIAL }),
       12,
     );
@@ -60,14 +65,19 @@ export class LevelSelectScene extends Phaser.Scene {
       this.progress.testMode
         ? `ALL ${PROGRESSION_LEVEL_COUNT} LEVELS UNLOCKED`
         : snapshot.campaignCompleted
-        ? `CAMPAIGN COMPLETE   SCORE ${score}`
-        : `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}   SCORE ${score}`,
+        ? this.english ? `CAMPAIGN COMPLETE   SCORE ${score}` : `КАМПАНИЯ ПРОЙДЕНА   СЧЁТ ${score}`
+        : this.english
+        ? `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}   SCORE ${score}`
+        : `ПРОЙДЕНО ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}   СЧЁТ ${score}`,
     );
 
     for (const { level, button } of this.levelButtons) {
       const completed = this.progress.isCompleted(level);
       const unlocked = this.progress.isUnlocked(level);
-      const state = completed ? "DONE" : unlocked ? "PLAY" : "LOCK";
+      const state = completed
+        ? this.english ? "DONE" : "ГОТОВО"
+        : unlocked ? this.english ? "PLAY" : "ИГРАТЬ"
+        : this.english ? "LOCK" : "ЗАКРЫТ";
       button.setText(
         `${String(level + 1).padStart(2, "0")}\n${state}`,
       );
@@ -105,7 +115,8 @@ export class LevelSelectScene extends Phaser.Scene {
       .setFontSize(width < 520 ? 19 : 24)
       .setPosition(width / 2, 24);
     this.summary.setPosition(width / 2, 52);
-    this.backButton.setPosition(58, height - 24);
+    this.backButton.setFixedSize(112, 44).setPosition(68, height - 28);
+    this.settingsButton.setFixedSize(48, 44).setPosition(width - 36, height - 28);
 
     const tutorialCellWidth = Math.max(34, cellWidth - 6);
     this.tutorialButton

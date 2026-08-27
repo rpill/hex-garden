@@ -139,22 +139,23 @@ export class CompletionOverlay {
 
   updateText() {
     if (!this.data) return;
+    const english = this.scene.english;
     const scoreAward = Math.round(this.counter.score);
     const dustAward = Math.round(this.counter.dust);
     const totalStart = this.data.totalScore - this.data.scoreAward;
     const dustStart = this.data.dustTotal - this.data.dustAward;
     this.score.setText(
       this.data.scoreAward > 0
-        ? `ОЧКИ  +${formatNumber(scoreAward)}`
-        : "ОЧКИ УЖЕ ЗАСЧИТАНЫ",
+        ? `${english ? "SCORE" : "ОЧКИ"}  +${formatNumber(scoreAward)}`
+        : english ? "SCORE ALREADY CLAIMED" : "ОЧКИ УЖЕ ЗАСЧИТАНЫ",
     );
     this.total.setText(
-      `ОБЩИЙ СЧЁТ  ${formatNumber(totalStart + scoreAward)}`,
+      `${english ? "TOTAL SCORE" : "ОБЩИЙ СЧЁТ"}  ${formatNumber(totalStart + scoreAward)}`,
     );
     this.dust.setText(
       this.data.dustAward > 0
-        ? `ПЫЛЬ  +${formatNumber(dustAward)}   →   ${formatNumber(dustStart + dustAward)}`
-        : `ПЫЛЬ  ${formatNumber(this.data.dustTotal)}`,
+        ? `${english ? "DUST" : "ПЫЛЬ"}  +${formatNumber(dustAward)}   →   ${formatNumber(dustStart + dustAward)}`
+        : `${english ? "DUST" : "ПЫЛЬ"}  ${formatNumber(this.data.dustTotal)}`,
     );
     this.progress.setText(this.data.progressText(this.counter.progress));
   }

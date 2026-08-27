@@ -5,6 +5,8 @@ import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
 import { PlayMode } from "../modes.js";
+import { isShortLandscape } from "../responsive-layout.js";
+import { getSettings } from "../settings.js";
 import { makeButton, makeText } from "../ui.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 
@@ -26,17 +28,20 @@ export class MenuScene extends Phaser.Scene {
     this.campaignTestMode = isCampaignTestMode();
     this.progress = getCampaignProgress(this);
     this.economy = getEconomy(this);
+    this.settings = getSettings(this);
+    this.english = this.settings.snapshot.language === "en";
     this.endlessAccess = standardEndlessAccess(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
     });
-    this.title = makeText(this, "HEX GARDEN", 30, "#ededed").setOrigin(0.5);
+    this.background = this.add.graphics();
+    this.title = makeText(this, "HEX GARDEN", 34, "#f2efe5").setOrigin(0.5);
     this.subtitle = makeText(
       this,
-      "SELECT MODE",
+      this.english ? "ALCHEMY PUZZLE" : "АЛХИМИЧЕСКАЯ ГОЛОВОЛОМКА",
       14,
       "#8f8f8f",
     ).setOrigin(0.5);
-    this.campaignButton = makeButton(this, "CAMPAIGN", () => {
+    this.campaignButton = makeButton(this, this.english ? "CAMPAIGN" : "КАМПАНИЯ", () => {
       this.scene.start(
         this.progress.snapshot.tutorialCompleted ? "level-select" : "board",
         this.progress.snapshot.tutorialCompleted
@@ -47,15 +52,17 @@ export class MenuScene extends Phaser.Scene {
     this.standardButton = makeButton(
       this,
       this.endlessAccess.unlocked
-        ? "ENDLESS"
-        : `ENDLESS  /  LOCKED  ${this.endlessAccess.completedRequiredLevels}/${this.endlessAccess.requiredCompletedLevels}`,
+        ? (this.english ? "ENDLESS" : "БЕСКОНЕЧНЫЙ РЕЖИМ")
+        : `${this.english ? "ENDLESS · LOCKED" : "БЕСКОНЕЧНЫЙ · ЗАКРЫТ"}  ${this.endlessAccess.completedRequiredLevels}/${this.endlessAccess.requiredCompletedLevels}`,
       () => {
         if (!this.endlessAccess.unlocked) {
           const remaining = this.endlessAccess.remainingLevels;
           this.note
             .setText(
-              `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ УРОВНЯ ${this.endlessAccess.unlockLevel + 1}\n` +
-                `ПРОЙДИТЕ ЕЩЁ ${remaining} ${russianLevelWord(remaining)} КАМПАНИИ`,
+              this.english
+                ? `ENDLESS UNLOCKS AFTER LEVEL ${this.endlessAccess.unlockLevel + 1}\nCOMPLETE ${remaining} MORE CAMPAIGN LEVELS`
+                : `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ УРОВНЯ ${this.endlessAccess.unlockLevel + 1}\n` +
+                  `ПРОЙДИТЕ ЕЩЁ ${remaining} ${russianLevelWord(remaining)} КАМПАНИИ`,
             )
             .setColor("#f0d58a");
           return;
@@ -64,12 +71,15 @@ export class MenuScene extends Phaser.Scene {
       },
     );
     if (!this.endlessAccess.unlocked) this.standardButton.setAlpha(0.55);
-    this.shopButton = makeButton(this, "МАГАЗИН", () => {
+    this.shopButton = makeButton(this, this.english ? "SHOP" : "МАГАЗИН", () => {
       this.scene.start("shop", { returnScene: "menu" });
+    });
+    this.settingsButton = makeButton(this, this.english ? "SETTINGS" : "НАСТРОЙКИ", () => {
+      this.scene.start("settings", { returnScene: "menu" });
     });
     this.wallet = makeText(
       this,
-      `ПЫЛЬ  ${this.economy.snapshot.dust.toLocaleString("ru-RU")}`,
+      `${this.english ? "DUST" : "ПЫЛЬ"}  ${this.economy.snapshot.dust.toLocaleString("ru-RU")}`,
       13,
       "#f0d58a",
     ).setOrigin(0.5);
@@ -78,8 +88,10 @@ export class MenuScene extends Phaser.Scene {
       this.campaignTestMode
         ? `TEST MODE: ALL ${PROGRESSION_LEVEL_COUNT} CAMPAIGN LEVELS UNLOCKED`
         : this.progress.snapshot.campaignCompleted
-        ? `CAMPAIGN SCORE ${this.progress.snapshot.campaignScore.toLocaleString("ru-RU")}`
-        : "CAMPAIGN PROGRESS AND SCORE ARE SAVED ON THIS DEVICE",
+        ? `${this.english ? "CAMPAIGN SCORE" : "СЧЁТ КАМПАНИИ"} ${this.progress.snapshot.campaignScore.toLocaleString("ru-RU")}`
+        : this.english
+        ? "CAMPAIGN PROGRESS AND SCORE ARE SAVED ON THIS DEVICE"
+        : "ПРОГРЕСС И СЧЁТ СОХРАНЯЮТСЯ НА ЭТОМ УСТРОЙСТВЕ",
       11,
       "#666666",
     ).setOrigin(0.5);
@@ -95,20 +107,57 @@ export class MenuScene extends Phaser.Scene {
   layout() {
     const { width, height } = this.scale;
     const compact = width < 520;
+    const shortLandscape = isShortLandscape(width, height);
     const centerX = width / 2;
     const centerY = height / 2;
+    const cardWidth = Math.min(width - 28, shortLandscape ? 760 : 560);
+    const cardHeight = Math.min(height - 30, compact ? 590 : 620);
+    const cardX = (width - cardWidth) / 2;
+    const cardY = (height - cardHeight) / 2;
+    const mainWidth = Math.min(cardWidth - 42, 390);
+    const secondaryWidth = Math.min((mainWidth - 10) / 2, 190);
+
+    this.background.clear();
+    this.background.fillStyle(0x17201c, 1).fillRoundedRect(cardX, cardY, cardWidth, cardHeight, 22);
+    this.background.lineStyle(2, 0x43564b, 1).strokeRoundedRect(cardX, cardY, cardWidth, cardHeight, 22);
+    this.background.fillStyle(0x89a884, 0.1).fillCircle(centerX, cardY + 96, 72);
+
+    if (shortLandscape) {
+      const leftCenter = cardX + cardWidth * 0.28;
+      const rightCenter = cardX + cardWidth * 0.7;
+      const landscapeMainWidth = Math.min(330, cardWidth * 0.42);
+      const landscapeSecondaryWidth = (landscapeMainWidth - 10) / 2;
+      this.title.setFontSize(29).setPosition(leftCenter, cardY + 70);
+      this.subtitle.setFontSize(11).setPosition(leftCenter, cardY + 109);
+      this.wallet.setPosition(leftCenter, cardY + 154);
+      this.note
+        .setFontSize(9)
+        .setWordWrapWidth(cardWidth * 0.42)
+        .setPosition(leftCenter, cardY + cardHeight - 64);
+      this.campaignButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 72);
+      this.standardButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 138);
+      this.shopButton
+        .setFixedSize(landscapeSecondaryWidth, 48)
+        .setPosition(rightCenter - landscapeSecondaryWidth / 2 - 5, cardY + 210);
+      this.settingsButton
+        .setFixedSize(landscapeSecondaryWidth, 48)
+        .setPosition(rightCenter + landscapeSecondaryWidth / 2 + 5, cardY + 210);
+      return;
+    }
 
     this.title
-      .setFontSize(compact ? 24 : 30)
-      .setPosition(centerX, Math.max(54, centerY - 145));
-    this.subtitle.setPosition(centerX, Math.max(90, centerY - 98));
-    this.wallet.setPosition(centerX, Math.max(116, centerY - 70));
-    this.campaignButton.setPosition(centerX, centerY - 28);
-    this.standardButton.setPosition(centerX, centerY + 34);
-    this.shopButton.setPosition(centerX, centerY + 96);
+      .setFontSize(compact ? 28 : 34)
+      .setFontStyle("bold")
+      .setPosition(centerX, cardY + 76);
+    this.subtitle.setPosition(centerX, cardY + 116);
+    this.wallet.setPosition(centerX, cardY + 158);
+    this.campaignButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 224);
+    this.standardButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 296);
+    this.shopButton.setFixedSize(secondaryWidth, 50).setPosition(centerX - secondaryWidth / 2 - 5, cardY + 374);
+    this.settingsButton.setFixedSize(secondaryWidth, 50).setPosition(centerX + secondaryWidth / 2 + 5, cardY + 374);
     this.note
       .setFontSize(compact ? 9 : 11)
-      .setWordWrapWidth(Math.max(240, width - 28))
-      .setPosition(centerX, Math.min(height - 28, centerY + 158));
+      .setWordWrapWidth(cardWidth - 38)
+      .setPosition(centerX, cardY + cardHeight - 52);
   }
 }

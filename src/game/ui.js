@@ -1,17 +1,19 @@
 export function makeText(scene, text, size, color = "#d8d8d8") {
-  return scene.add.text(0, 0, text, {
-    fontFamily: 'Consolas, "Courier New", monospace',
+  const value = scene.add.text(0, 0, text, {
+    fontFamily: 'Inter, Arial, "Segoe UI", sans-serif',
     fontSize: `${size}px`,
     color,
     align: "center",
   });
+  return value.setResolution(Math.min(2, globalThis.devicePixelRatio || 1));
 }
 
 export function makeButton(scene, label, onClick, size = 16) {
   const text = makeText(scene, label, size, "#e5e5e5")
     .setOrigin(0.5)
-    .setPadding(12, 8)
-    .setBackgroundColor("#292929")
+    .setPadding(16, 11)
+    .setFontStyle("bold")
+    .setBackgroundColor("#29332e")
     .setInteractive({ useHandCursor: true });
   text.on("pointerdown", onClick);
   return text;

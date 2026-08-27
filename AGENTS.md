@@ -2,7 +2,7 @@
 
 ## Current phase
 
-This project is a mechanics, progression, level-generation, and economy test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu, campaign level-select screen, persistent dust wallet, hint inventory, shop, rewarded-ad booster choice, and completion reward presentation are required. Do not add unrelated product styling yet: no fake or nonfunctional settings, timers, online leaderboards, forced/interstitial advertisements, real payments, audio, unrelated particles, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, purchased hint controls, optional rewarded ads, and victory reward screen are part of the current progression contract.
+This project is a mechanics, progression, level-generation, economy, and product-UI test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A product-shaped mode menu, campaign level-select screen, persistent dust wallet, hint inventory, shop, rewarded-ad booster choice, completion reward presentation, language setting, and global sound preference are required. Do not add timers, online leaderboards, forced/interstitial advertisements, real payments, sound assets before the sound design exists, unrelated particles, decorative backgrounds, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, purchased hint controls, optional rewarded ads, victory reward screen, responsive navigation, and saved settings are part of the current progression contract.
 
 The runtime should expose only what is needed to inspect the board and progression:
 
@@ -12,12 +12,15 @@ The runtime should expose only what is needed to inspect the board and progressi
 - a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
 - previous unlocked level, next unlocked level, restart, and menu/level-select controls;
+- visible on-screen return/navigation controls in every scene; keyboard shortcuts are optional accelerators and never the only way out;
 - direct selection/removal behavior;
 - the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
 - in standard endless, a visible score, cleared-board streak, current multiplier, next multiplier threshold, and animated score awards for removals and board clears.
 - in campaign, a persistent score with animated awards but no streak or multiplier; only a level's first completion can add to that score.
 - a persistent dust wallet, dedicated shop, owned counts for Move/Undo/Rescue items, and an in-board `+` purchase dialog when an item is depleted.
 - a blocking completion reward screen that counts up earned score and dust, shows campaign or streak progress, announces unlocks, and only then offers the next level or exit.
+- distinct desktop, phone portrait, and phone landscape layouts. Portrait uses a readable two-row atom inventory when needed; landscape uses a side action dock; desktop keeps a centered board with top HUD and bottom dock.
+- persistent Russian/English and sound on/off settings. Sound on/off must control Phaser's global mute state so future audio automatically respects it.
 
 ## Economy
 
@@ -122,11 +125,12 @@ Before handoff:
 3. Verify exact 55-piece counts for both endless variants.
 4. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
 5. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
-6. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, both board return controls, and phone portrait layout. Keep the internal quintessence generator covered by automated tests.
+6. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, all visible return controls, and desktop/phone-portrait/phone-landscape layouts including live orientation changes. Keep the internal quintessence generator covered by automated tests.
 7. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
 8. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
 9. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, dead-end Rescue, and the permanent `ASSISTED` marker.
 10. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
 11. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
+12. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

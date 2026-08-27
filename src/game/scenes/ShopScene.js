@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { HINT_PRODUCTS } from "../../economy.js";
 import { getEconomy } from "../economy.js";
+import { getSettings } from "../settings.js";
 import { makeButton, makeText } from "../ui.js";
 
 function formatDust(value) {
@@ -16,31 +17,32 @@ export class ShopScene extends Phaser.Scene {
   create(data = {}) {
     this.returnScene = data.returnScene === "level-select" ? "level-select" : "menu";
     this.economy = getEconomy(this);
-    this.title = makeText(this, "МАГАЗИН", 26, "#ededed").setOrigin(0.5);
+    this.english = getSettings(this).snapshot.language === "en";
+    this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#ededed").setOrigin(0.5);
     this.balance = makeText(this, "", 16, "#f0d58a").setOrigin(0.5);
     this.subtitle = makeText(
       this,
-      "ПОДСКАЗКИ ПОКУПАЮТСЯ ЗАРАНЕЕ И ХРАНЯТСЯ В ИНВЕНТАРЕ",
+      this.english ? "BOOSTERS ARE PURCHASED IN ADVANCE AND STORED IN YOUR INVENTORY" : "ПОДСКАЗКИ ПОКУПАЮТСЯ ЗАРАНЕЕ И ХРАНЯТСЯ В ИНВЕНТАРЕ",
       11,
       "#8f8f8f",
     ).setOrigin(0.5);
     this.message = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
-    this.backButton = makeButton(this, "< НАЗАД", () => {
+    this.backButton = makeButton(this, this.english ? "←  BACK" : "←  НАЗАД", () => {
       this.scene.start(this.returnScene);
     }, 14);
 
     this.productViews = HINT_PRODUCTS.map((product) => {
-      const title = makeText(this, product.title, 18, "#ededed").setOrigin(0.5);
+      const title = makeText(this, this.english ? product.titleEn : product.title, 18, "#ededed").setOrigin(0.5);
       const description = makeText(
         this,
-        product.description,
+        this.english ? product.descriptionEn : product.description,
         11,
         "#9f9f9f",
       ).setOrigin(0.5);
       const owned = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
       const buy = makeButton(
         this,
-        `КУПИТЬ ×${product.amount}  /  ${product.price} ПЫЛИ`,
+        `${this.english ? "BUY" : "КУПИТЬ"} ×${product.amount}  /  ${product.price} ${this.english ? "DUST" : "ПЫЛИ"}`,
         () => this.purchase(product),
         13,
       );
@@ -61,7 +63,9 @@ export class ShopScene extends Phaser.Scene {
     this.message
       .setText(
         result.ok
-          ? `${product.title}: +${product.amount}`
+          ? `${this.english ? product.titleEn : product.title}: +${product.amount}`
+          : this.english
+          ? `NEED ${product.price - result.snapshot.dust} MORE DUST`
           : `НЕ ХВАТАЕТ ${product.price - result.snapshot.dust} ПЫЛИ`,
       )
       .setColor(result.ok ? "#c8edc5" : "#e89070");
@@ -70,9 +74,9 @@ export class ShopScene extends Phaser.Scene {
 
   refresh() {
     const snapshot = this.economy.snapshot;
-    this.balance.setText(`ПЫЛЬ  ${formatDust(snapshot.dust)}`);
+    this.balance.setText(`${this.english ? "DUST" : "ПЫЛЬ"}  ${formatDust(snapshot.dust)}`);
     for (const view of this.productViews) {
-      view.owned.setText(`В ИНВЕНТАРЕ: ${snapshot.hints[view.product.hint]}`);
+      view.owned.setText(`${this.english ? "OWNED" : "В ИНВЕНТАРЕ"}: ${snapshot.hints[view.product.hint]}`);
       view.buy.setAlpha(snapshot.dust >= view.product.price ? 1 : 0.62);
     }
   }
@@ -94,7 +98,7 @@ export class ShopScene extends Phaser.Scene {
       .setWordWrapWidth(Math.max(240, width - 32))
       .setPosition(centerX, 89);
     this.message.setPosition(centerX, height - 62);
-    this.backButton.setPosition(62, height - 25);
+    this.backButton.setFixedSize(126, 44).setPosition(76, height - 28);
 
     if (shortLandscape) {
       this.title.setFontSize(20).setPosition(centerX, 24);
