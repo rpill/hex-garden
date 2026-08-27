@@ -34,6 +34,12 @@ export const HINT_PRODUCTS = Object.freeze([
   }),
 ]);
 
+export const REWARDED_HINT_AMOUNTS = Object.freeze({
+  [HintType.MOVE]: 1,
+  [HintType.UNDO]: 1,
+  [HintType.RESCUE]: 1,
+});
+
 const HINT_TYPES = Object.freeze(Object.values(HintType));
 const PRODUCT_BY_ID = new Map(HINT_PRODUCTS.map((product) => [product.id, product]));
 const PRODUCT_BY_HINT = new Map(
@@ -115,6 +121,10 @@ export function productForHint(type) {
   return PRODUCT_BY_HINT.get(type) ?? null;
 }
 
+export function rewardedAmountForHint(type) {
+  return REWARDED_HINT_AMOUNTS[type] ?? 0;
+}
+
 export class EconomyStore {
   #snapshot;
   #startingDust;
@@ -188,6 +198,24 @@ export class EconomyStore {
     };
     this.#persist();
     return true;
+  }
+
+  grantHint(type, amount = rewardedAmountForHint(type)) {
+    if (!HINT_TYPES.includes(type)) {
+      throw new RangeError(`Unknown hint type: ${type}`);
+    }
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      throw new RangeError("hint grant amount must be a positive safe integer");
+    }
+    this.#snapshot = {
+      ...this.#snapshot,
+      hints: {
+        ...this.#snapshot.hints,
+        [type]: safeAdd(this.#snapshot.hints[type], amount),
+      },
+    };
+    this.#persist();
+    return Object.freeze({ amount, snapshot: this.snapshot });
   }
 
   claimCampaignLevel(level, plateCellCount) {

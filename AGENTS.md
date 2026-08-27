@@ -2,7 +2,7 @@
 
 ## Current phase
 
-This project is a mechanics, progression, level-generation, and economy test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu, campaign level-select screen, persistent dust wallet, hint inventory, and shop are required. Do not add unrelated product styling yet: no fake or nonfunctional settings, timers, online leaderboards, real advertisements or payments, audio, unrelated particles, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, and purchased hint controls are part of the current progression contract.
+This project is a mechanics, progression, level-generation, and economy test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu, campaign level-select screen, persistent dust wallet, hint inventory, shop, rewarded-ad booster choice, and completion reward presentation are required. Do not add unrelated product styling yet: no fake or nonfunctional settings, timers, online leaderboards, forced/interstitial advertisements, real payments, audio, unrelated particles, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, purchased hint controls, optional rewarded ads, and victory reward screen are part of the current progression contract.
 
 The runtime should expose only what is needed to inspect the board and progression:
 
@@ -17,6 +17,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 - in standard endless, a visible score, cleared-board streak, current multiplier, next multiplier threshold, and animated score awards for removals and board clears.
 - in campaign, a persistent score with animated awards but no streak or multiplier; only a level's first completion can add to that score.
 - a persistent dust wallet, dedicated shop, owned counts for Move/Undo/Rescue items, and an in-board `+` purchase dialog when an item is depleted.
+- a blocking completion reward screen that counts up earned score and dust, shows campaign or streak progress, announces unlocks, and only then offers the next level or exit.
 
 ## Economy
 
@@ -26,6 +27,9 @@ The runtime should expose only what is needed to inspect the board and progressi
 - Endless clears award 2/4/6 dust for 37/61/91-cell fields.
 - The shop sells three Move hints for 30 dust, two Undo items for 50 dust, and one Endless Rescue for 60 dust.
 - Buying only increases persistent inventory. Using an owned item during play consumes exactly one charge; a depleted item shows `+` and opens the matching dust-purchase dialog.
+- The depleted-item dialog offers two explicit choices: watch one rewarded ad for one matching item, or buy the normal bundle for dust. Watching alone never spends dust.
+- A rewarded item is granted only from the platform SDK's confirmed reward callback. Closing, errors, unavailable inventory, or concurrent requests grant nothing.
+- Localhost and `?test=all` simulate a successful rewarded placement for testability. The real Yandex adapter pauses/resumes gameplay around the ad and allows only one rewarded request at a time.
 - Move highlights one currently legal move for four seconds. Undo restores the board and score to immediately before the latest removal. Rescue is usable only after an Endless dead end and performs the same rollback while continuing the run.
 - Any hint, undo, or rescue used in Endless permanently marks that run `ASSISTED`; assisted scores must never be submitted to the future ranked leaderboard.
 - `src/economy.js` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
@@ -97,7 +101,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 - Phaser 3 + Vite + native ES modules.
 - Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, `src/campaign.js`, and `src/progression.js`.
-- Active scenes are `MenuScene`, `LevelSelectScene`, and `BoardScene`.
+- Active scenes are `MenuScene`, `LevelSelectScene`, `ShopScene`, and `BoardScene`.
 - Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
 - A board itself is regenerated from its mode, seed, and number; generated coordinates are not persisted.
@@ -122,5 +126,7 @@ Before handoff:
 7. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
 8. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
 9. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, dead-end Rescue, and the permanent `ASSISTED` marker.
+10. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
+11. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

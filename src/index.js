@@ -66,6 +66,7 @@ export {
 export {
   ECONOMY_STORAGE_KEY,
   HINT_PRODUCTS,
+  REWARDED_HINT_AMOUNTS,
   STARTING_DUST,
   EconomyStore,
   HintType,
@@ -73,7 +74,13 @@ export {
   endlessDustReward,
   normalizeEconomy,
   productForHint,
+  rewardedAmountForHint,
 } from "./economy.js";
+export {
+  RewardedAdStatus,
+  YandexGamesAdapter,
+  getYandexGamesAdapter,
+} from "./platform/yandex-games.js";
 export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,

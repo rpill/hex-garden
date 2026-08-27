@@ -9,6 +9,7 @@ import {
   endlessDustReward,
   normalizeEconomy,
   productForHint,
+  rewardedAmountForHint,
 } from "../src/economy.js";
 
 class MemoryStorage {
@@ -58,6 +59,18 @@ test("shop purchases charges rather than direct hint effects", () => {
   assert.equal(store.snapshot.hints.move, product.amount);
   assert.equal(store.consumeHint(HintType.MOVE), true);
   assert.equal(store.snapshot.hints.move, product.amount - 1);
+});
+
+test("rewarded ads grant one explicit booster without changing dust", () => {
+  const store = new EconomyStore({ storage: new MemoryStorage() });
+  for (const type of Object.values(HintType)) {
+    assert.equal(rewardedAmountForHint(type), 1);
+    const beforeDust = store.snapshot.dust;
+    assert.equal(store.grantHint(type).amount, 1);
+    assert.equal(store.snapshot.hints[type], 1);
+    assert.equal(store.snapshot.dust, beforeDust);
+  }
+  assert.throws(() => store.grantHint(HintType.MOVE, 0), /positive/);
 });
 
 test("an unaffordable purchase leaves wallet and inventory unchanged", () => {

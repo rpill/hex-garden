@@ -2,7 +2,11 @@ import Phaser from "phaser";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
-import { HintType, productForHint } from "../../economy.js";
+import {
+  HintType,
+  productForHint,
+  rewardedAmountForHint,
+} from "../../economy.js";
 import {
   boardClearBaseScore,
   createEndlessScoreState,
@@ -23,6 +27,11 @@ import {
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
+import { CompletionOverlay } from "../completion-overlay.js";
+import {
+  RewardedAdStatus,
+  getYandexGamesAdapter,
+} from "../../platform/yandex-games.js";
 import { PlayMode } from "../modes.js";
 import {
   TUTORIAL_GUIDED_MOVE_COUNT,
@@ -140,6 +149,8 @@ export class BoardScene extends Phaser.Scene {
     this.endlessAssisted = false;
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
+    this.rewardedAdPending = false;
+    this.endlessBoardStartScore = 0;
   }
 
   init(data = {}) {
@@ -180,10 +191,13 @@ export class BoardScene extends Phaser.Scene {
     this.endlessAssisted = false;
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
+    this.rewardedAdPending = false;
+    this.endlessBoardStartScore = 0;
   }
 
   create() {
     this.economy = getEconomy(this);
+    this.platform = getYandexGamesAdapter();
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
@@ -245,6 +259,9 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalBuy = makeButton(this, "КУПИТЬ", () =>
       this.purchaseEconomyModalProduct(),
     ).setDepth(31).setVisible(false).disableInteractive();
+    this.economyModalAd = makeButton(this, "РЕКЛАМА", () =>
+      this.showRewardedForEconomyModal(),
+    ).setDepth(31).setVisible(false).disableInteractive();
     this.economyModalClose = makeButton(this, "ЗАКРЫТЬ", () =>
       this.closeEconomyModal(),
     ).setDepth(31).setVisible(false).disableInteractive();
@@ -261,11 +278,17 @@ export class BoardScene extends Phaser.Scene {
       [HintType.UNDO, makeButton(this, "ОТМЕНА +", () => this.useHint(HintType.UNDO))],
       [HintType.RESCUE, makeButton(this, "СПАСТИ +", () => this.useHint(HintType.RESCUE))],
     ]);
+    this.completionOverlay = new CompletionOverlay(this);
 
     this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
     this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
     this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.rewardedAdPending) return;
+      if (this.completionOverlay.visible) {
+        this.completionOverlay.exit();
+        return;
+      }
       if (this.economyModalVisible) this.closeEconomyModal();
       else this.leaveBoard();
     });
@@ -277,6 +300,7 @@ export class BoardScene extends Phaser.Scene {
       this.clearMoveHint(false);
       this.endlessScoreTween?.stop();
       this.campaignScoreTween?.stop();
+      this.completionOverlay.hide();
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
@@ -289,6 +313,9 @@ export class BoardScene extends Phaser.Scene {
   async loadLevel() {
     const token = ++this.generationToken;
     if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
+    if (this.mode === PlayMode.STANDARD) {
+      this.endlessBoardStartScore = this.endlessScoreState.score;
+    }
     this.removalHistory = [];
     this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
@@ -355,7 +382,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   changeLevel(delta) {
-    if (this.busy) return;
+    if (this.busy || this.completionOverlay?.visible) return;
     if (this.mode === PlayMode.TUTORIAL) {
       if (delta > 0 && this.board?.won) {
         this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: 0 });
@@ -401,7 +428,11 @@ export class BoardScene extends Phaser.Scene {
   }
 
   restartLevel() {
-    if (this.busy || this.initialPieces.length === 0) return;
+    if (
+      this.busy ||
+      this.completionOverlay?.visible ||
+      this.initialPieces.length === 0
+    ) return;
     if (this.mode === PlayMode.STANDARD) {
       this.endlessScoreTween?.stop();
       this.endlessScoreState = createEndlessScoreState();
@@ -436,6 +467,7 @@ export class BoardScene extends Phaser.Scene {
       this.busy ||
       this.mechanicCardVisible ||
       this.economyModalVisible ||
+      this.completionOverlay?.visible ||
       this.endlessRunOver ||
       !this.board
     ) {
@@ -505,6 +537,7 @@ export class BoardScene extends Phaser.Scene {
           this.progress.completeTutorial();
           message = "";
         } else if (this.mode === PlayMode.CAMPAIGN) {
+          const progressBefore = this.progress.snapshot;
           const alreadyCompleted = this.progress.isCompleted(this.level);
           const shouldRecordScore =
             this.campaignScoringActive &&
@@ -537,13 +570,18 @@ export class BoardScene extends Phaser.Scene {
               `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
           }
           if (dust.award > 0) message += `   +${dust.award} ПЫЛИ`;
-          if (
+          const unlockedEndless =
             !alreadyCompleted &&
             !this.progress.testMode &&
-            this.level === STANDARD_ENDLESS_UNLOCK_LEVEL
-          ) {
-            this.showEndlessUnlockedCard();
-          }
+            this.level === STANDARD_ENDLESS_UNLOCK_LEVEL;
+          this.showCampaignCompletion({
+            snapshot,
+            progressBefore,
+            scoreAward: shouldRecordScore ? this.campaignLevelScore : 0,
+            dustAward: dust.award,
+            dustTotal: dust.snapshot.dust,
+            unlockedEndless,
+          });
         } else if (this.mode === PlayMode.STANDARD) {
           const clearScore = scoreClearedBoard(
             this.endlessScoreState,
@@ -562,6 +600,11 @@ export class BoardScene extends Phaser.Scene {
           message =
             `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
             `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
+          this.showEndlessCompletion({
+            clearScore,
+            dustAward: dust.award,
+            dustTotal: dust.snapshot.dust,
+          });
         }
         this.setBusy(false);
       } else if (
@@ -579,6 +622,82 @@ export class BoardScene extends Phaser.Scene {
       this.updateTutorialGuide();
     }
     this.layout();
+  }
+
+  showCampaignCompletion({
+    snapshot,
+    progressBefore,
+    scoreAward,
+    dustAward,
+    dustTotal,
+    unlockedEndless,
+  }) {
+    const completed = snapshot.completedLevels.length;
+    const campaignComplete = snapshot.campaignCompleted;
+    this.completionOverlay.show(
+      {
+        title: campaignComplete ? "КАМПАНИЯ ЗАВЕРШЕНА" : "УРОВЕНЬ ПРОЙДЕН",
+        subtitle: `УРОВЕНЬ ${String(this.level + 1).padStart(2, "0")} / ${PROGRESSION_LEVEL_COUNT}`,
+        scoreAward,
+        totalScore: snapshot.campaignScore,
+        dustAward,
+        dustTotal,
+        progressStart: progressBefore.completedLevels.length,
+        progressEnd: completed,
+        progressMax: PROGRESSION_LEVEL_COUNT,
+        progressText: (value) =>
+          `ПРОГРЕСС КАМПАНИИ  ${Math.round(value)} / ${PROGRESSION_LEVEL_COUNT}`,
+        unlockText: unlockedEndless
+          ? "ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS"
+          : campaignComplete
+          ? "ВСЕ УРОВНИ ПРОЙДЕНЫ"
+          : `ОТКРЫТ УРОВЕНЬ ${Math.min(PROGRESSION_LEVEL_COUNT, this.level + 2)}`,
+        continueLabel: campaignComplete
+          ? "К РЕЗУЛЬТАТАМ"
+          : "СЛЕДУЮЩИЙ УРОВЕНЬ",
+        exitLabel: "К ВЫБОРУ УРОВНЕЙ",
+      },
+      {
+        onContinue: () => {
+          if (campaignComplete) this.openLevelSelect();
+          else this.changeLevel(1);
+        },
+        onExit: () => this.openLevelSelect(),
+      },
+    );
+  }
+
+  showEndlessCompletion({ clearScore, dustAward, dustTotal }) {
+    const streak = this.endlessScoreState.streak;
+    const next = nextStreakMultiplier(streak);
+    const progressMax = next?.streak ?? Math.max(1, streak);
+    this.completionOverlay.show(
+      {
+        title: "ПОЛЕ ОЧИЩЕНО",
+        subtitle: `ПОЛЕ ${String(this.level + 1).padStart(2, "0")}   ·   СЕРИЯ ${streak}`,
+        scoreAward:
+          this.endlessScoreState.score - this.endlessBoardStartScore,
+        totalScore: this.endlessScoreState.score,
+        dustAward,
+        dustTotal,
+        progressStart: Math.max(0, streak - 1),
+        progressEnd: streak,
+        progressMax,
+        progressText: (value) =>
+          next
+            ? `СЕРИЯ  ${Math.round(value)} / ${next.streak}   ДО ×${formatMultiplier(next.multiplier)}`
+            : `СЕРИЯ  ${Math.round(value)}   ·   МАКСИМАЛЬНЫЙ МНОЖИТЕЛЬ`,
+        unlockText:
+          `БОНУС ОЧИСТКИ ×${formatMultiplier(clearScore.multiplier)}` +
+          (this.endlessAssisted ? "   ·   ASSISTED" : ""),
+        continueLabel: "СЛЕДУЮЩЕЕ ПОЛЕ",
+        exitLabel: "ЗАВЕРШИТЬ ЗАБЕГ",
+      },
+      {
+        onContinue: () => this.changeLevel(1),
+        onExit: () => this.openMainMenu(),
+      },
+    );
   }
 
   showScorePopup(removedPieces, text, color = "#f0d58a") {
@@ -820,6 +939,9 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalBuy
       .setVisible(true)
       .setInteractive({ useHandCursor: true });
+    this.economyModalAd
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
     this.economyModalClose
       .setVisible(true)
       .setInteractive({ useHandCursor: true });
@@ -838,9 +960,14 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalBuy
       .setText(`КУПИТЬ ×${product.amount}  /  ${product.price} ПЫЛИ`)
       .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
+    const rewardedAmount = rewardedAmountForHint(product.hint);
+    this.economyModalAd.setText(
+      `СМОТРЕТЬ РЕКЛАМУ  /  +${rewardedAmount}`,
+    );
   }
 
   purchaseEconomyModalProduct() {
+    if (this.rewardedAdPending) return;
     const product = this.economyModalProduct;
     if (!product) return;
     const result = this.economy.purchase(product.id);
@@ -855,7 +982,52 @@ export class BoardScene extends Phaser.Scene {
     this.refreshEconomyModal();
   }
 
+  async showRewardedForEconomyModal() {
+    if (this.rewardedAdPending || !this.economyModalProduct) return;
+    const product = this.economyModalProduct;
+    const amount = rewardedAmountForHint(product.hint);
+    this.rewardedAdPending = true;
+    this.economyModalMessage
+      .setText(
+        this.platform.isSimulated
+          ? "ТЕСТОВАЯ РЕКЛАМА..."
+          : "ЗАГРУЗКА РЕКЛАМЫ...",
+      )
+      .setColor("#f0d58a");
+    this.economyModalBuy.disableInteractive().setAlpha(0.4);
+    this.economyModalAd.disableInteractive().setAlpha(0.4);
+    this.economyModalClose.disableInteractive().setAlpha(0.4);
+
+    const result = await this.platform.showRewarded();
+    this.rewardedAdPending = false;
+    if (result.status === RewardedAdStatus.REWARDED) {
+      this.economy.grantHint(product.hint, amount);
+      this.economyModalMessage
+        .setText(`ПОЛУЧЕНО: ${product.title} +${amount}`)
+        .setColor("#c8edc5");
+    } else if (result.status === RewardedAdStatus.CLOSED) {
+      this.economyModalMessage
+        .setText("НАГРАДА НЕ ПОЛУЧЕНА")
+        .setColor("#e89070");
+    } else if (result.status === RewardedAdStatus.BUSY) {
+      this.economyModalMessage
+        .setText("РЕКЛАМА УЖЕ ОТКРЫТА")
+        .setColor("#e89070");
+    } else {
+      this.economyModalMessage
+        .setText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА")
+        .setColor("#e89070");
+    }
+    if (!this.economyModalVisible) return;
+    this.economyModalBuy.setInteractive({ useHandCursor: true });
+    this.economyModalAd.setInteractive({ useHandCursor: true }).setAlpha(1);
+    this.economyModalClose.setInteractive({ useHandCursor: true }).setAlpha(1);
+    this.updateEconomyUi();
+    this.refreshEconomyModal();
+  }
+
   closeEconomyModal() {
+    if (this.rewardedAdPending) return;
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
     this.economyModalGraphics.clear();
@@ -865,11 +1037,13 @@ export class BoardScene extends Phaser.Scene {
       this.economyModalBody,
       this.economyModalMessage,
       this.economyModalBuy,
+      this.economyModalAd,
       this.economyModalClose,
     ]) {
       item.setVisible(false);
     }
     this.economyModalBuy.disableInteractive();
+    this.economyModalAd.disableInteractive();
     this.economyModalClose.disableInteractive();
     this.render();
   }
@@ -1255,6 +1429,7 @@ export class BoardScene extends Phaser.Scene {
     this.render();
     this.layoutMechanicCard(width, height, compact);
     this.layoutEconomyModal(width, height, compact);
+    this.completionOverlay.layout(width, height);
   }
 
   layoutEconomyModal(width, height, compact) {
@@ -1283,11 +1458,15 @@ export class BoardScene extends Phaser.Scene {
       .setFontSize(compact ? 11 : 13)
       .setWordWrapWidth(cardWidth - 36)
       .setPosition(width / 2, y + 112);
-    this.economyModalMessage.setPosition(width / 2, y + 190);
+    this.economyModalMessage.setPosition(width / 2, y + 174);
+    this.economyModalAd
+      .setFontSize(compact ? 10 : 13)
+      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
+      .setPosition(width / 2, y + cardHeight - 116);
     this.economyModalBuy
       .setFontSize(compact ? 10 : 13)
       .setFixedSize(Math.min(cardWidth - 36, 330), 38)
-      .setPosition(width / 2, y + cardHeight - 72);
+      .setPosition(width / 2, y + cardHeight - 70);
     this.economyModalClose
       .setFontSize(compact ? 10 : 12)
       .setPosition(width / 2, y + cardHeight - 27);

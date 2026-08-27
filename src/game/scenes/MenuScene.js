@@ -6,6 +6,7 @@ import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
 import { PlayMode } from "../modes.js";
 import { makeButton, makeText } from "../ui.js";
+import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 
 function russianLevelWord(count) {
   const mod100 = count % 100;
@@ -88,6 +89,7 @@ export class MenuScene extends Phaser.Scene {
       this.scale.off("resize", this.layout, this);
     });
     this.layout();
+    getYandexGamesAdapter().notifyGameReady();
   }
 
   layout() {
