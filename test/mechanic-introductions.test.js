@@ -26,3 +26,19 @@ test("every early mechanic card describes atoms required by that level", () => {
     assert.equal(replaySolution(record.pieces, record.solution), true);
   }
 });
+
+test("mechanic cards do not expose internal English atom names", () => {
+  const internalNames =
+    /\b(?:NEW|SALT|VITAE|MORS|LEAD|TIN|IRON|COPPER|SILVER|GOLD|QUICKSILVER|QUINTESSENCE)\b/i;
+
+  for (const introduction of Object.values(
+    CAMPAIGN_MECHANIC_INTRODUCTIONS,
+  )) {
+    assert.doesNotMatch(introduction.text, internalNames);
+  }
+
+  assert.match(mechanicIntroductionForLevel(3).text, /СВИНЕЦ \(Pb\)/);
+  assert.match(mechanicIntroductionForLevel(3).text, /РТУТЬ \(Hg\)/);
+  assert.match(mechanicIntroductionForLevel(4).text, /ОЛОВО \(Sn\)/);
+  assert.match(mechanicIntroductionForLevel(4).text, /СВИНЕЦ \(Pb\)/);
+});

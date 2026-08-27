@@ -56,6 +56,15 @@ const ATOM_COLORS = Object.freeze({
   [Atom.QUINTESSENCE]: 0xa493b7,
 });
 
+const LOCKED_ATOM_NAMES = Object.freeze({
+  [Atom.GOLD]: "ЗОЛОТО (Au)",
+  [Atom.SILVER]: "СЕРЕБРО (Ag)",
+  [Atom.COPPER]: "МЕДЬ (Cu)",
+  [Atom.IRON]: "ЖЕЛЕЗО (Fe)",
+  [Atom.TIN]: "ОЛОВО (Sn)",
+  [Atom.LEAD]: "СВИНЕЦ (Pb)",
+});
+
 function makeText(scene, text, size, color = "#d8d8d8") {
   return scene.add.text(0, 0, text, {
     fontFamily: 'Consolas, "Courier New", monospace',
@@ -145,7 +154,7 @@ export class BoardScene extends Phaser.Scene {
       .setAlign("center")
       .setDepth(21)
       .setVisible(false);
-    this.mechanicCardHint = makeText(this, "TAP TO CONTINUE", 12, "#f0d58a")
+    this.mechanicCardHint = makeText(this, "НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", 12, "#f0d58a")
       .setOrigin(0.5)
       .setDepth(21)
       .setVisible(false);
@@ -268,12 +277,14 @@ export class BoardScene extends Phaser.Scene {
   selectPiece(piece) {
     if (this.busy || this.mechanicCardVisible || !this.board) return;
     if (!this.tutorialAllowsPiece(piece)) {
-      this.status.setText("FOLLOW THE PULSING ATOMS");
+      this.status.setText("НАЖМИТЕ НА ПУЛЬСИРУЮЩИЕ АТОМЫ");
       return;
     }
     const result = this.board.select(piece);
     if (result.kind === "locked") {
-      this.status.setText(`LOCKED: ${ATOM_NAMES[piece.type].toUpperCase()}`);
+      this.status.setText(
+        `ЗАБЛОКИРОВАНО: ${LOCKED_ATOM_NAMES[piece.type] ?? ATOM_NAMES[piece.type].toUpperCase()}`,
+      );
     } else if (result.kind === "selected") {
       const selected = result.selected.map((item) => ATOM_LABELS[item.type]).join(" + ");
       this.status.setText(`SELECTED: ${selected}`);
@@ -413,14 +424,14 @@ export class BoardScene extends Phaser.Scene {
     }
 
     const messages = [
-      "A FREE ATOM HAS 3+ EMPTY HEXES IN A ROW\nGREEN 1-2-3 = FREE. REMOVE THE PULSING AIR PAIR",
-      "REMOVING A PAIR CREATES A NEW 3-HEX OPEN SIDE\nREMOVE THE PULSING FIRE PAIR",
-      "FEWER THAN 3 EMPTY HEXES IN A ROW = BLOCKED\nCLEAR THE REST WITHOUT HELP",
+      "АТОМ СВОБОДЕН, ЕСЛИ РЯДОМ 3+ ПУСТЫЕ ЯЧЕЙКИ ПОДРЯД\nЗЕЛЁНЫЕ 1-2-3 = СВОБОДЕН. УБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ВОЗДУХА",
+      "УДАЛЕНИЕ ПАРЫ ОТКРЫВАЕТ НОВУЮ СТОРОНУ ИЗ 3 ЯЧЕЕК\nУБЕРИТЕ ПУЛЬСИРУЮЩУЮ ПАРУ ОГНЯ",
+      "МЕНЬШЕ 3 ПУСТЫХ ЯЧЕЕК ПОДРЯД = ЗАБЛОКИРОВАН\nОЧИСТИТЕ ОСТАТОК ПОЛЯ БЕЗ ПОДСКАЗКИ",
     ];
     this.tutorialText
       .setText(
         this.board?.won
-          ? "TUTORIAL COMPLETE\nPRESS START FOR LEVEL 1"
+          ? "ОБУЧЕНИЕ ЗАВЕРШЕНО\nПЕРЕХОДИТЕ К УРОВНЮ 1"
           : messages[Math.min(this.tutorialStep, messages.length - 1)],
       )
       .setVisible(true);
@@ -557,7 +568,7 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton.setPosition(width / 2 - gap, controlsY);
     this.nextButton.setPosition(width / 2 + gap, controlsY);
     this.menuButton.setPosition(compact ? width - 48 : width - 70, controlsY);
-    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "START" : ">");
+    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "ИГРАТЬ" : ">");
 
     this.layoutPanel(width, height, compact);
 
@@ -682,7 +693,7 @@ export class BoardScene extends Phaser.Scene {
         : String(this.level + 1).padStart(4, "0");
     this.header.setText(
       this.mode === PlayMode.TUTORIAL
-        ? `TUTORIAL / BASICS   ${count}/${total}`
+        ? `ОБУЧЕНИЕ / ОСНОВЫ   ${count}/${total}`
         : `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
     this.menuButton.setText(

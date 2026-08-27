@@ -5,39 +5,39 @@ const introduction = (text, requiredTypes) =>
 
 export const CAMPAIGN_MECHANIC_INTRODUCTIONS = Object.freeze({
   1: introduction(
-    "NEW: SALT\n\nSALT PAIRS WITH SALT\nOR WITH ANY ELEMENT",
+    "НОВОЕ: СОЛЬ (Sa)\n\nСОЛЬ СОЕДИНЯЕТСЯ С СОЛЬЮ\nИЛИ С ЛЮБОЙ СТИХИЕЙ",
     [Atom.SALT],
   ),
   2: introduction(
-    "NEW: VITAE + MORS\n\nTHEY CAN ONLY BE REMOVED\nTOGETHER AS OPPOSITES",
+    "НОВОЕ: ЖИЗНЬ (V) + СМЕРТЬ (M)\n\nОНИ УДАЛЯЮТСЯ\nТОЛЬКО ВМЕСТЕ",
     [Atom.VITAE, Atom.MORS],
   ),
   3: introduction(
-    "NEW: LEAD + Hg\n\nQUICKSILVER PAIRS WITH LEAD\nREMOVE THEM TOGETHER",
+    "НОВОЕ: СВИНЕЦ (Pb) + РТУТЬ (Hg)\n\nРТУТЬ СОЕДИНЯЕТСЯ СО СВИНЦОМ\nИ УДАЛЯЕТСЯ ВМЕСТЕ С НИМ",
     [Atom.LEAD, Atom.QUICKSILVER],
   ),
   4: introduction(
-    "NEW: TIN + Hg\n\nTIN STAYS LOCKED\nUNTIL ALL LEAD IS REMOVED",
+    "НОВОЕ: ОЛОВО (Sn) + РТУТЬ (Hg)\n\nОЛОВО ЗАБЛОКИРОВАНО, ПОКА\nНЕ УДАЛЁН ВЕСЬ СВИНЕЦ (Pb)",
     [Atom.TIN, Atom.QUICKSILVER],
   ),
   5: introduction(
-    "NEW: IRON + Hg\n\nIRON STAYS LOCKED\nUNTIL ALL TIN IS REMOVED",
+    "НОВОЕ: ЖЕЛЕЗО (Fe) + РТУТЬ (Hg)\n\nЖЕЛЕЗО ЗАБЛОКИРОВАНО, ПОКА\nНЕ УДАЛЕНО ВСЁ ОЛОВО (Sn)",
     [Atom.IRON, Atom.QUICKSILVER],
   ),
   6: introduction(
-    "NEW: COPPER + Hg\n\nCOPPER STAYS LOCKED\nUNTIL ALL IRON IS REMOVED",
+    "НОВОЕ: МЕДЬ (Cu) + РТУТЬ (Hg)\n\nМЕДЬ ЗАБЛОКИРОВАНА, ПОКА\nНЕ УДАЛЕНО ВСЁ ЖЕЛЕЗО (Fe)",
     [Atom.COPPER, Atom.QUICKSILVER],
   ),
   7: introduction(
-    "NEW: SILVER + Hg\n\nSILVER STAYS LOCKED\nUNTIL ALL COPPER IS REMOVED",
+    "НОВОЕ: СЕРЕБРО (Ag) + РТУТЬ (Hg)\n\nСЕРЕБРО ЗАБЛОКИРОВАНО, ПОКА\nНЕ УДАЛЕНА ВСЯ МЕДЬ (Cu)",
     [Atom.SILVER, Atom.QUICKSILVER],
   ),
   8: introduction(
-    "NEW: GOLD\n\nGOLD UNLOCKS AFTER SILVER\nAND A FREE GOLD IS REMOVED ALONE",
+    "НОВОЕ: ЗОЛОТО (Au)\n\nЗОЛОТО ОТКРЫВАЕТСЯ ПОСЛЕ СЕРЕБРА (Ag)\nИ УДАЛЯЕТСЯ БЕЗ ПАРЫ",
     [Atom.GOLD],
   ),
   12: introduction(
-    "NEW: QUINTESSENCE\n\nREMOVE Q TOGETHER WITH\nAIR + FIRE + WATER + EARTH",
+    "НОВОЕ: КВИНТЭССЕНЦИЯ (Q)\n\nУДАЛИТЕ Q ВМЕСТЕ С ЧЕТЫРЬМЯ СТИХИЯМИ:\nВОЗДУХ + ОГОНЬ + ВОДА + ЗЕМЛЯ",
     [Atom.QUINTESSENCE, Atom.AIR, Atom.FIRE, Atom.WATER, Atom.EARTH],
   ),
 });
