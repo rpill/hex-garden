@@ -68,3 +68,7 @@ export {
   createTutorialLevel,
   findLongestEmptyNeighbourRun,
 } from "./tutorial.js";
+export {
+  CAMPAIGN_MECHANIC_INTRODUCTIONS,
+  mechanicIntroductionForLevel,
+} from "./mechanic-introductions.js";

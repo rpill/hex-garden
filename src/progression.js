@@ -36,38 +36,32 @@ const CHAPTERS = Object.freeze([
   Object.freeze({
     id: ProgressionChapter.ELEMENTS,
     start: 0,
-    end: 7,
-    plateRadius: 3,
+    end: 0,
   }),
   Object.freeze({
     id: ProgressionChapter.SALT,
-    start: 8,
-    end: 15,
-    plateRadius: 3,
+    start: 1,
+    end: 1,
   }),
   Object.freeze({
     id: ProgressionChapter.OPPOSITES,
-    start: 16,
-    end: 25,
-    plateRadius: 4,
+    start: 2,
+    end: 2,
   }),
   Object.freeze({
     id: ProgressionChapter.METALS,
-    start: 26,
-    end: 37,
-    plateRadius: 4,
+    start: 3,
+    end: 8,
   }),
   Object.freeze({
     id: ProgressionChapter.FULL_GARDEN,
-    start: 38,
-    end: 49,
-    plateRadius: 5,
+    start: 9,
+    end: 11,
   }),
   Object.freeze({
     id: ProgressionChapter.QUINTESSENCE,
-    start: 50,
+    start: 12,
     end: 59,
-    plateRadius: 5,
   }),
 ]);
 
@@ -116,18 +110,25 @@ function findChapter(level) {
   return CHAPTERS.find((chapter) => level >= chapter.start && level <= chapter.end);
 }
 
+function plateRadiusForLevel(level) {
+  if (level < 16) return 3;
+  if (level < 38) return 4;
+  return 5;
+}
+
 export function getProgressionLevelDefinition(level) {
   assertProgressionLevel(level);
   const chapter = findChapter(level);
   const chapterIndex = CHAPTERS.indexOf(chapter);
   const index = level - chapter.start;
+  const plateRadius = plateRadiusForLevel(level);
   const definition = {
     level,
     chapter: chapter.id,
     chapterNumber: chapterIndex + 1,
     chapterLevel: index,
-    plateRadius: chapter.plateRadius,
-    plateCellCount: 1 + 3 * chapter.plateRadius * (chapter.plateRadius + 1),
+    plateRadius,
+    plateCellCount: 1 + 3 * plateRadius * (plateRadius + 1),
     variant: BoardVariant.STANDARD,
     mechanics: ["elements"],
     metalDepth: 0,
@@ -141,32 +142,34 @@ export function getProgressionLevelDefinition(level) {
     definition.elementCount = 4;
     definition.ordinaryMoveCount = 10;
   } else if (chapter.id === ProgressionChapter.SALT) {
-    // The player already knows all four elements. Salt should create planning
-    // pressure immediately instead of restarting the chapter as a tutorial.
     definition.elementCount = 4;
-    definition.ordinaryMoveCount = 12 + Math.min(index, 4);
-    definition.saltElementPairCount = 1 + Math.min(index, 3);
-    definition.saltPairCount =
-      index < 2 ? 0 : 1 + Math.floor((index - 2) / 3);
+    definition.ordinaryMoveCount = 10;
+    definition.saltElementPairCount = 2;
+    definition.saltPairCount = 0;
     definition.mechanics.push("salt");
   } else if (chapter.id === ProgressionChapter.OPPOSITES) {
     definition.elementCount = 4;
-    definition.ordinaryMoveCount = 16 + Math.floor((index * 5) / 9);
-    definition.saltPairCount = 2;
-    definition.oppositePairCount = 1 + Math.floor(index / 3);
+    definition.ordinaryMoveCount = 10;
+    definition.saltElementPairCount = 1;
+    definition.saltPairCount = 1;
+    definition.oppositePairCount = 1;
     definition.mechanics.push("salt", "opposites");
   } else if (chapter.id === ProgressionChapter.METALS) {
     definition.elementCount = 4;
-    definition.ordinaryMoveCount = 14 + Math.floor(index / 2);
-    definition.saltPairCount = 2;
-    definition.oppositePairCount = 2;
-    definition.metalDepth = Math.min(6, 1 + Math.floor(index / 2));
+    definition.ordinaryMoveCount = 9 + Math.min(index, 2);
+    definition.saltElementPairCount = 1;
+    definition.saltPairCount = 1;
+    definition.oppositePairCount = 1;
+    definition.metalDepth = index + 1;
     definition.mechanics.push("salt", "opposites", "quicksilver", "metal-chain");
     if (definition.metalDepth === 6) definition.mechanics.push("gold");
   } else if (chapter.id === ProgressionChapter.FULL_GARDEN) {
     definition.elementCount = 4;
     definition.metalDepth = 6;
-    definition.fullComposition = true;
+    definition.ordinaryMoveCount = 11;
+    definition.saltElementPairCount = 1;
+    definition.saltPairCount = 1;
+    definition.oppositePairCount = 2;
     definition.mechanics.push(
       "salt",
       "opposites",
@@ -178,10 +181,14 @@ export function getProgressionLevelDefinition(level) {
     definition.elementCount = 4;
     definition.metalDepth = 6;
     definition.variant = BoardVariant.QUINTESSENCE;
-    definition.fullComposition = index >= 4;
+    definition.fullComposition = level >= 38;
     definition.quintessenceGroupCount = index < 2 ? 1 : 2;
-    definition.ordinaryMoveCount = 12 + Math.min(index, 3);
-    definition.saltPairCount = 2;
+    definition.ordinaryMoveCount =
+      plateRadius === 3
+        ? 10
+        : 13 + Math.floor(((level - 16) * 5) / 21);
+    definition.saltElementPairCount = 1;
+    definition.saltPairCount = 1;
     definition.oppositePairCount = 2;
     definition.mechanics.push(
       "salt",

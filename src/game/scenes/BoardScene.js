@@ -6,6 +6,7 @@ import { BoardVariant } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
 import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
+import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
 import {
@@ -18,13 +19,6 @@ const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
 const BOTTOM_BAR_HEIGHT = 134;
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
-
-const MECHANIC_CARDS = Object.freeze({
-  8: "SALT\n\nPAIRS WITH SALT\nOR WITH ANY ELEMENT",
-  16: "VITAE + MORS\n\nTHEY CAN ONLY BE REMOVED\nAS AN OPPOSITE PAIR",
-  26: "METALS + Hg\n\nREMOVE Pb -> Sn -> Fe -> Cu -> Ag\nFREE GOLD IS REMOVED ALONE",
-  50: "QUINTESSENCE\n\nREMOVE Q TOGETHER WITH\nAIR + FIRE + WATER + EARTH",
-});
 
 const ATOM_LABELS = Object.freeze({
   [Atom.SALT]: "Sa",
@@ -501,7 +495,7 @@ export class BoardScene extends Phaser.Scene {
   showMechanicCardForLevel() {
     const text =
       this.mode === PlayMode.CAMPAIGN && !this.progress.isCompleted(this.level)
-        ? MECHANIC_CARDS[this.level]
+        ? mechanicIntroductionForLevel(this.level)?.text
         : undefined;
     if (!text) {
       this.hideMechanicCard();

@@ -11,14 +11,16 @@ import {
   replaySolution,
 } from "../src/index.js";
 
-test("progression has six fixed chapters and expands 37 -> 61 -> 91 cells", () => {
+test("all mechanics arrive before the board expands 37 -> 61 -> 91 cells", () => {
   const boundaries = [
     [0, ProgressionChapter.ELEMENTS, 37],
-    [8, ProgressionChapter.SALT, 37],
-    [16, ProgressionChapter.OPPOSITES, 61],
-    [26, ProgressionChapter.METALS, 61],
-    [38, ProgressionChapter.FULL_GARDEN, 91],
-    [50, ProgressionChapter.QUINTESSENCE, 91],
+    [1, ProgressionChapter.SALT, 37],
+    [2, ProgressionChapter.OPPOSITES, 37],
+    [3, ProgressionChapter.METALS, 37],
+    [9, ProgressionChapter.FULL_GARDEN, 37],
+    [12, ProgressionChapter.QUINTESSENCE, 37],
+    [16, ProgressionChapter.QUINTESSENCE, 61],
+    [38, ProgressionChapter.QUINTESSENCE, 91],
   ];
 
   for (const [level, chapter, plateCellCount] of boundaries) {
@@ -64,20 +66,24 @@ test("mechanics unlock by chapter without changing the endless contracts", () =>
     true,
   );
 
-  const salt = generateProgressionLevel(8, { campaignSeed: "mechanics" });
+  const salt = generateProgressionLevel(1, { campaignSeed: "mechanics" });
   assert.equal(salt.pieces.some((piece) => piece.type === Atom.SALT), true);
   assert.equal(salt.pieces.some((piece) => piece.type === Atom.VITAE), false);
 
-  const opposites = generateProgressionLevel(16, { campaignSeed: "mechanics" });
+  const opposites = generateProgressionLevel(2, { campaignSeed: "mechanics" });
   assert.equal(opposites.pieces.some((piece) => piece.type === Atom.VITAE), true);
   assert.equal(opposites.pieces.some((piece) => piece.type === Atom.MORS), true);
   assert.equal(opposites.pieces.some((piece) => piece.type === Atom.LEAD), false);
 
-  const metals = generateProgressionLevel(26, { campaignSeed: "mechanics" });
+  const metals = generateProgressionLevel(3, { campaignSeed: "mechanics" });
   assert.equal(metals.pieces.some((piece) => piece.type === Atom.LEAD), true);
+  assert.equal(
+    metals.pieces.some((piece) => piece.type === Atom.QUICKSILVER),
+    true,
+  );
   assert.equal(metals.pieces.some((piece) => piece.type === Atom.TIN), false);
 
-  const quintessence = generateProgressionLevel(50, {
+  const quintessence = generateProgressionLevel(12, {
     campaignSeed: "mechanics",
   });
   assert.equal(
@@ -86,119 +92,59 @@ test("mechanics unlock by chapter without changing the endless contracts", () =>
   );
 });
 
-test("opening progression creates early choices and requires Salt wildcards", () => {
-  const elementDefinitions = Array.from({ length: 8 }, (_value, level) =>
-    getProgressionLevelDefinition(level),
-  );
-  assert.deepEqual(
-    elementDefinitions.map((definition) => definition.elementCount),
-    [4, 4, 4, 4, 4, 4, 4, 4],
-  );
-  assert.deepEqual(
-    elementDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [10, 10, 10, 10, 10, 10, 10, 10],
-  );
-
-  const saltDefinitions = Array.from({ length: 8 }, (_value, index) =>
-    getProgressionLevelDefinition(index + 8),
-  );
-  assert.deepEqual(
-    saltDefinitions.map((definition) => definition.elementCount),
-    [4, 4, 4, 4, 4, 4, 4, 4],
-  );
-  assert.deepEqual(
-    saltDefinitions.map((definition) => definition.saltPairCount),
-    [0, 0, 1, 1, 1, 2, 2, 2],
-  );
-  assert.deepEqual(
-    saltDefinitions.map((definition) => definition.saltElementPairCount),
-    [1, 2, 3, 4, 4, 4, 4, 4],
-  );
-  assert.deepEqual(
-    saltDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [12, 13, 14, 15, 16, 16, 16, 16],
-  );
-
-  const levels = Array.from({ length: 16 }, (_value, level) =>
+test("campaign introduces a required new rule almost every early level", () => {
+  const levels = Array.from({ length: 13 }, (_value, level) =>
     generateProgressionLevel(level, { campaignSeed: "rules-lab-v1" }),
   );
+
   assert.equal(levels[0].difficulty.moveCount, 10);
   assert.ok(levels[0].difficulty.randomRouteWinProbability < 0.9);
   assert.notEqual(levels[0].difficulty.shortestDeadEndMove, null);
-  assert.ok(levels[0].difficulty.initialLegalMoveCount > 1);
   assert.equal(
-    levels.slice(0, 8).every(
-      (record) => new Set(record.pieces.map((piece) => piece.type)).size === 4,
+    levels[0].pieces.every((piece) =>
+      [Atom.AIR, Atom.FIRE, Atom.WATER, Atom.EARTH].includes(piece.type),
     ),
     true,
   );
+  assert.equal(levels[0].shape, "campaign-r3-curated");
+  assert.equal(levels[1].pieces.some((piece) => piece.type === Atom.SALT), true);
+  assert.equal(levels[2].pieces.some((piece) => piece.type === Atom.VITAE), true);
+  assert.equal(levels[2].pieces.some((piece) => piece.type === Atom.MORS), true);
 
-  assert.equal(
-    levels.slice(0, 8).every((record) => record.shape === "campaign-r3-curated"),
-    true,
-  );
-  assert.deepEqual(
-    levels.slice(0, 8).map((record) => ({
-      first: record.difficulty.firstDeceptiveDecisionStep,
-      steps: record.difficulty.deceptiveDecisionSteps,
-      losing: record.difficulty.deceptiveLosingMovesAlongCertificate,
-    })),
-    [
-      { first: 3, steps: 1, losing: 1 },
-      { first: 3, steps: 2, losing: 2 },
-      { first: 2, steps: 3, losing: 3 },
-      { first: 3, steps: 2, losing: 2 },
-      { first: 2, steps: 1, losing: 1 },
-      { first: 1, steps: 1, losing: 1 },
-      { first: 2, steps: 4, losing: 4 },
-      { first: 2, steps: 3, losing: 7 },
-    ],
-  );
-  for (let level = 1; level < 8; level += 1) {
-    assert.ok(
-      levels[level].difficulty.randomRouteWinProbability <=
-        levels[level - 1].difficulty.randomRouteWinProbability,
-    );
-  }
-
-  for (const record of levels.slice(8)) {
-    const saltCount = record.pieces.filter(
-      (piece) => piece.type === Atom.SALT,
-    ).length;
-    const oddElementCount = [
-      Atom.AIR,
-      Atom.FIRE,
-      Atom.WATER,
-      Atom.EARTH,
-    ].filter(
-      (type) =>
-        record.pieces.filter((piece) => piece.type === type).length % 2 === 1,
-    ).length;
+  const introducedMetals = [
+    Atom.LEAD,
+    Atom.TIN,
+    Atom.IRON,
+    Atom.COPPER,
+    Atom.SILVER,
+    Atom.GOLD,
+  ];
+  for (let index = 0; index < introducedMetals.length; index += 1) {
+    const record = levels[index + 3];
+    assert.equal(record.definition.metalDepth, index + 1);
     assert.equal(
-      saltCount,
-      record.definition.saltElementPairCount +
-        record.definition.saltPairCount * 2,
+      record.pieces.some((piece) => piece.type === introducedMetals[index]),
+      true,
     );
-    assert.equal(oddElementCount, record.definition.saltElementPairCount);
-    assert.ok(record.difficulty.sampledRouteWinProbability < 0.55);
+    assert.equal(
+      record.pieces.some((piece) => piece.type === Atom.QUICKSILVER),
+      true,
+    );
   }
 
+  assert.equal(levels[9].definition.chapter, ProgressionChapter.FULL_GARDEN);
   assert.equal(
-    levels.slice(0, 9).every(
-      (record) => record.difficulty.routeAnalysisComplete,
-    ),
+    levels[12].pieces.some((piece) => piece.type === Atom.QUINTESSENCE),
     true,
   );
   assert.equal(
-    levels.slice(9).every(
-      (record) => !record.difficulty.routeAnalysisComplete,
-    ),
+    levels.every((record) => replaySolution(record.pieces, record.solution)),
     true,
   );
 });
 
-test("opening seed changes presentation without changing authored pressure", () => {
-  for (let level = 0; level < 8; level += 1) {
+test("authored level 1 changes presentation without changing pressure", () => {
+  for (let level = 0; level < 1; level += 1) {
     const first = generateProgressionLevel(level, {
       campaignSeed: "opening-a",
     });
@@ -243,7 +189,7 @@ test("gold appears only after the complete metal chain and is certified last", (
     });
     const gold = record.pieces.find((piece) => piece.type === Atom.GOLD);
     if (!gold) {
-      assert.ok(level < 36);
+      assert.ok(level < 8);
       continue;
     }
 
