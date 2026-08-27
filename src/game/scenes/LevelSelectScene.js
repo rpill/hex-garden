@@ -57,7 +57,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const snapshot = this.progress.snapshot;
     this.summary.setText(
       this.progress.testMode
-        ? "ALL 60 LEVELS UNLOCKED"
+        ? `ALL ${PROGRESSION_LEVEL_COUNT} LEVELS UNLOCKED`
         : snapshot.campaignCompleted
         ? "CAMPAIGN COMPLETE"
         : `COMPLETED ${snapshot.completedLevels.length}/${PROGRESSION_LEVEL_COUNT}`,

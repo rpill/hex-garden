@@ -20,9 +20,9 @@ test("standard mechanics arrive before the board capacity expands", () => {
     [1, ProgressionChapter.SALT, 37],
     [2, ProgressionChapter.OPPOSITES, 37],
     [3, ProgressionChapter.METALS, 37],
-    [9, ProgressionChapter.FULL_GARDEN, 37],
-    [16, ProgressionChapter.FULL_GARDEN, 61],
-    [38, ProgressionChapter.FULL_GARDEN, 91],
+    [9, ProgressionChapter.FULL_GARDEN, 61],
+    [16, ProgressionChapter.FULL_GARDEN, 91],
+    [23, ProgressionChapter.FULL_GARDEN, 91],
   ];
 
   for (const [level, chapter, plateCellCount] of boundaries) {
@@ -37,7 +37,7 @@ test("standard mechanics arrive before the board capacity expands", () => {
   );
 });
 
-test("all 60 progression levels are deterministic and certificate-solvable", () => {
+test("every selected progression level is deterministic and certificate-solvable", () => {
   for (let level = 0; level < PROGRESSION_LEVEL_COUNT; level += 1) {
     const options = { campaignSeed: "progression-contract" };
     const first = generateProgressionLevel(level, options);
@@ -57,6 +57,9 @@ test("all 60 progression levels are deterministic and certificate-solvable", () 
     assert.equal(first.difficulty.pieceCount, first.pieces.length);
     assert.equal(Number.isFinite(first.difficulty.averageLegalMoveCount), true);
     assert.ok(first.difficulty.minimumLegalMoveCount >= 1);
+    assert.equal(first.difficulty.challengeQualified, true);
+    assert.ok(first.difficulty.earlyRiskyDecisionSteps >= 1);
+    assert.ok(first.difficulty.candidatePoolSize >= 6);
   }
 });
 
@@ -86,7 +89,7 @@ test("campaign unlocks the complete standard rules without Q", () => {
   );
   assert.equal(metals.pieces.some((piece) => piece.type === Atom.TIN), false);
 
-  const lateCampaign = generateProgressionLevel(59, {
+  const lateCampaign = generateProgressionLevel(PROGRESSION_LEVEL_COUNT - 1, {
     campaignSeed: "mechanics",
   });
   assert.equal(
@@ -150,8 +153,8 @@ test("campaign introduces a required new rule almost every early level", () => {
   );
 });
 
-test("campaign difficulty grows through real silhouette families instead of Q", () => {
-  const shapedLevels = Array.from({ length: 29 }, (_value, index) =>
+test("campaign uses shapes as puzzle structure, not as filler", () => {
+  const shapedLevels = Array.from({ length: 7 }, (_value, index) =>
     generateProgressionLevel(index + 9, { campaignSeed: "shape-contract" }),
   );
   const expectedFamilies = [
@@ -188,8 +191,8 @@ test("campaign difficulty grows through real silhouette families instead of Q", 
     }
   }
 
-  const fullLevels = Array.from({ length: 22 }, (_value, index) =>
-    generateProgressionLevel(index + 38, { campaignSeed: "shape-contract" }),
+  const fullLevels = Array.from({ length: 8 }, (_value, index) =>
+    generateProgressionLevel(index + 16, { campaignSeed: "shape-contract" }),
   );
   assert.ok(new Set(fullLevels.map((record) => record.shape)).size >= 3);
   assert.equal(
@@ -203,7 +206,7 @@ test("campaign difficulty grows through real silhouette families instead of Q", 
   );
 });
 
-test("authored level 1 changes presentation without changing pressure", () => {
+test("authored level 1 changes presentation while preserving challenge", () => {
   for (let level = 0; level < 1; level += 1) {
     const first = generateProgressionLevel(level, {
       campaignSeed: "opening-a",
@@ -215,20 +218,10 @@ test("authored level 1 changes presentation without changing pressure", () => {
     assert.notDeepEqual(first.pieces, second.pieces);
     assert.equal(replaySolution(first.pieces, first.solution), true);
     assert.equal(replaySolution(second.pieces, second.solution), true);
-    assert.deepEqual(
-      {
-        win: first.difficulty.randomRouteWinProbability,
-        first: first.difficulty.firstDeceptiveDecisionStep,
-        steps: first.difficulty.deceptiveDecisionSteps,
-        losing: first.difficulty.deceptiveLosingMovesAlongCertificate,
-      },
-      {
-        win: second.difficulty.randomRouteWinProbability,
-        first: second.difficulty.firstDeceptiveDecisionStep,
-        steps: second.difficulty.deceptiveDecisionSteps,
-        losing: second.difficulty.deceptiveLosingMovesAlongCertificate,
-      },
-    );
+    assert.equal(first.difficulty.challengeQualified, true);
+    assert.equal(second.difficulty.challengeQualified, true);
+    assert.ok(first.difficulty.earlyRiskyDecisionSteps >= 1);
+    assert.ok(second.difficulty.earlyRiskyDecisionSteps >= 1);
   }
 });
 
@@ -294,7 +287,7 @@ test("browser worker facade keeps progression requests separate from endless", a
     campaignSeed: "browser-progression",
   });
   assert.equal(postedMessage.kind, "progression");
-  assert.equal(record.definition.plateCellCount, 61);
+  assert.equal(record.definition.plateCellCount, 91);
   assert.equal(record.plateCells.length, record.pieces.length);
   assert.equal(replaySolution(record.board, record.solution), true);
   generator.terminate();

@@ -82,7 +82,7 @@ test("tutorial completion persists without completing campaign level 1", () => {
   assert.equal(secondSession.isUnlocked(1), false);
 });
 
-test("finishing level 60 marks the campaign complete without level 61", () => {
+test("finishing the final level marks the campaign complete without padding", () => {
   const storage = new MemoryStorage();
   const store = new CampaignProgressStore({ storage });
   for (let level = 0; level < PROGRESSION_LEVEL_COUNT; level += 1) {
@@ -119,7 +119,8 @@ test("test URL unlocks every level without touching persistent progress", () => 
   assert.equal(store.isUnlocked(PROGRESSION_LEVEL_COUNT - 1), true);
   assert.equal(store.snapshot.highestUnlocked, PROGRESSION_LEVEL_COUNT - 1);
 
-  store.complete(41);
-  assert.equal(store.isCompleted(41), true);
+  const testLevel = Math.min(12, PROGRESSION_LEVEL_COUNT - 1);
+  store.complete(testLevel);
+  assert.equal(store.isCompleted(testLevel), true);
   assert.equal(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY), null);
 });

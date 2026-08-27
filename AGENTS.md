@@ -2,7 +2,7 @@
 
 ## Current phase
 
-This project is a mechanics, progression, and level-generation test bench. The current product goal is a 60-level main campaign that teaches mechanics gradually, while the existing `standard` and `quintessence` generators remain independent endless modes. A minimal mode menu and campaign level-select screen are now required. Do not add product styling yet: no settings, tutorial overlays, hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art.
+This project is a mechanics, progression, and level-generation test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate, while the existing `standard` and `quintessence` generators remain independent endless modes. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A minimal mode menu and campaign level-select screen are required. Do not add product styling yet: no settings, generic hints, undo, scores, timers, leaderboards, audio, advertisements, particles, tweens, decorative backgrounds, localization system, selectable difficulty modes, renamed atoms, or imported art. The interactive rules tutorial and mechanic-introduction cards are part of the current progression contract.
 
 The runtime should expose only what is needed to inspect the board and progression:
 
@@ -10,7 +10,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 - the current variable-size campaign layout or 55-piece endless layout;
 - flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
 - a minimal start menu for `CAMPAIGN`, `STANDARD / ENDLESS`, and `Q MODE / ENDLESS`;
-- a responsive grid showing all 60 campaign levels as `DONE`, `PLAY`, or `LOCK`;
+- a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
 - previous unlocked level, next unlocked level, restart, and menu/level-select controls;
 - direct selection/removal behavior;
 - the functional atom inventory panel: remaining Salt/elements/Hg and, in quintessence layouts, Q grouped with the four elements, the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
@@ -37,15 +37,16 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 ## Main progression
 
-- `src/progression.js` owns a separate deterministic 60-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
-- Levels 1-8 use 37 cells and introduce the four elements gradually.
-- Levels 9-16 stay on 37 cells and add Salt.
-- Levels 17-26 use 61 cells and add Vitae/Mors.
-- Levels 27-38 stay on 61 cells and add Quicksilver plus the metal chain incrementally. Gold appears only after the complete chain.
-- Levels 39-50 use 91 cells and the full standard 55-piece composition.
-- Levels 51-60 use 91 cells, introduce Quintessence, and finish with the full quintessence composition.
-- Every generated campaign record contains a solution certificate replayed through `GardenBoard.select()`, plate geometry, a mechanics definition, and difficulty measurements.
-- Campaign level indices are zero-based internally and limited to `0..59`.
+- `src/progression.js` owns a separate deterministic 24-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
+- A separate level 0 tutorial teaches matching and geometric freedom before the numbered campaign.
+- Levels 1-3 introduce the complete element set, Salt, and Vitae/Mors on 37-cell plates.
+- Levels 4-9 introduce Quicksilver and one successive metal per level through Gold on 37-cell plates.
+- Levels 10-16 combine the complete standard rules on selected variable masks within a 61-cell capacity.
+- Levels 17-24 use selected full standard 55-piece layouts within a 91-cell capacity.
+- Quintessence stays out of the main campaign and remains available in `Q MODE / ENDLESS`.
+- Generation constructs multiple certified candidates and rejects filler: a selected campaign level must expose early choices and at least one dangerous alternative according to the route analyzer.
+- Every generated campaign record contains a solution certificate replayed through `GardenBoard.select()`, plate geometry, a mechanics definition, candidate-selection data, and difficulty measurements.
+- Campaign level indices are zero-based internally and limited to `0..23`.
 
 ## Endless modes
 
@@ -68,7 +69,7 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Phaser 3 + Vite + native ES modules.
 - Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, `src/campaign.js`, and `src/progression.js`.
 - Active scenes are `MenuScene`, `LevelSelectScene`, and `BoardScene`.
-- Use `Phaser.Scale.RESIZE`; keep the menus, all 60 level buttons, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
+- Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
 - A board itself is regenerated from its mode, seed, and number; generated coordinates are not persisted.
 - `BrowserLevelGenerator.generate()` and worker requests without a kind remain the endless API. Progression uses `generateProgression()` and `kind: "progression"`.
@@ -86,8 +87,8 @@ Before handoff:
 1. Run `pnpm test` (or the equivalent `node --test` if the package-manager bootstrap is blocked by a local build-script policy).
 2. Run `pnpm build` (or invoke the installed Vite CLI directly for the same reason).
 3. Verify exact 55-piece counts for both endless variants.
-4. Replay generated solution certificates for all 60 campaign levels and a sequence of levels in both endless variants.
-5. Verify campaign boundaries at levels 1, 9, 17, 27, 39, and 51.
-6. Smoke-test the start menu, all 60 campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, both endless modes, board return controls, and phone portrait layout.
+4. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
+5. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
+6. Smoke-test the start menu, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, both endless modes, board return controls, and phone portrait layout.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

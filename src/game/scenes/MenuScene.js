@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
@@ -43,7 +44,7 @@ export class MenuScene extends Phaser.Scene {
     this.note = makeText(
       this,
       this.campaignTestMode
-        ? "TEST MODE: ALL 60 CAMPAIGN LEVELS UNLOCKED"
+        ? `TEST MODE: ALL ${PROGRESSION_LEVEL_COUNT} CAMPAIGN LEVELS UNLOCKED`
         : "CAMPAIGN PROGRESS IS SAVED ON THIS DEVICE",
       11,
       "#666666",

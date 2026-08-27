@@ -20,7 +20,10 @@ import {
   CURATED_OPENING_LEVELS,
 } from "./opening-levels.js";
 
-export const PROGRESSION_LEVEL_COUNT = 60;
+// Campaign length follows the amount of tested puzzle content. Endless modes
+// remain available after the authored progression; we do not pad the campaign
+// to an arbitrary product number with near-duplicate boards.
+export const PROGRESSION_LEVEL_COUNT = 24;
 export const DEFAULT_PROGRESSION_SEED = "garden-progression-v1";
 
 export const ProgressionChapter = Object.freeze({
@@ -56,7 +59,7 @@ const CHAPTERS = Object.freeze([
   Object.freeze({
     id: ProgressionChapter.FULL_GARDEN,
     start: 9,
-    end: 59,
+    end: PROGRESSION_LEVEL_COUNT - 1,
   }),
 ]);
 
@@ -114,8 +117,8 @@ function findChapter(level) {
 }
 
 function plateRadiusForLevel(level) {
-  if (level < 16) return 3;
-  if (level < 38) return 4;
+  if (level < 9) return 3;
+  if (level < 16) return 4;
   return 5;
 }
 
@@ -169,11 +172,9 @@ export function getProgressionLevelDefinition(level) {
   } else if (chapter.id === ProgressionChapter.FULL_GARDEN) {
     definition.elementCount = 4;
     definition.metalDepth = 6;
-    definition.fullComposition = level >= 38;
+    definition.fullComposition = level >= 16;
     definition.ordinaryMoveCount =
-      plateRadius === 3
-        ? 11
-        : 12 + Math.floor(((level - 16) * 9) / 21);
+      plateRadius === 4 ? 12 + (level - 9) : 22;
     definition.saltElementPairCount = 1;
     definition.saltPairCount = 1;
     definition.oppositePairCount = 2;
@@ -505,11 +506,19 @@ function sampleRouteWinProbability(pieces, trials = 32) {
     .map((piece) => `${piece.q},${piece.r},${piece.type}`)
     .sort()
     .join("|");
-  const random = createSeededRandom(`route-sample:${sampleSeed}`);
+  return rolloutWinProbability(
+    new GardenBoard(pieces),
+    `route-sample:${sampleSeed}`,
+    trials,
+  );
+}
+
+function rolloutWinProbability(initialBoard, seed, trials) {
+  const random = createSeededRandom(seed);
   let wins = 0;
 
   for (let trial = 0; trial < trials; trial += 1) {
-    const board = new GardenBoard(pieces);
+    const board = initialBoard.clone();
     while (!board.won) {
       const legalMoves = board.legalMoves();
       if (legalMoves.length === 0) break;
@@ -520,6 +529,133 @@ function sampleRouteWinProbability(pieces, trials = 32) {
   }
 
   return wins / trials;
+}
+
+function movePositionSignature(move) {
+  return move
+    .map(hexKey)
+    .sort()
+    .join("|");
+}
+
+function analyzeEarlyDecisionConsequences(pieces, solution) {
+  const board = new GardenBoard(pieces);
+  const analyzedSteps = Math.min(10, solution.length);
+  let choiceSteps = 0;
+  let alternativesAnalyzed = 0;
+  let riskyAlternativeMoves = 0;
+  let riskyDecisionSteps = 0;
+  let deceptiveRiskyMoves = 0;
+  let deceptiveDecisionSteps = 0;
+  let firstRiskyDecisionStep = null;
+  let firstDeceptiveRiskStep = null;
+
+  for (let step = 0; step < analyzedSteps; step += 1) {
+    const legalMoves = board.legalMoves();
+    const certifiedMove = solution[step]
+      .map((position) => board.pieceAt(position))
+      .filter(Boolean);
+    const certifiedPositionSignature = movePositionSignature(certifiedMove);
+    const certifiedTypeSignature = moveTypeSignature(certifiedMove);
+    const alternatives = legalMoves
+      .filter(
+        (move) => movePositionSignature(move) !== certifiedPositionSignature,
+      )
+      .sort((left, right) =>
+        movePositionSignature(left).localeCompare(movePositionSignature(right)),
+      )
+      .slice(0, 6);
+
+    if (alternatives.length > 0) choiceSteps += 1;
+    let stepHasRisk = false;
+    let stepHasDeceptiveRisk = false;
+    for (const alternative of alternatives) {
+      const branch = board.clone();
+      applyMove(branch, alternative);
+      const signature = movePositionSignature(alternative);
+      const winProbability = rolloutWinProbability(
+        branch,
+        `branch:${step}:${signature}:${pieces.length}`,
+        6,
+      );
+      alternativesAnalyzed += 1;
+      if (winProbability > 0.25) continue;
+      riskyAlternativeMoves += 1;
+      stepHasRisk = true;
+      if (moveTypeSignature(alternative) === certifiedTypeSignature) {
+        deceptiveRiskyMoves += 1;
+        stepHasDeceptiveRisk = true;
+      }
+    }
+    if (stepHasRisk) {
+      firstRiskyDecisionStep ??= step + 1;
+      riskyDecisionSteps += 1;
+    }
+    if (stepHasDeceptiveRisk) {
+      firstDeceptiveRiskStep ??= step + 1;
+      deceptiveDecisionSteps += 1;
+    }
+    applyMove(board, solution[step]);
+  }
+
+  return Object.freeze({
+    earlyDecisionStepsAnalyzed: analyzedSteps,
+    earlyChoiceSteps: choiceSteps,
+    earlyAlternativeMovesAnalyzed: alternativesAnalyzed,
+    earlyRiskyAlternativeMoves: riskyAlternativeMoves,
+    earlyRiskyDecisionSteps: riskyDecisionSteps,
+    firstRiskyDecisionStep,
+    earlyDeceptiveRiskyMoves: deceptiveRiskyMoves,
+    earlyDeceptiveDecisionSteps: deceptiveDecisionSteps,
+    firstDeceptiveRiskStep,
+  });
+}
+
+function previewCandidate(record) {
+  const board = new GardenBoard(record.pieces);
+  const analyzedSteps = Math.min(10, record.solution.length);
+  let choiceSteps = 0;
+  let spatialChoiceSteps = 0;
+  let totalLegalMoves = 0;
+
+  for (let step = 0; step < analyzedSteps; step += 1) {
+    const legalMoves = board.legalMoves();
+    const typeSignatures = new Set(legalMoves.map(moveTypeSignature));
+    totalLegalMoves += legalMoves.length;
+    if (legalMoves.length > 1) choiceSteps += 1;
+    if (legalMoves.length > typeSignatures.size) spatialChoiceSteps += 1;
+    applyMove(board, record.solution[step]);
+  }
+
+  const progress =
+    record.definition.level / Math.max(1, PROGRESSION_LEVEL_COUNT - 1);
+  const targetWinProbability = 0.58 - progress * 0.38;
+  const routeFit = Math.max(
+    0,
+    1 -
+      Math.abs(
+        record.sampledRouteWinProbability - targetWinProbability,
+      ) /
+        0.55,
+  );
+  const averageLegalMoves = totalLegalMoves / Math.max(1, analyzedSteps);
+  const overloadPenalty = Math.max(0, averageLegalMoves - 11) * 2;
+  const score = Math.max(
+    0,
+    Math.round(
+      routeFit * 50 +
+        Math.min(1, choiceSteps / 6) * 20 +
+        Math.min(1, spatialChoiceSteps / 5) * 30 -
+        overloadPenalty,
+    ),
+  );
+  return Object.freeze({
+    score,
+    analyzedSteps,
+    choiceSteps,
+    spatialChoiceSteps,
+    averageLegalMoves,
+  });
 }
 
 function analyzeCertificateDecisionPressure(pieces, solution) {
@@ -619,6 +755,30 @@ function analyzeCertificateDecisionPressure(pieces, solution) {
   });
 }
 
+function challengeScoreForMetrics(metrics, definition) {
+  const progress = definition.level / Math.max(1, PROGRESSION_LEVEL_COUNT - 1);
+  const targetWinProbability = 0.58 - progress * 0.38;
+  const winProbability = metrics.sampledRouteWinProbability;
+  const routeFit =
+    winProbability === null
+      ? 0
+      : Math.max(0, 1 - Math.abs(winProbability - targetWinProbability) / 0.55);
+  const choicePressure = Math.min(1, metrics.earlyChoiceSteps / 6);
+  const consequencePressure = Math.min(1, metrics.earlyRiskyDecisionSteps / 4);
+  const deceptivePressure = Math.min(1, metrics.earlyDeceptiveDecisionSteps / 3);
+  const overloadPenalty = Math.max(0, metrics.initialLegalMoveCount - 12) * 1.5;
+  return Math.max(
+    0,
+    Math.round(
+      routeFit * 35 +
+        choicePressure * 20 +
+        consequencePressure * 30 +
+        deceptivePressure * 15 -
+        overloadPenalty,
+    ),
+  );
+}
+
 export function analyzeProgressionDifficulty(record) {
   const board = new GardenBoard(record.pieces);
   const snapshots = [];
@@ -642,7 +802,11 @@ export function analyzeProgressionDifficulty(record) {
     record.pieces,
     record.solution,
   );
-  return Object.freeze({
+  const earlyConsequences = analyzeEarlyDecisionConsequences(
+    record.pieces,
+    record.solution,
+  );
+  const metrics = {
     tier: record.definition.chapterNumber,
     pieceCount: record.pieces.length,
     moveCount: record.solution.length,
@@ -665,11 +829,27 @@ export function analyzeProgressionDifficulty(record) {
       routeAnalysis.randomRouteWinProbability,
     ...decisionPressure,
     ...routeAnalysis,
+    ...earlyConsequences,
+  };
+  const challengeScore = challengeScoreForMetrics(metrics, record.definition);
+  return Object.freeze({
+    ...metrics,
+    challengeScore,
+    challengeQualified:
+      metrics.sampledRouteWinProbability !== null &&
+      metrics.sampledRouteWinProbability >= 0.03 &&
+      metrics.sampledRouteWinProbability <= 0.8 &&
+      metrics.earlyChoiceSteps >= 3 &&
+      metrics.earlyRiskyDecisionSteps >= 1,
   });
 }
 
-function generateCuratedOpeningBoard(definition, random) {
-  const opening = CURATED_CAMPAIGN_OPENINGS[definition.chapterLevel];
+function generateCuratedOpeningBoard(
+  definition,
+  random,
+  openingIndex = definition.chapterLevel,
+) {
+  const opening = CURATED_CAMPAIGN_OPENINGS[openingIndex];
   const template = opening
     ? CURATED_OPENING_LEVELS[opening.templateIndex]
     : undefined;
@@ -735,10 +915,7 @@ function generateCustomProgressionBoard(definition, random) {
       const result = assignSchedule(mask, moveSpecs, random);
       if (!result) continue;
       replaySolution(result.pieces, result.solution);
-      const finalized = {
-        ...result,
-        sampledRouteWinProbability: sampleRouteWinProbability(result.pieces),
-      };
+      const finalized = { ...result };
       return {
         variant: definition.variant,
         shape:
@@ -765,34 +942,84 @@ export function generateProgressionLevel(
 ) {
   const definition = getProgressionLevelDefinition(level);
   const seed = `${campaignSeed}:progression:${level}`;
-  const random = createSeededRandom(seed);
-  let generated;
+  const candidateCount = definition.chapter === ProgressionChapter.ELEMENTS ? 8 : 6;
+  const candidates = [];
 
-  if (definition.chapter === ProgressionChapter.ELEMENTS) {
-    generated = generateCuratedOpeningBoard(definition, random);
-  } else if (definition.fullComposition) {
-    generated = generateSolvableBoard({
-      random,
-      variant: definition.variant,
-    });
-    generated = {
+  for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
+    const candidateSeed = `${seed}:candidate:${candidateIndex}`;
+    const random = createSeededRandom(candidateSeed);
+    let generated;
+
+    if (definition.chapter === ProgressionChapter.ELEMENTS) {
+      generated = generateCuratedOpeningBoard(
+        definition,
+        random,
+        candidateIndex % CURATED_CAMPAIGN_OPENINGS.length,
+      );
+    } else if (definition.fullComposition) {
+      generated = generateSolvableBoard({
+        random,
+        variant: definition.variant,
+      });
+      generated = {
+        ...generated,
+        shape: `campaign-${generated.shape}`,
+        plateRadius: definition.plateRadius,
+        plateCells: generated.pieces.map(({ q, r }) => ({ q, r })),
+      };
+    } else {
+      generated = generateCustomProgressionBoard(definition, random);
+    }
+
+    const record = {
+      level,
+      seed: candidateSeed,
+      candidateIndex,
+      definition,
       ...generated,
-      shape: `campaign-${generated.shape}`,
-      plateRadius: definition.plateRadius,
-      plateCells: generated.pieces.map(({ q, r }) => ({ q, r })),
+      sampledRouteWinProbability: sampleRouteWinProbability(
+        generated.pieces,
+        32,
+      ),
     };
-  } else {
-    generated = generateCustomProgressionBoard(definition, random);
+    candidates.push({
+      ...record,
+      preview: previewCandidate(record),
+    });
   }
 
-  const record = {
-    level,
-    seed,
-    definition,
-    ...generated,
-  };
+  const previewRanked = candidates.sort(
+    (left, right) =>
+      right.preview.score - left.preview.score ||
+      left.candidateIndex - right.candidateIndex,
+  );
+  const evaluated = [];
+  for (const candidate of previewRanked) {
+    evaluated.push({
+      ...candidate,
+      difficulty: analyzeProgressionDifficulty(candidate),
+    });
+    const qualifiedCount = evaluated.filter(
+      (item) => item.difficulty.challengeQualified,
+    ).length;
+    if (qualifiedCount >= 2 || evaluated.length >= 3) break;
+  }
+  const qualified = evaluated.filter(
+    (candidate) => candidate.difficulty.challengeQualified,
+  );
+  const ranked = (qualified.length > 0 ? qualified : evaluated).sort(
+    (left, right) =>
+      right.difficulty.challengeScore - left.difficulty.challengeScore ||
+      left.candidateIndex - right.candidateIndex,
+  );
+  const selected = ranked[0];
   return {
-    ...record,
-    difficulty: analyzeProgressionDifficulty(record),
+    ...selected,
+    difficulty: Object.freeze({
+      ...selected.difficulty,
+      candidatePoolSize: candidates.length,
+      evaluatedCandidateCount: evaluated.length,
+      qualifiedCandidateCount: qualified.length,
+    }),
   };
 }
