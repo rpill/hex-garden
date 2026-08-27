@@ -15,7 +15,10 @@ import {
   hexKey,
   rotateHexAround,
 } from "./hex.js";
-import { CURATED_OPENING_LEVELS } from "./opening-levels.js";
+import {
+  CURATED_CAMPAIGN_OPENINGS,
+  CURATED_OPENING_LEVELS,
+} from "./opening-levels.js";
 
 export const PROGRESSION_LEVEL_COUNT = 60;
 export const DEFAULT_PROGRESSION_SEED = "garden-progression-v1";
@@ -132,12 +135,11 @@ export function getProgressionLevelDefinition(level) {
   };
 
   if (chapter.id === ProgressionChapter.ELEMENTS) {
-    // Teach the matching rule quickly, then spend the rest of the chapter on
-    // spatial decisions. Repeating each newly introduced element for two
-    // whole levels made the opening feel like mechanical pair clicking.
-    definition.elementCount = Math.min(4, 1 + index);
-    definition.ordinaryMoveCount =
-      index < 4 ? 4 + index * 2 : 10;
+    // The separate interactive tutorial teaches matching and geometric
+    // freedom. Campaign level 1 can therefore start with the complete element
+    // vocabulary and focus immediately on spatial decisions.
+    definition.elementCount = 4;
+    definition.ordinaryMoveCount = 10;
   } else if (chapter.id === ProgressionChapter.SALT) {
     // The player already knows all four elements. Salt should create planning
     // pressure immediately instead of restarting the chapter as a tutorial.
@@ -645,11 +647,20 @@ export function analyzeProgressionDifficulty(record) {
 }
 
 function generateCuratedOpeningBoard(definition, random) {
-  const template = CURATED_OPENING_LEVELS[definition.chapterLevel];
-  if (!template) {
+  const opening = CURATED_CAMPAIGN_OPENINGS[definition.chapterLevel];
+  const template = opening
+    ? CURATED_OPENING_LEVELS[opening.templateIndex]
+    : undefined;
+  if (!opening || !template) {
     throw new Error(`Missing curated opening level ${definition.level + 1}`);
   }
 
+  const authoredTypeByPosition = new Map();
+  template.solution.forEach((move, index) => {
+    for (const position of move) {
+      authoredTypeByPosition.set(hexKey(position), opening.moveTypes[index]);
+    }
+  });
   const turns = Math.floor(random() * 6);
   const activeTypes = ELEMENT_TYPES.slice(0, definition.elementCount);
   const permutedTypes = shuffle(activeTypes, random);
@@ -660,7 +671,7 @@ function generateCuratedOpeningBoard(definition, random) {
     rotateHexAround(position, BOARD_CENTER, turns);
   const pieces = template.pieces.map((item) => ({
     ...transformPosition(item),
-    type: typeMap.get(item.type) ?? item.type,
+    type: typeMap.get(authoredTypeByPosition.get(hexKey(item))),
   }));
   const solution = template.solution.map((certifiedMove) =>
     certifiedMove.map(transformPosition),

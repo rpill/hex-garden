@@ -26,6 +26,7 @@ class MemoryStorage {
 
 test("only the first campaign level is unlocked initially", () => {
   const store = new CampaignProgressStore({ storage: new MemoryStorage() });
+  assert.equal(store.snapshot.tutorialCompleted, false);
   assert.equal(store.isUnlocked(0), true);
   assert.equal(store.isUnlocked(1), false);
   assert.equal(store.snapshot.highestUnlocked, 0);
@@ -41,6 +42,7 @@ test("completing a level persists and unlocks exactly the next level", () => {
   assert.equal(firstSession.isCompleted(0), true);
   assert.equal(firstSession.isUnlocked(1), true);
   assert.equal(firstSession.isUnlocked(2), false);
+  assert.equal(firstSession.snapshot.tutorialCompleted, true);
 
   const secondSession = new CampaignProgressStore({ storage });
   assert.equal(secondSession.isCompleted(0), true);
@@ -58,11 +60,26 @@ test("normalization keeps only a contiguous valid completion prefix", () => {
     }),
     {
       version: 1,
+      tutorialCompleted: true,
       completedLevels: [0, 1],
       highestUnlocked: 2,
       campaignCompleted: false,
     },
   );
+});
+
+test("tutorial completion persists without completing campaign level 1", () => {
+  const storage = new MemoryStorage();
+  const firstSession = new CampaignProgressStore({ storage });
+
+  firstSession.completeTutorial();
+  assert.equal(firstSession.snapshot.tutorialCompleted, true);
+  assert.deepEqual(firstSession.snapshot.completedLevels, []);
+
+  const secondSession = new CampaignProgressStore({ storage });
+  assert.equal(secondSession.snapshot.tutorialCompleted, true);
+  assert.equal(secondSession.isUnlocked(0), true);
+  assert.equal(secondSession.isUnlocked(1), false);
 });
 
 test("finishing level 60 marks the campaign complete without level 61", () => {

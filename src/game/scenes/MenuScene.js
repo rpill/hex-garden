@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
+import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
 import { makeButton, makeText } from "../ui.js";
 
@@ -10,6 +11,7 @@ export class MenuScene extends Phaser.Scene {
 
   create() {
     this.campaignTestMode = isCampaignTestMode();
+    this.progress = getCampaignProgress(this);
     this.title = makeText(this, "HEX GARDEN", 30, "#ededed").setOrigin(0.5);
     this.subtitle = makeText(
       this,
@@ -18,7 +20,12 @@ export class MenuScene extends Phaser.Scene {
       "#8f8f8f",
     ).setOrigin(0.5);
     this.campaignButton = makeButton(this, "CAMPAIGN", () => {
-      this.scene.start("level-select");
+      this.scene.start(
+        this.progress.snapshot.tutorialCompleted ? "level-select" : "board",
+        this.progress.snapshot.tutorialCompleted
+          ? undefined
+          : { mode: PlayMode.TUTORIAL },
+      );
     });
     this.standardButton = makeButton(this, "STANDARD  /  ENDLESS", () => {
       this.scene.start("board", { mode: PlayMode.STANDARD, level: 0 });

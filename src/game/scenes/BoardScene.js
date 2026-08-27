@@ -8,10 +8,22 @@ import { BOARD_CENTER, enumerateBoardCells, hexKey } from "../../hex.js";
 import { createPanelState, panelTypesForVariant } from "../../panel-state.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
+import {
+  TUTORIAL_GUIDED_MOVE_COUNT,
+  createTutorialLevel,
+} from "../../tutorial.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
 const BOTTOM_BAR_HEIGHT = 134;
+const PANEL_HIGHLIGHT_DURATION_MS = 2000;
+
+const MECHANIC_CARDS = Object.freeze({
+  8: "SALT\n\nPAIRS WITH SALT\nOR WITH ANY ELEMENT",
+  16: "VITAE + MORS\n\nTHEY CAN ONLY BE REMOVED\nAS AN OPPOSITE PAIR",
+  26: "METALS + Hg\n\nREMOVE Pb -> Sn -> Fe -> Cu -> Ag\nFREE GOLD IS REMOVED ALONE",
+  50: "QUINTESSENCE\n\nREMOVE Q TOGETHER WITH\nAIR + FIRE + WATER + EARTH",
+});
 
 const ATOM_LABELS = Object.freeze({
   [Atom.SALT]: "Sa",
@@ -81,6 +93,10 @@ export class BoardScene extends Phaser.Scene {
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.activePanelType = null;
+    this.panelHighlightTimer = undefined;
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.mechanicCardVisible = false;
   }
 
   init(data = {}) {
@@ -103,6 +119,10 @@ export class BoardScene extends Phaser.Scene {
     this.plateRadius = 5;
     this.levelDefinition = undefined;
     this.activePanelType = null;
+    this.panelHighlightTimer = undefined;
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.mechanicCardVisible = false;
   }
 
   create() {
@@ -112,8 +132,24 @@ export class BoardScene extends Phaser.Scene {
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics();
     this.panelGraphics = this.add.graphics().setDepth(4);
+    this.tutorialGraphics = this.add.graphics().setDepth(8);
+    this.mechanicCardGraphics = this.add.graphics().setDepth(20);
     this.header = makeText(this, "", 16).setOrigin(0.5);
     this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
+    this.tutorialText = makeText(this, "", 14, "#f0d58a")
+      .setOrigin(0.5)
+      .setDepth(9);
+    this.mechanicCardText = makeText(this, "", 18, "#ededed")
+      .setOrigin(0.5)
+      .setAlign("center")
+      .setDepth(21)
+      .setVisible(false);
+    this.mechanicCardHint = makeText(this, "TAP TO CONTINUE", 12, "#f0d58a")
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setVisible(false);
+    this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
+    this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
 
     this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
     this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
@@ -128,6 +164,7 @@ export class BoardScene extends Phaser.Scene {
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
+      this.clearPanelHighlight(false);
       this.generator.terminate();
       this.pieceViews.clear();
       this.panelViews.clear();
@@ -142,14 +179,19 @@ export class BoardScene extends Phaser.Scene {
     this.setBusy(true);
     this.board = undefined;
     this.initialPieces = [];
-    this.activePanelType = null;
+    this.clearPanelHighlight(false);
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.hideMechanicCard();
     this.status.setText("GENERATING");
     this.clearPieceViews();
     this.render();
 
     try {
       const record =
-        this.mode === PlayMode.CAMPAIGN
+        this.mode === PlayMode.TUTORIAL
+          ? createTutorialLevel()
+          : this.mode === PlayMode.CAMPAIGN
           ? await this.generator.generateProgression(this.level, {
               campaignSeed: CAMPAIGN_SEED,
             })
@@ -165,10 +207,16 @@ export class BoardScene extends Phaser.Scene {
       this.plateRadius = record.plateRadius ?? 5;
       this.levelDefinition = record.definition;
       this.initialPieces = record.pieces.map((piece) => ({ ...piece }));
+      this.tutorialSolution =
+        this.mode === PlayMode.TUTORIAL
+          ? record.solution.map((move) => move.map((position) => ({ ...position })))
+          : [];
       this.status.setText("");
       this.setBusy(false);
       this.rebuildPanelViews();
       this.rebuildPieceViews();
+      this.updateTutorialGuide();
+      this.showMechanicCardForLevel();
       this.layout();
     } catch (error) {
       if (token !== this.generationToken) return;
@@ -180,6 +228,12 @@ export class BoardScene extends Phaser.Scene {
 
   changeLevel(delta) {
     if (this.busy) return;
+    if (this.mode === PlayMode.TUTORIAL) {
+      if (delta > 0 && this.board?.won) {
+        this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: 0 });
+      }
+      return;
+    }
     const maximum =
       this.mode === PlayMode.CAMPAIGN
         ? this.progress.snapshot.highestUnlocked
@@ -193,21 +247,29 @@ export class BoardScene extends Phaser.Scene {
   leaveBoard() {
     this.generationToken += 1;
     this.scene.start(
-      this.mode === PlayMode.CAMPAIGN ? "level-select" : "menu",
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL
+        ? "level-select"
+        : "menu",
     );
   }
 
   restartLevel() {
     if (this.busy || this.initialPieces.length === 0) return;
     this.board = new GardenBoard(this.initialPieces);
-    this.activePanelType = null;
+    this.clearPanelHighlight(false);
+    this.tutorialStep = 0;
     this.status.setText("");
     this.rebuildPieceViews();
+    this.updateTutorialGuide();
     this.layout();
   }
 
   selectPiece(piece) {
-    if (this.busy || !this.board) return;
+    if (this.busy || this.mechanicCardVisible || !this.board) return;
+    if (!this.tutorialAllowsPiece(piece)) {
+      this.status.setText("FOLLOW THE PULSING ATOMS");
+      return;
+    }
     const result = this.board.select(piece);
     if (result.kind === "locked") {
       this.status.setText(`LOCKED: ${ATOM_NAMES[piece.type].toUpperCase()}`);
@@ -218,9 +280,18 @@ export class BoardScene extends Phaser.Scene {
       this.status.setText("");
     } else if (result.kind === "removed") {
       let message = "";
+      if (
+        this.mode === PlayMode.TUTORIAL &&
+        this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT
+      ) {
+        this.tutorialStep += 1;
+      }
       if (this.board.won) {
         message = "BOARD CLEARED";
-        if (this.mode === PlayMode.CAMPAIGN) {
+        if (this.mode === PlayMode.TUTORIAL) {
+          this.progress.completeTutorial();
+          message = "";
+        } else if (this.mode === PlayMode.CAMPAIGN) {
           const alreadyCompleted = this.progress.isCompleted(this.level);
           const snapshot = this.progress.complete(this.level);
           if (snapshot.campaignCompleted) {
@@ -234,6 +305,7 @@ export class BoardScene extends Phaser.Scene {
       }
       this.status.setText(message);
       this.rebuildPieceViews();
+      this.updateTutorialGuide();
     }
     this.layout();
   }
@@ -291,21 +363,138 @@ export class BoardScene extends Phaser.Scene {
   }
 
   selectPanelType(type) {
-    if (this.busy || !this.board) return;
+    if (this.busy || this.mechanicCardVisible || !this.board) return;
     const state = createPanelState(this.board, { variant: this.variant });
     const entry = state.entries.find((candidate) => candidate.type === type);
     if (!entry || entry.depleted) return;
-    this.activePanelType = this.activePanelType === type ? null : type;
+    if (this.activePanelType === type) {
+      this.clearPanelHighlight();
+      return;
+    }
+    this.clearPanelHighlight(false);
+    this.activePanelType = type;
+    this.panelHighlightTimer = this.time.delayedCall(
+      PANEL_HIGHLIGHT_DURATION_MS,
+      () => {
+        this.panelHighlightTimer = undefined;
+        this.activePanelType = null;
+        this.render();
+      },
+    );
     this.render();
+  }
+
+  clearPanelHighlight(render = true) {
+    this.panelHighlightTimer?.remove(false);
+    this.panelHighlightTimer = undefined;
+    this.activePanelType = null;
+    if (render) this.render();
+  }
+
+  tutorialAllowsPiece(piece) {
+    if (
+      this.mode !== PlayMode.TUTORIAL ||
+      this.tutorialStep >= TUTORIAL_GUIDED_MOVE_COUNT
+    ) {
+      return true;
+    }
+    return this.tutorialSolution[this.tutorialStep]?.some(
+      (position) => hexKey(position) === hexKey(piece),
+    );
+  }
+
+  updateTutorialGuide() {
+    if (this.mode !== PlayMode.TUTORIAL) {
+      this.tutorialText.setText("").setVisible(false);
+      this.tutorialGraphics.clear();
+      return;
+    }
+
+    const messages = [
+      "MATCH IDENTICAL FREE ATOMS\nTAP THE TWO PULSING AIR ATOMS",
+      "REMOVING OUTER PAIRS OPENS THE CENTER\nNOW REMOVE THE PULSING FIRE PAIR",
+      "DIM ATOMS ARE BLOCKED\nCLEAR THE REST WITHOUT HELP",
+    ];
+    this.tutorialText
+      .setText(
+        this.board?.won
+          ? "TUTORIAL COMPLETE\nPRESS START FOR LEVEL 1"
+          : messages[Math.min(this.tutorialStep, messages.length - 1)],
+      )
+      .setVisible(true);
+    this.status.setText("");
+  }
+
+  renderTutorialPulse(time = 0) {
+    this.tutorialGraphics.clear();
+    if (
+      this.mode !== PlayMode.TUTORIAL ||
+      this.tutorialStep >= TUTORIAL_GUIDED_MOVE_COUNT ||
+      !this.board
+    ) {
+      return;
+    }
+
+    const phase = (Math.sin(time * 0.006) + 1) / 2;
+    const radius = this.hexSize * (0.75 + phase * 0.12);
+    const alpha = 0.45 + phase * 0.5;
+    this.tutorialGraphics.lineStyle(
+      Math.max(2, this.hexSize * 0.08),
+      0xf0d58a,
+      alpha,
+    );
+    for (const position of this.tutorialSolution[this.tutorialStep] ?? []) {
+      if (!this.pieceViews.has(hexKey(position))) continue;
+      const screen = this.hexToScreen(position);
+      this.tutorialGraphics.strokeCircle(screen.x, screen.y, radius);
+    }
+  }
+
+  update(time) {
+    this.renderTutorialPulse(time);
+  }
+
+  showMechanicCardForLevel() {
+    const text =
+      this.mode === PlayMode.CAMPAIGN && !this.progress.isCompleted(this.level)
+        ? MECHANIC_CARDS[this.level]
+        : undefined;
+    if (!text) {
+      this.hideMechanicCard();
+      return;
+    }
+    this.mechanicCardVisible = true;
+    this.mechanicCardText.setText(text).setVisible(true);
+    this.mechanicCardHint.setVisible(true);
+    this.mechanicCardHitZone
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+  }
+
+  dismissMechanicCard() {
+    if (!this.mechanicCardVisible) return;
+    this.hideMechanicCard();
+    this.render();
+  }
+
+  hideMechanicCard() {
+    this.mechanicCardVisible = false;
+    this.mechanicCardGraphics?.clear();
+    this.mechanicCardText?.setVisible(false);
+    this.mechanicCardHint?.setVisible(false);
+    this.mechanicCardHitZone?.setVisible(false).disableInteractive();
   }
 
   setBusy(value) {
     this.busy = value;
     const alpha = value ? 0.45 : 1;
-    const previousUnavailable = this.level === 0;
+    const previousUnavailable =
+      this.mode === PlayMode.TUTORIAL || this.level === 0;
     const nextUnavailable =
-      this.mode === PlayMode.CAMPAIGN &&
-      this.level >= this.progress.snapshot.highestUnlocked;
+      this.mode === PlayMode.TUTORIAL
+        ? !this.board?.won
+        : this.mode === PlayMode.CAMPAIGN &&
+          this.level >= this.progress.snapshot.highestUnlocked;
     this.previousButton.setAlpha(value || previousUnavailable ? 0.45 : 1);
     this.restartButton.setAlpha(alpha);
     this.nextButton.setAlpha(value || nextUnavailable ? 0.45 : 1);
@@ -319,6 +508,10 @@ export class BoardScene extends Phaser.Scene {
 
     this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
     this.status.setFontSize(compact ? 11 : 14).setPosition(10, height - 126);
+    this.tutorialText
+      .setFontSize(compact ? 10 : 13)
+      .setPosition(width / 2, compact ? 57 : 60)
+      .setWordWrapWidth(Math.max(220, width - 24));
 
     const controlsY = height - 22;
     const gap = 68;
@@ -326,10 +519,13 @@ export class BoardScene extends Phaser.Scene {
     this.previousButton.setPosition(width / 2 - gap, controlsY);
     this.nextButton.setPosition(width / 2 + gap, controlsY);
     this.menuButton.setPosition(compact ? width - 48 : width - 70, controlsY);
+    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "START" : ">");
 
     this.layoutPanel(width, height, compact);
 
-    const boardHeight = Math.max(100, height - TOP_BAR_HEIGHT - BOTTOM_BAR_HEIGHT);
+    const topBarHeight =
+      this.mode === PlayMode.TUTORIAL ? TOP_BAR_HEIGHT + 34 : TOP_BAR_HEIGHT;
+    const boardHeight = Math.max(100, height - topBarHeight - BOTTOM_BAR_HEIGHT);
     const boardWidth = Math.max(100, width - 16);
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
     const plateHeight = this.plateRadius * 3 + 2.2;
@@ -338,7 +534,7 @@ export class BoardScene extends Phaser.Scene {
       Math.min(boardWidth / plateWidth, boardHeight / plateHeight),
     );
     this.boardCenterX = width / 2;
-    this.boardCenterY = TOP_BAR_HEIGHT + boardHeight / 2;
+    this.boardCenterY = topBarHeight + boardHeight / 2;
 
     for (const view of this.pieceViews.values()) {
       const position = this.hexToScreen(view.piece);
@@ -354,6 +550,32 @@ export class BoardScene extends Phaser.Scene {
       );
     }
     this.render();
+    this.layoutMechanicCard(width, height, compact);
+  }
+
+  layoutMechanicCard(width, height, compact) {
+    this.mechanicCardHitZone.setPosition(width / 2, height / 2).setSize(width, height);
+    if (this.mechanicCardHitZone.input?.hitArea) {
+      this.mechanicCardHitZone.input.hitArea.setTo(0, 0, width, height);
+    }
+    if (!this.mechanicCardVisible) return;
+
+    const cardWidth = Math.min(width - 28, 520);
+    const cardHeight = compact ? 210 : 230;
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    this.mechanicCardGraphics.clear();
+    this.mechanicCardGraphics.fillStyle(0x000000, 0.72);
+    this.mechanicCardGraphics.fillRect(0, 0, width, height);
+    this.mechanicCardGraphics.fillStyle(0x202020, 1);
+    this.mechanicCardGraphics.fillRect(x, y, cardWidth, cardHeight);
+    this.mechanicCardGraphics.lineStyle(2, 0xf0d58a, 1);
+    this.mechanicCardGraphics.strokeRect(x, y, cardWidth, cardHeight);
+    this.mechanicCardText
+      .setFontSize(compact ? 14 : 18)
+      .setPosition(width / 2, height / 2 - 18)
+      .setWordWrapWidth(cardWidth - 34);
+    this.mechanicCardHint.setPosition(width / 2, y + cardHeight - 28);
   }
 
   layoutPanel(width, height, compact) {
@@ -421,10 +643,14 @@ export class BoardScene extends Phaser.Scene {
         ? `${String(this.level + 1).padStart(2, "0")}/${PROGRESSION_LEVEL_COUNT}`
         : String(this.level + 1).padStart(4, "0");
     this.header.setText(
-      `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
+      this.mode === PlayMode.TUTORIAL
+        ? `TUTORIAL / BASICS   ${count}/${total}`
+        : `${this.mode.toUpperCase()} / ${chapter}   LEVEL ${levelLabel}   ${count}/${total}`,
     );
     this.menuButton.setText(
-      this.mode === PlayMode.CAMPAIGN ? "LEVELS" : "MENU",
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL
+        ? "LEVELS"
+        : "MENU",
     );
 
     this.renderPanel();
@@ -461,6 +687,7 @@ export class BoardScene extends Phaser.Scene {
       this.atomGraphics.strokeCircle(position.x, position.y, radius);
       view.label.setAlpha(free ? 1 : 0.45);
     }
+    this.renderTutorialPulse(this.time.now);
   }
 
   renderPanel() {
@@ -476,6 +703,8 @@ export class BoardScene extends Phaser.Scene {
       this.activePanelType !== null &&
       state.entries.find((entry) => entry.type === this.activePanelType)?.depleted
     ) {
+      this.panelHighlightTimer?.remove(false);
+      this.panelHighlightTimer = undefined;
       this.activePanelType = null;
     }
 

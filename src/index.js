@@ -63,3 +63,7 @@ export {
   createPanelState,
   panelTypesForVariant,
 } from "./panel-state.js";
+export {
+  TUTORIAL_GUIDED_MOVE_COUNT,
+  createTutorialLevel,
+} from "./tutorial.js";

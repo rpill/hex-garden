@@ -168,3 +168,21 @@ export const CURATED_OPENING_LEVELS = Object.freeze([
     ],
   ),
 ]);
+
+const campaignOpening = (templateIndex, moveTypes) =>
+  Object.freeze({ templateIndex, moveTypes: Object.freeze(moveTypes) });
+
+// The campaign starts after the interactive tutorial, so every authored
+// opening board uses all four elements and contains ten removals. Reusing a
+// silhouette with a different pair schedule changes its decisions while the
+// seed-dependent rotation keeps the presentation varied.
+export const CURATED_CAMPAIGN_OPENINGS = Object.freeze([
+  campaignOpening(3, [A, E, W, E, A, F, A, W, F, E]),
+  campaignOpening(4, [A, F, W, A, F, W, F, E, E, A]),
+  campaignOpening(7, [A, F, W, E, A, F, A, E, W, W]),
+  campaignOpening(5, [F, A, W, F, E, E, F, A, W, W]),
+  campaignOpening(7, [E, E, A, F, E, A, W, A, W, F]),
+  campaignOpening(6, [A, F, W, E, F, F, F, A, E, W]),
+  campaignOpening(4, [A, F, W, E, W, E, W, F, F, A]),
+  campaignOpening(6, [W, W, E, E, F, A, W, E, F, A]),
+]);

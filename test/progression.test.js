@@ -92,11 +92,11 @@ test("opening progression creates early choices and requires Salt wildcards", ()
   );
   assert.deepEqual(
     elementDefinitions.map((definition) => definition.elementCount),
-    [1, 2, 3, 4, 4, 4, 4, 4],
+    [4, 4, 4, 4, 4, 4, 4, 4],
   );
   assert.deepEqual(
     elementDefinitions.map((definition) => definition.ordinaryMoveCount),
-    [4, 6, 8, 10, 10, 10, 10, 10],
+    [10, 10, 10, 10, 10, 10, 10, 10],
   );
 
   const saltDefinitions = Array.from({ length: 8 }, (_value, index) =>
@@ -122,19 +122,23 @@ test("opening progression creates early choices and requires Salt wildcards", ()
   const levels = Array.from({ length: 16 }, (_value, level) =>
     generateProgressionLevel(level, { campaignSeed: "rules-lab-v1" }),
   );
-  assert.equal(levels[0].difficulty.moveCount, 4);
-  assert.equal(levels[0].difficulty.randomRouteWinProbability, 1);
-  assert.equal(levels[0].difficulty.shortestDeadEndMove, null);
+  assert.equal(levels[0].difficulty.moveCount, 10);
+  assert.ok(levels[0].difficulty.randomRouteWinProbability < 0.9);
+  assert.notEqual(levels[0].difficulty.shortestDeadEndMove, null);
   assert.ok(levels[0].difficulty.initialLegalMoveCount > 1);
-  assert.equal(levels[0].difficulty.initialMeaningfulMoveCount, 1);
-  assert.ok(levels[2].difficulty.initialMeaningfulMoveCount >= 3);
+  assert.equal(
+    levels.slice(0, 8).every(
+      (record) => new Set(record.pieces.map((piece) => piece.type)).size === 4,
+    ),
+    true,
+  );
 
   assert.equal(
     levels.slice(0, 8).every((record) => record.shape === "campaign-r3-curated"),
     true,
   );
   assert.deepEqual(
-    levels.slice(3, 8).map((record) => ({
+    levels.slice(0, 8).map((record) => ({
       first: record.difficulty.firstDeceptiveDecisionStep,
       steps: record.difficulty.deceptiveDecisionSteps,
       losing: record.difficulty.deceptiveLosingMovesAlongCertificate,
@@ -142,15 +146,20 @@ test("opening progression creates early choices and requires Salt wildcards", ()
     [
       { first: 3, steps: 1, losing: 1 },
       { first: 3, steps: 2, losing: 2 },
+      { first: 2, steps: 3, losing: 3 },
       { first: 3, steps: 2, losing: 2 },
-      { first: 2, steps: 3, losing: 7 },
       { first: 2, steps: 1, losing: 1 },
+      { first: 1, steps: 1, losing: 1 },
+      { first: 2, steps: 4, losing: 4 },
+      { first: 2, steps: 3, losing: 7 },
     ],
   );
-  assert.ok(
-    levels[6].difficulty.randomRouteWinProbability <
-      levels[7].difficulty.randomRouteWinProbability,
-  );
+  for (let level = 1; level < 8; level += 1) {
+    assert.ok(
+      levels[level].difficulty.randomRouteWinProbability <=
+        levels[level - 1].difficulty.randomRouteWinProbability,
+    );
+  }
 
   for (const record of levels.slice(8)) {
     const saltCount = record.pieces.filter(

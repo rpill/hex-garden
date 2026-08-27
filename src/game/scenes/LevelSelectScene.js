@@ -22,6 +22,13 @@ export class LevelSelectScene extends Phaser.Scene {
     this.backButton = makeButton(this, "< MENU", () => {
       this.scene.start("menu");
     }, 14);
+    this.tutorialButton = makeButton(
+      this,
+      "00\nLEARN",
+      () => this.scene.start("board", { mode: PlayMode.TUTORIAL }),
+      12,
+    );
+    this.tutorialButton.setAlign("center").setColor("#9ec7df");
 
     this.levelButtons = Array.from(
       { length: PROGRESSION_LEVEL_COUNT },
@@ -81,7 +88,8 @@ export class LevelSelectScene extends Phaser.Scene {
   layout() {
     const { width, height } = this.scale;
     const columns = width < 520 ? 5 : 10;
-    const rows = Math.ceil(PROGRESSION_LEVEL_COUNT / columns);
+    const itemCount = PROGRESSION_LEVEL_COUNT + 1;
+    const rows = Math.ceil(itemCount / columns);
     const availableWidth = Math.max(240, width - 20);
     const cellWidth = Math.min(76, availableWidth / columns);
     const availableHeight = Math.max(180, height - 142);
@@ -98,9 +106,16 @@ export class LevelSelectScene extends Phaser.Scene {
     this.summary.setPosition(width / 2, 52);
     this.backButton.setPosition(58, height - 24);
 
+    const tutorialCellWidth = Math.max(34, cellWidth - 6);
+    this.tutorialButton
+      .setPosition(left + cellWidth * 0.5, top + stepY * 0.5)
+      .setFixedSize(tutorialCellWidth, cellHeight)
+      .setFontSize(Math.max(8, Math.min(12, cellHeight * 0.27)));
+
     for (const { level, button } of this.levelButtons) {
-      const column = level % columns;
-      const row = Math.floor(level / columns);
+      const itemIndex = level + 1;
+      const column = itemIndex % columns;
+      const row = Math.floor(itemIndex / columns);
       button
         .setPosition(
           left + cellWidth * (column + 0.5),

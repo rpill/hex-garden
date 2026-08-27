@@ -18,6 +18,7 @@ function assertLevel(level) {
 function initialSnapshot() {
   return {
     version: 1,
+    tutorialCompleted: false,
     completedLevels: [],
     highestUnlocked: 0,
     campaignCompleted: false,
@@ -27,6 +28,7 @@ function initialSnapshot() {
 function allUnlockedSnapshot(completedLevels = []) {
   return {
     version: 1,
+    tutorialCompleted: true,
     completedLevels: [...completedLevels].sort((left, right) => left - right),
     highestUnlocked: PROGRESSION_LEVEL_COUNT - 1,
     campaignCompleted: completedLevels.length === PROGRESSION_LEVEL_COUNT,
@@ -62,6 +64,8 @@ export function normalizeCampaignProgress(value) {
 
   return {
     version: 1,
+    tutorialCompleted:
+      value.tutorialCompleted === true || completedLevels.length > 0,
     completedLevels,
     highestUnlocked: Math.min(
       completedLevels.length,
@@ -129,6 +133,16 @@ export class CampaignProgressStore {
     this.#snapshot = normalizeCampaignProgress({
       completedLevels: [...this.#snapshot.completedLevels, level],
     });
+    this.#persist();
+    return this.snapshot;
+  }
+
+  completeTutorial() {
+    if (this.#snapshot.tutorialCompleted) return this.snapshot;
+    this.#snapshot = {
+      ...this.#snapshot,
+      tutorialCompleted: true,
+    };
     this.#persist();
     return this.snapshot;
   }
