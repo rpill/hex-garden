@@ -3,6 +3,7 @@ import { standardEndlessAccess } from "../../mode-access.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { getCampaignProgress } from "../campaign-progress.js";
+import { getEconomy } from "../economy.js";
 import { PlayMode } from "../modes.js";
 import { makeButton, makeText } from "../ui.js";
 
@@ -23,6 +24,7 @@ export class MenuScene extends Phaser.Scene {
   create() {
     this.campaignTestMode = isCampaignTestMode();
     this.progress = getCampaignProgress(this);
+    this.economy = getEconomy(this);
     this.endlessAccess = standardEndlessAccess(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
     });
@@ -61,6 +63,15 @@ export class MenuScene extends Phaser.Scene {
       },
     );
     if (!this.endlessAccess.unlocked) this.standardButton.setAlpha(0.55);
+    this.shopButton = makeButton(this, "МАГАЗИН", () => {
+      this.scene.start("shop", { returnScene: "menu" });
+    });
+    this.wallet = makeText(
+      this,
+      `ПЫЛЬ  ${this.economy.snapshot.dust.toLocaleString("ru-RU")}`,
+      13,
+      "#f0d58a",
+    ).setOrigin(0.5);
     this.note = makeText(
       this,
       this.campaignTestMode
@@ -89,11 +100,13 @@ export class MenuScene extends Phaser.Scene {
       .setFontSize(compact ? 24 : 30)
       .setPosition(centerX, Math.max(54, centerY - 145));
     this.subtitle.setPosition(centerX, Math.max(90, centerY - 98));
-    this.campaignButton.setPosition(centerX, centerY - 18);
-    this.standardButton.setPosition(centerX, centerY + 46);
+    this.wallet.setPosition(centerX, Math.max(116, centerY - 70));
+    this.campaignButton.setPosition(centerX, centerY - 28);
+    this.standardButton.setPosition(centerX, centerY + 34);
+    this.shopButton.setPosition(centerX, centerY + 96);
     this.note
       .setFontSize(compact ? 9 : 11)
       .setWordWrapWidth(Math.max(240, width - 28))
-      .setPosition(centerX, Math.min(height - 34, centerY + 142));
+      .setPosition(centerX, Math.min(height - 28, centerY + 158));
   }
 }

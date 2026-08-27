@@ -64,6 +64,17 @@ export {
   generateEndlessRunLevel,
 } from "./endless-run.js";
 export {
+  ECONOMY_STORAGE_KEY,
+  HINT_PRODUCTS,
+  STARTING_DUST,
+  EconomyStore,
+  HintType,
+  dustRewardForPlate,
+  endlessDustReward,
+  normalizeEconomy,
+  productForHint,
+} from "./economy.js";
+export {
   ADJACENT_OFFSETS,
   BOARD_CENTER,
   BOARD_RADIUS,

@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
+import { HintType, productForHint } from "../../economy.js";
 import {
   boardClearBaseScore,
   createEndlessScoreState,
@@ -21,6 +22,7 @@ import {
 } from "../../panel-state.js";
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
+import { getEconomy } from "../economy.js";
 import { PlayMode } from "../modes.js";
 import {
   TUTORIAL_GUIDED_MOVE_COUNT,
@@ -30,8 +32,9 @@ import {
 
 const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
-const BOTTOM_BAR_HEIGHT = 134;
+const BOTTOM_BAR_HEIGHT = 190;
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
+const MOVE_HINT_DURATION_MS = 4000;
 
 function formatScore(value) {
   return Math.round(value).toLocaleString("ru-RU");
@@ -131,6 +134,12 @@ export class BoardScene extends Phaser.Scene {
     this.displayedCampaignScore = 0;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
+    this.removalHistory = [];
+    this.activeHintKeys = new Set();
+    this.hintTimer = undefined;
+    this.endlessAssisted = false;
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
   }
 
   init(data = {}) {
@@ -165,9 +174,16 @@ export class BoardScene extends Phaser.Scene {
     this.displayedCampaignScore = this.progress.snapshot.campaignScore;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
+    this.removalHistory = [];
+    this.activeHintKeys = new Set();
+    this.hintTimer = undefined;
+    this.endlessAssisted = false;
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
   }
 
   create() {
+    this.economy = getEconomy(this);
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
@@ -177,6 +193,10 @@ export class BoardScene extends Phaser.Scene {
     this.panelGraphics = this.add.graphics().setDepth(4);
     this.tutorialGraphics = this.add.graphics().setDepth(8);
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
+    this.economyModalGraphics = this.add.graphics().setDepth(30);
+    this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
+      .setDepth(30)
+      .setVisible(false);
     this.header = makeText(this, "", 16).setOrigin(0.5);
     this.status = makeText(this, "", 14, "#adadad").setOrigin(0, 0.5);
     this.endlessHud = makeText(this, "", 13, "#f0d58a")
@@ -184,6 +204,9 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(10);
     this.campaignHud = makeText(this, "", 13, "#c8edc5")
       .setOrigin(0.5)
+      .setDepth(10);
+    this.dustHud = makeText(this, "", 12, "#f0d58a")
+      .setOrigin(1, 0.5)
       .setDepth(10);
     this.tutorialText = makeText(this, "", 14, "#f0d58a")
       .setOrigin(0.5)
@@ -206,6 +229,26 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
     this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
 
+    this.economyModalTitle = makeText(this, "", 19, "#ededed")
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalBody = makeText(this, "", 13, "#bdbdbd")
+      .setOrigin(0.5)
+      .setAlign("center")
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalMessage = makeText(this, "", 12, "#c8edc5")
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalBuy = makeButton(this, "КУПИТЬ", () =>
+      this.purchaseEconomyModalProduct(),
+    ).setDepth(31).setVisible(false).disableInteractive();
+    this.economyModalClose = makeButton(this, "ЗАКРЫТЬ", () =>
+      this.closeEconomyModal(),
+    ).setDepth(31).setVisible(false).disableInteractive();
+
     this.previousButton = makeButton(this, "<", () => this.changeLevel(-1));
     this.restartButton = makeButton(this, "RESTART", () => this.restartLevel());
     this.nextButton = makeButton(this, ">", () => this.changeLevel(1));
@@ -213,16 +256,25 @@ export class BoardScene extends Phaser.Scene {
       this.openLevelSelect(),
     );
     this.menuButton = makeButton(this, "MENU", () => this.openMainMenu());
+    this.hintButtons = new Map([
+      [HintType.MOVE, makeButton(this, "ХОД +", () => this.useHint(HintType.MOVE))],
+      [HintType.UNDO, makeButton(this, "ОТМЕНА +", () => this.useHint(HintType.UNDO))],
+      [HintType.RESCUE, makeButton(this, "СПАСТИ +", () => this.useHint(HintType.RESCUE))],
+    ]);
 
     this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
     this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
-    this.input.keyboard?.on("keydown-ESC", () => this.leaveBoard());
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.economyModalVisible) this.closeEconomyModal();
+      else this.leaveBoard();
+    });
 
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
       this.clearPanelHighlight(false);
+      this.clearMoveHint(false);
       this.endlessScoreTween?.stop();
       this.campaignScoreTween?.stop();
       this.generator.terminate();
@@ -237,6 +289,8 @@ export class BoardScene extends Phaser.Scene {
   async loadLevel() {
     const token = ++this.generationToken;
     if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
+    this.removalHistory = [];
+    this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
       this.campaignScoreTween?.stop();
       this.campaignLevelScore = 0;
@@ -353,6 +407,7 @@ export class BoardScene extends Phaser.Scene {
       this.endlessScoreState = createEndlessScoreState();
       this.displayedEndlessScore = 0;
       this.endlessRunOver = false;
+      this.endlessAssisted = false;
       this.level = 0;
       this.loadLevel();
       return;
@@ -365,6 +420,8 @@ export class BoardScene extends Phaser.Scene {
         !this.progress.isCompleted(this.level) ||
         this.progress.snapshot.levelScores[this.level] === 0;
     }
+    this.removalHistory = [];
+    this.clearMoveHint(false);
     this.board = new GardenBoard(this.initialPieces);
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
@@ -378,6 +435,7 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.mechanicCardVisible ||
+      this.economyModalVisible ||
       this.endlessRunOver ||
       !this.board
     ) {
@@ -387,6 +445,13 @@ export class BoardScene extends Phaser.Scene {
       this.status.setText("НАЖМИТЕ НА ПУЛЬСИРУЮЩИЕ АТОМЫ");
       return;
     }
+    const beforeRemoval = {
+      pieces: this.board.pieces(),
+      endlessScoreState: { ...this.endlessScoreState },
+      campaignLevelScore: this.campaignLevelScore,
+      displayedCampaignScore: this.displayedCampaignScore,
+      displayedEndlessScore: this.displayedEndlessScore,
+    };
     const result = this.board.select(piece);
     if (result.kind === "locked") {
       this.status.setText(
@@ -398,6 +463,9 @@ export class BoardScene extends Phaser.Scene {
     } else if (result.kind === "deselected") {
       this.status.setText("");
     } else if (result.kind === "removed") {
+      this.removalHistory.push(beforeRemoval);
+      if (this.removalHistory.length > 64) this.removalHistory.shift();
+      this.clearMoveHint(false);
       let message = "";
       if (this.mode === PlayMode.STANDARD) {
         const scoredRemoval = scoreRemovedAtoms(
@@ -456,6 +524,10 @@ export class BoardScene extends Phaser.Scene {
           const snapshot = this.progress.complete(this.level, {
             score: shouldRecordScore ? this.campaignLevelScore : 0,
           });
+          const dust = this.economy.claimCampaignLevel(
+            this.level,
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
           this.campaignScoringActive = false;
           this.animateCampaignScore(snapshot.campaignScore);
           if (snapshot.campaignCompleted) {
@@ -464,6 +536,7 @@ export class BoardScene extends Phaser.Scene {
             message =
               `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
           }
+          if (dust.award > 0) message += `   +${dust.award} ПЫЛИ`;
           if (
             !alreadyCompleted &&
             !this.progress.testMode &&
@@ -477,6 +550,9 @@ export class BoardScene extends Phaser.Scene {
             1 + 3 * this.plateRadius * (this.plateRadius + 1),
           );
           this.endlessScoreState = clearScore.state;
+          const dust = this.economy.awardEndlessClear(
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
           this.showScorePopup(
             [],
             `CLEAR +${formatScore(clearScore.award)}`,
@@ -485,7 +561,7 @@ export class BoardScene extends Phaser.Scene {
           this.animateEndlessScore(this.endlessScoreState.score);
           message =
             `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
-            `×${formatMultiplier(clearScore.multiplier)}`;
+            `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
         }
         this.setBusy(false);
       } else if (
@@ -594,10 +670,11 @@ export class BoardScene extends Phaser.Scene {
       ? `NEXT ×${formatMultiplier(next.multiplier)} AT ${next.streak}`
       : `MAX ×${formatMultiplier(multiplier)}`;
     const separator = this.scale.width < 560 ? "\n" : "   ";
+    const assisted = this.endlessAssisted ? "   ASSISTED" : "";
     this.endlessHud.setText(
       `SCORE ${formatScore(this.displayedEndlessScore)}   ` +
         `STREAK ${streak}   ×${formatMultiplier(multiplier)}` +
-        `${separator}${nextLabel}`,
+        `${assisted}${separator}${nextLabel}`,
     );
   }
 
@@ -608,6 +685,193 @@ export class BoardScene extends Phaser.Scene {
     this.campaignHud.setText(
       `CAMPAIGN SCORE ${formatScore(this.displayedCampaignScore)}`,
     );
+  }
+
+  updateEconomyUi() {
+    if (!this.economy || !this.hintButtons) return;
+    const snapshot = this.economy.snapshot;
+    const visible =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.STANDARD;
+    this.dustHud?.setText(`ПЫЛЬ ${formatScore(snapshot.dust)}`).setVisible(visible);
+
+    const labels = {
+      [HintType.MOVE]: "ХОД",
+      [HintType.UNDO]: "ОТМЕНА",
+      [HintType.RESCUE]: "СПАСТИ",
+    };
+    for (const [type, button] of this.hintButtons) {
+      const typeVisible = visible &&
+        (type !== HintType.RESCUE || this.mode === PlayMode.STANDARD);
+      const count = snapshot.hints[type];
+      button
+        .setText(`${labels[type]} ${count > 0 ? `×${count}` : "+"}`)
+        .setVisible(typeVisible);
+      if (typeVisible) button.setInteractive({ useHandCursor: true });
+      else button.disableInteractive();
+    }
+  }
+
+  useHint(type) {
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      !this.board
+    ) {
+      return;
+    }
+    if (this.economy.snapshot.hints[type] <= 0) {
+      this.openEconomyModal(type);
+      return;
+    }
+
+    if (type === HintType.MOVE) {
+      if (this.board.won) return;
+      const move = this.board.legalMoves()[0];
+      if (!move) {
+        this.status.setText("ДОСТУПНЫХ ХОДОВ НЕТ — ИСПОЛЬЗУЙТЕ ОТМЕНУ ИЛИ RESTART");
+        return;
+      }
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.clearMoveHint(false);
+      this.activeHintKeys = new Set(move.map(hexKey));
+      this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
+        this.hintTimer = undefined;
+        this.activeHintKeys.clear();
+        this.render();
+      });
+      this.status.setText("ПОДСВЕЧЕН ДОСТУПНЫЙ ХОД");
+      this.render();
+      this.updateEconomyUi();
+      return;
+    }
+
+    if (type === HintType.UNDO) {
+      if (this.endlessRunOver) {
+        this.status.setText("ПОСЛЕ ТУПИКА ИСПОЛЬЗУЙТЕ СПАСЕНИЕ");
+        return;
+      }
+      if (this.removalHistory.length === 0 || this.board.won) {
+        this.status.setText("ПОКА НЕЧЕГО ОТМЕНЯТЬ");
+        return;
+      }
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.restoreLastRemoval("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО");
+      return;
+    }
+
+    if (type === HintType.RESCUE) {
+      if (this.mode !== PlayMode.STANDARD || !this.endlessRunOver) {
+        this.status.setText("СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ТУПИКА В ENDLESS");
+        return;
+      }
+      if (this.removalHistory.length === 0) {
+        this.status.setText("НЕТ СОСТОЯНИЯ ДЛЯ ВОССТАНОВЛЕНИЯ");
+        return;
+      }
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.restoreLastRemoval("ЗАБЕГ ПРОДОЛЖЕН   ASSISTED");
+    }
+  }
+
+  markEndlessAssisted() {
+    if (this.mode === PlayMode.STANDARD) this.endlessAssisted = true;
+  }
+
+  restoreLastRemoval(message) {
+    const snapshot = this.removalHistory.pop();
+    if (!snapshot) return;
+    this.board = new GardenBoard(snapshot.pieces);
+    this.endlessScoreState = Object.freeze({ ...snapshot.endlessScoreState });
+    this.campaignLevelScore = snapshot.campaignLevelScore;
+    this.displayedEndlessScore = this.endlessScoreState.score;
+    this.displayedCampaignScore =
+      this.progress.snapshot.campaignScore + this.campaignLevelScore;
+    this.endlessScoreTween?.stop();
+    this.campaignScoreTween?.stop();
+    this.endlessRunOver = false;
+    this.clearPanelHighlight(false);
+    this.clearMoveHint(false);
+    this.status.setText(message);
+    this.setBusy(false);
+    this.rebuildPieceViews();
+    this.updateEconomyUi();
+    this.layout();
+  }
+
+  clearMoveHint(render = true) {
+    this.hintTimer?.remove(false);
+    this.hintTimer = undefined;
+    this.activeHintKeys?.clear();
+    if (render) this.render();
+  }
+
+  openEconomyModal(type) {
+    const product = productForHint(type);
+    if (!product) return;
+    this.economyModalVisible = true;
+    this.economyModalProduct = product;
+    this.economyModalMessage.setText("").setVisible(true);
+    this.economyModalTitle.setText(product.title).setVisible(true);
+    this.economyModalBody.setVisible(true);
+    this.economyModalBuy
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+    this.economyModalClose
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+    this.economyModalHitZone.setVisible(true).setInteractive();
+    this.refreshEconomyModal();
+    this.layout();
+  }
+
+  refreshEconomyModal() {
+    const product = this.economyModalProduct;
+    if (!product || !this.economyModalVisible) return;
+    const snapshot = this.economy.snapshot;
+    this.economyModalBody.setText(
+      `${product.description}\n\nВ ИНВЕНТАРЕ: ${snapshot.hints[product.hint]}\nБАЛАНС: ${formatScore(snapshot.dust)} ПЫЛИ`,
+    );
+    this.economyModalBuy
+      .setText(`КУПИТЬ ×${product.amount}  /  ${product.price} ПЫЛИ`)
+      .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
+  }
+
+  purchaseEconomyModalProduct() {
+    const product = this.economyModalProduct;
+    if (!product) return;
+    const result = this.economy.purchase(product.id);
+    this.economyModalMessage
+      .setText(
+        result.ok
+          ? `КУПЛЕНО: +${product.amount}`
+          : `НЕ ХВАТАЕТ ${product.price - result.snapshot.dust} ПЫЛИ`,
+      )
+      .setColor(result.ok ? "#c8edc5" : "#e89070");
+    this.updateEconomyUi();
+    this.refreshEconomyModal();
+  }
+
+  closeEconomyModal() {
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
+    this.economyModalGraphics.clear();
+    this.economyModalHitZone.setVisible(false).disableInteractive();
+    for (const item of [
+      this.economyModalTitle,
+      this.economyModalBody,
+      this.economyModalMessage,
+      this.economyModalBuy,
+      this.economyModalClose,
+    ]) {
+      item.setVisible(false);
+    }
+    this.economyModalBuy.disableInteractive();
+    this.economyModalClose.disableInteractive();
+    this.render();
   }
 
   rebuildPieceViews() {
@@ -665,7 +929,12 @@ export class BoardScene extends Phaser.Scene {
   }
 
   selectPanelType(type) {
-    if (this.busy || this.mechanicCardVisible || !this.board) return;
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      !this.board
+    ) return;
     const state = createPanelState(this.board, {
       variant: this.variant,
       types: this.panelTypes,
@@ -869,6 +1138,7 @@ export class BoardScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
     const compact = width < 560;
+    const shortLandscape = height < 520 && width >= 560;
 
     this.header.setFontSize(compact ? 13 : 16).setPosition(width / 2, 25);
     this.endlessHud
@@ -877,11 +1147,18 @@ export class BoardScene extends Phaser.Scene {
     this.campaignHud
       .setFontSize(compact ? 10 : 12)
       .setPosition(width / 2, 52);
+    this.dustHud
+      .setFontSize(compact ? 9 : 11)
+      .setPosition(width - 10, 25);
     this.updateEndlessHud();
     this.updateCampaignHud();
+    this.updateEconomyUi();
     this.status
       .setFontSize(compact ? 11 : 14)
-      .setPosition(10, compact ? height - 144 : height - 126);
+      .setPosition(
+        10,
+        shortLandscape ? height - 94 : compact ? height - 178 : height - 160,
+      );
     this.tutorialText
       .setFontSize(compact ? 10 : 13)
       .setPosition(width / 2, compact ? 57 : 60)
@@ -904,7 +1181,7 @@ export class BoardScene extends Phaser.Scene {
     this.nextButton.setPosition(width / 2 + gap, controlsY);
     const campaignNavigation =
       this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
-    const navigationY = compact ? height - 104 : controlsY;
+    const navigationY = compact ? height - 178 : controlsY;
     this.levelsButton
       .setPosition(compact ? width - 126 : width - 158, navigationY)
       .setVisible(campaignNavigation);
@@ -916,6 +1193,30 @@ export class BoardScene extends Phaser.Scene {
     this.menuButton.setPosition(compact ? width - 46 : width - 70, navigationY);
     this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? "ИГРАТЬ" : ">");
 
+    const visibleHints = [...this.hintButtons.entries()].filter(
+      ([type]) =>
+        (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
+        this.mode === PlayMode.STANDARD,
+    );
+    const hintWidth = Math.min(
+      compact ? 102 : 118,
+      Math.max(72, (width - 20) / Math.max(1, visibleHints.length) - 6),
+    );
+    const hintGap = hintWidth + 6;
+    const hintLeft = width / 2 - hintGap * (visibleHints.length - 1) / 2;
+    visibleHints.forEach(([, button], index) => {
+      button
+        .setFontSize(compact ? 10 : shortLandscape ? 9 : 12)
+        .setFixedSize(
+          shortLandscape ? 102 : hintWidth,
+          compact ? 32 : 36,
+        )
+        .setPosition(
+          shortLandscape ? 66 : hintLeft + hintGap * index,
+          shortLandscape ? 118 + index * 48 : height - 132,
+        );
+    });
+
     this.layoutPanel(width, height, compact);
 
     const topBarHeight =
@@ -926,8 +1227,9 @@ export class BoardScene extends Phaser.Scene {
         : this.mode === PlayMode.CAMPAIGN
         ? TOP_BAR_HEIGHT + 28
         : TOP_BAR_HEIGHT;
-    const boardHeight = Math.max(100, height - topBarHeight - BOTTOM_BAR_HEIGHT);
-    const boardWidth = Math.max(100, width - 16);
+    const bottomBarHeight = shortLandscape ? 100 : BOTTOM_BAR_HEIGHT;
+    const boardHeight = Math.max(100, height - topBarHeight - bottomBarHeight);
+    const boardWidth = Math.max(100, width - (shortLandscape ? 170 : 16));
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
     const plateHeight = this.plateRadius * 3 + 2.2;
     this.hexSize = Math.max(
@@ -952,6 +1254,43 @@ export class BoardScene extends Phaser.Scene {
     }
     this.render();
     this.layoutMechanicCard(width, height, compact);
+    this.layoutEconomyModal(width, height, compact);
+  }
+
+  layoutEconomyModal(width, height, compact) {
+    this.economyModalGraphics.clear();
+    if (!this.economyModalVisible) return;
+    this.economyModalHitZone
+      .setPosition(width / 2, height / 2)
+      .setSize(width, height);
+    if (this.economyModalHitZone.input?.hitArea) {
+      this.economyModalHitZone.input.hitArea.setTo(0, 0, width, height);
+    }
+    const cardWidth = Math.min(width - 28, 500);
+    const cardHeight = compact ? 300 : 320;
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    this.economyModalGraphics.fillStyle(0x000000, 0.78);
+    this.economyModalGraphics.fillRect(0, 0, width, height);
+    this.economyModalGraphics.fillStyle(0x202020, 1);
+    this.economyModalGraphics.fillRect(x, y, cardWidth, cardHeight);
+    this.economyModalGraphics.lineStyle(2, 0xf0d58a, 1);
+    this.economyModalGraphics.strokeRect(x, y, cardWidth, cardHeight);
+    this.economyModalTitle
+      .setFontSize(compact ? 16 : 19)
+      .setPosition(width / 2, y + 38);
+    this.economyModalBody
+      .setFontSize(compact ? 11 : 13)
+      .setWordWrapWidth(cardWidth - 36)
+      .setPosition(width / 2, y + 112);
+    this.economyModalMessage.setPosition(width / 2, y + 190);
+    this.economyModalBuy
+      .setFontSize(compact ? 10 : 13)
+      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
+      .setPosition(width / 2, y + cardHeight - 72);
+    this.economyModalClose
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width / 2, y + cardHeight - 27);
   }
 
   layoutMechanicCard(width, height, compact) {
@@ -994,7 +1333,8 @@ export class BoardScene extends Phaser.Scene {
     const left = (width - panelWidth) / 2;
     const step = panelWidth / types.length;
     const radius = Math.max(10, Math.min(18, step * 0.38));
-    const y = height - 76;
+    const shortLandscape = height < 520 && width >= 560;
+    const y = height - (shortLandscape ? 58 : 76);
 
     this.panelLayout = { left, width: panelWidth, y, radius, step, types };
     types.forEach((type, index) => {
@@ -1060,6 +1400,7 @@ export class BoardScene extends Phaser.Scene {
     this.menuButton.setText("MENU");
     this.updateEndlessHud();
     this.updateCampaignHud();
+    this.updateEconomyUi();
 
     this.renderPanel();
     this.cellGraphics.clear();
@@ -1083,13 +1424,22 @@ export class BoardScene extends Phaser.Scene {
       const free = this.board.isFree(view.piece);
       const isSelected = selected.has(hexKey(view.piece));
       const isPanelMatch = this.activePanelType === view.piece.type;
+      const isHinted = this.activeHintKeys.has(hexKey(view.piece));
       const radius = this.hexSize * 0.68;
 
       this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], free ? 1 : 0.38);
       this.atomGraphics.fillCircle(position.x, position.y, radius);
       this.atomGraphics.lineStyle(
-        isSelected || isPanelMatch ? Math.max(2, this.hexSize * 0.12) : 1,
-        isSelected ? 0xffffff : isPanelMatch ? 0xf0d58a : 0x111111,
+        isSelected || isPanelMatch || isHinted
+          ? Math.max(2, this.hexSize * 0.12)
+          : 1,
+        isSelected
+          ? 0xffffff
+          : isHinted
+          ? 0x8ed18c
+          : isPanelMatch
+          ? 0xf0d58a
+          : 0x111111,
         1,
       );
       this.atomGraphics.strokeCircle(position.x, position.y, radius);

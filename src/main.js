@@ -3,6 +3,7 @@ import "./styles.css";
 import { BoardScene } from "./game/scenes/BoardScene.js";
 import { LevelSelectScene } from "./game/scenes/LevelSelectScene.js";
 import { MenuScene } from "./game/scenes/MenuScene.js";
+import { ShopScene } from "./game/scenes/ShopScene.js";
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -23,7 +24,7 @@ const game = new Phaser.Game({
     activePointers: 3,
     touch: { capture: true },
   },
-  scene: [MenuScene, LevelSelectScene, BoardScene],
+  scene: [MenuScene, LevelSelectScene, ShopScene, BoardScene],
 });
 
 window.addEventListener("contextmenu", (event) => event.preventDefault());
