@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { Language } from "../../settings.js";
 import { applySettings, getSettings } from "../settings.js";
+import { layoutSceneHeader } from "../navigation-layout.js";
 import { makeButton, makeText } from "../ui.js";
 
 export class SettingsScene extends Phaser.Scene {
@@ -78,24 +79,27 @@ export class SettingsScene extends Phaser.Scene {
   layout() {
     const { width, height } = this.scale;
     const compact = width < 560;
+    const header = layoutSceneHeader(
+      { title: this.title, backButton: this.backButton },
+      width,
+      height,
+    );
     const cardWidth = Math.min(width - 28, 520);
-    const cardHeight = Math.min(height - 36, 430);
+    const cardHeight = Math.min(height - header.contentTop - 14, 350);
     const x = (width - cardWidth) / 2;
-    const y = (height - cardHeight) / 2;
+    const y = header.contentTop + Math.max(0, (height - header.contentTop - cardHeight) / 2);
     const buttonWidth = Math.min(cardWidth - 40, 360);
 
     this.panel.clear();
     this.panel.fillStyle(0x1d2421, 1).fillRoundedRect(x, y, cardWidth, cardHeight, 18);
     this.panel.lineStyle(2, 0x53645b, 1).strokeRoundedRect(x, y, cardWidth, cardHeight, 18);
-    this.title.setFontSize(compact ? 23 : 28).setPosition(width / 2, y + 48);
-    this.languageLabel.setPosition(width / 2, y + 105);
-    this.languageButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 145);
-    this.soundLabel.setPosition(width / 2, y + 210);
-    this.soundButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 250);
+    this.languageLabel.setPosition(width / 2, y + 48);
+    this.languageButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 88);
+    this.soundLabel.setPosition(width / 2, y + 153);
+    this.soundButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 193);
     this.note
       .setFontSize(compact ? 10 : 12)
       .setWordWrapWidth(cardWidth - 32)
-      .setPosition(width / 2, y + 310);
-    this.backButton.setFixedSize(Math.min(220, cardWidth - 40), 46).setPosition(width / 2, y + cardHeight - 42);
+      .setPosition(width / 2, y + cardHeight - 40);
   }
 }

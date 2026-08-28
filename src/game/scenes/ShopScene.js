@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { HINT_PRODUCTS } from "../../economy.js";
 import { getEconomy } from "../economy.js";
 import { getSettings } from "../settings.js";
+import { layoutSceneHeader } from "../navigation-layout.js";
 import { makeButton, makeText } from "../ui.js";
 
 function formatDust(value) {
@@ -19,7 +20,7 @@ export class ShopScene extends Phaser.Scene {
     this.economy = getEconomy(this);
     this.english = getSettings(this).snapshot.language === "en";
     this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#ededed").setOrigin(0.5);
-    this.balance = makeText(this, "", 16, "#f0d58a").setOrigin(0.5);
+    this.balance = makeText(this, "", 16, "#f0d58a").setOrigin(1, 0.5);
     this.subtitle = makeText(
       this,
       this.english ? "BOOSTERS ARE PURCHASED IN ADVANCE AND STORED IN YOUR INVENTORY" : "ПОДСКАЗКИ ПОКУПАЮТСЯ ЗАРАНЕЕ И ХРАНЯТСЯ В ИНВЕНТАРЕ",
@@ -86,38 +87,39 @@ export class ShopScene extends Phaser.Scene {
     const compact = width < 520;
     const shortLandscape = height < 520 && width >= 620;
     const centerX = width / 2;
-    const startY = compact ? 118 : 132;
-    const stepY = Math.min(142, Math.max(104, (height - 190) / 3));
+    const header = layoutSceneHeader(
+      { title: this.title, backButton: this.backButton },
+      width,
+      height,
+    );
+    const startY = compact ? header.contentTop + 74 : header.contentTop + 82;
+    const stepY = Math.min(142, Math.max(104, (height - header.contentTop - 110) / 3));
 
-    this.title
-      .setFontSize(compact ? 21 : 26)
-      .setPosition(centerX, 28);
-    this.balance.setPosition(centerX, 62);
+    this.balance
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width - 14, header.y);
     this.subtitle
       .setFontSize(compact ? 9 : 11)
       .setWordWrapWidth(Math.max(240, width - 32))
-      .setPosition(centerX, 89);
-    this.message.setPosition(centerX, height - 62);
-    this.backButton.setFixedSize(126, 44).setPosition(76, height - 28);
+      .setPosition(centerX, header.contentTop + 20);
+    this.message.setPosition(centerX, height - 24);
 
     if (shortLandscape) {
-      this.title.setFontSize(20).setPosition(centerX, 24);
-      this.balance.setFontSize(13).setPosition(centerX, 51);
-      this.subtitle.setFontSize(9).setPosition(centerX, 75);
+      this.subtitle.setFontSize(9).setPosition(centerX, header.contentTop + 13);
       this.productViews.forEach((view, index) => {
         const x = width * (index + 0.5) / this.productViews.length;
-        view.title.setFontSize(15).setPosition(x, 122);
+        view.title.setFontSize(15).setPosition(x, header.contentTop + 62);
         view.description
           .setFontSize(9)
           .setWordWrapWidth(Math.max(150, width / 3 - 24))
-          .setPosition(x, 158);
-        view.owned.setFontSize(10).setPosition(x, 205);
+          .setPosition(x, header.contentTop + 98);
+        view.owned.setFontSize(10).setPosition(x, header.contentTop + 145);
         view.buy
           .setFontSize(9)
           .setFixedSize(Math.max(150, width / 3 - 28), 34)
-          .setPosition(x, 244);
+          .setPosition(x, header.contentTop + 184);
       });
-      this.message.setPosition(centerX, height - 57);
+      this.message.setPosition(centerX, height - 24);
       return;
     }
 

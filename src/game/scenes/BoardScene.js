@@ -166,6 +166,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.positionDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.pauseMenuVisible = false;
   }
 
   uiText(russian, english) {
@@ -218,6 +219,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.positionDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.pauseMenuVisible = false;
   }
 
   create() {
@@ -239,6 +241,11 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
       .setDepth(30)
       .setVisible(false);
+    this.pauseMenuGraphics = this.add.graphics().setDepth(40);
+    this.pauseMenuHitZone = this.add.zone(0, 0, 1, 1)
+      .setDepth(40)
+      .setVisible(false)
+      .setInteractive();
     this.header = makeText(this, "", 16).setOrigin(0.5).setDepth(10);
     this.status = makeText(this, "", 14, "#b8c3bd").setOrigin(0.5).setDepth(10);
     this.endlessHud = makeText(this, "", 13, "#f0d58a")
@@ -294,31 +301,49 @@ export class BoardScene extends Phaser.Scene {
       this.closeEconomyModal(),
     ).setDepth(31).setVisible(false).disableInteractive();
 
-    this.previousButton = makeButton(this, "‹", () => this.changeLevel(-1)).setDepth(10);
-    this.restartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartLevel()).setDepth(10);
-    this.nextButton = makeButton(this, "›", () => this.changeLevel(1)).setDepth(10);
-    this.levelsButton = makeButton(this, this.uiText("УРОВНИ", "LEVELS"), () =>
-      this.openLevelSelect(),
-    ).setDepth(10);
-    this.menuButton = makeButton(this, this.uiText("←  МЕНЮ", "←  MENU"), () => this.openMainMenu()).setDepth(10);
+    this.nextButton = makeButton(this, this.uiText("ИГРАТЬ", "PLAY"), () => this.changeLevel(1)).setDepth(10).setVisible(false).disableInteractive();
+    this.menuButton = makeButton(this, this.uiText("Ⅱ  ПАУЗА", "Ⅱ  PAUSE"), () => this.openPauseMenu()).setDepth(10);
     this.hintButtons = new Map([
       [HintType.MOVE, makeButton(this, "✦  ХОД +", () => this.useHint(HintType.MOVE)).setDepth(10)],
       [HintType.UNDO, makeButton(this, "↶  ОТМЕНА +", () => this.useHint(HintType.UNDO)).setDepth(10)],
       [HintType.RESCUE, makeButton(this, "◆  СПАСТИ +", () => this.useHint(HintType.RESCUE)).setDepth(10)],
     ]);
+    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#f2efe5")
+      .setOrigin(0.5)
+      .setFontStyle("bold")
+      .setDepth(41)
+      .setVisible(false);
+    this.pauseResumeButton = makeButton(this, this.uiText("ПРОДОЛЖИТЬ", "RESUME"), () => this.closePauseMenu())
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseRestartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartFromPause())
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseLevelsButton = makeButton(this, this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"), () => this.exitPauseToLevels())
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseExitButton = makeButton(this, this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"), () => this.exitPauseToMenu())
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
     this.completionOverlay = new CompletionOverlay(this);
 
-    this.input.keyboard?.on("keydown-LEFT", () => this.changeLevel(-1));
-    this.input.keyboard?.on("keydown-RIGHT", () => this.changeLevel(1));
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
     this.input.keyboard?.on("keydown-ESC", () => {
       if (this.rewardedAdPending) return;
+      if (this.pauseMenuVisible) {
+        this.closePauseMenu();
+        return;
+      }
       if (this.completionOverlay.visible) {
         this.completionOverlay.exit();
         return;
       }
       if (this.economyModalVisible) this.closeEconomyModal();
-      else this.leaveBoard();
+      else this.openPauseMenu();
     });
 
     this.scale.on("resize", this.layout, this);
@@ -437,15 +462,6 @@ export class BoardScene extends Phaser.Scene {
     this.loadLevel();
   }
 
-  leaveBoard() {
-    this.generationToken += 1;
-    if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL) {
-      this.scene.start("level-select");
-    } else {
-      this.scene.start("menu");
-    }
-  }
-
   openLevelSelect() {
     if (this.mode !== PlayMode.CAMPAIGN && this.mode !== PlayMode.TUTORIAL) {
       return;
@@ -460,6 +476,64 @@ export class BoardScene extends Phaser.Scene {
     this.scene.start("menu");
   }
 
+  openPauseMenu() {
+    if (
+      this.pauseMenuVisible ||
+      this.rewardedAdPending ||
+      this.completionOverlay?.visible ||
+      this.economyModalVisible
+    ) return;
+    this.pauseMenuVisible = true;
+    this.pauseMenuHitZone.setVisible(true).setInteractive();
+    for (const item of [
+      this.pauseMenuTitle,
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      this.pauseExitButton,
+    ]) item.setVisible(true);
+    this.pauseResumeButton.setInteractive({ useHandCursor: true });
+    const canRestart = !this.busy && this.initialPieces.length > 0;
+    this.pauseRestartButton.setAlpha(canRestart ? 1 : 0.45);
+    if (canRestart) this.pauseRestartButton.setInteractive({ useHandCursor: true });
+    else this.pauseRestartButton.disableInteractive();
+    this.pauseExitButton.setInteractive({ useHandCursor: true });
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    this.pauseLevelsButton.setVisible(campaignNavigation);
+    if (campaignNavigation) this.pauseLevelsButton.setInteractive({ useHandCursor: true });
+    else this.pauseLevelsButton.disableInteractive();
+    this.layoutPauseMenu(this.scale.width, this.scale.height);
+  }
+
+  closePauseMenu() {
+    if (!this.pauseMenuVisible) return;
+    this.pauseMenuVisible = false;
+    this.pauseMenuGraphics.clear();
+    this.pauseMenuHitZone.setVisible(false).disableInteractive();
+    for (const item of [
+      this.pauseMenuTitle,
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      this.pauseLevelsButton,
+      this.pauseExitButton,
+    ]) item.setVisible(false).disableInteractive?.();
+  }
+
+  restartFromPause() {
+    this.closePauseMenu();
+    this.restartLevel();
+  }
+
+  exitPauseToLevels() {
+    this.closePauseMenu();
+    this.openLevelSelect();
+  }
+
+  exitPauseToMenu() {
+    this.closePauseMenu();
+    this.openMainMenu();
+  }
+
   submitEndlessResult() {
     if (this.mode !== PlayMode.STANDARD || !this.leaderboard) return;
     this.leaderboard.submitEndlessScore(this.endlessScoreState.score, {
@@ -471,6 +545,7 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.completionOverlay?.visible ||
+      this.pauseMenuVisible ||
       this.initialPieces.length === 0
     ) return;
     if (this.mode === PlayMode.STANDARD) {
@@ -513,6 +588,7 @@ export class BoardScene extends Phaser.Scene {
       this.mechanicCardVisible ||
       this.economyModalVisible ||
       this.completionOverlay?.visible ||
+      this.pauseMenuVisible ||
       this.positionDeadEnd ||
       this.endlessRunOver ||
       !this.board
@@ -943,6 +1019,7 @@ export class BoardScene extends Phaser.Scene {
       this.busy ||
       this.mechanicCardVisible ||
       this.economyModalVisible ||
+      this.pauseMenuVisible ||
       !this.board
     ) {
       return;
@@ -1332,6 +1409,7 @@ export class BoardScene extends Phaser.Scene {
       this.busy ||
       this.mechanicCardVisible ||
       this.economyModalVisible ||
+      this.pauseMenuVisible ||
       !this.board
     ) return;
     const state = createPanelState(this.board, {
@@ -1517,22 +1595,7 @@ export class BoardScene extends Phaser.Scene {
 
   setBusy(value) {
     this.busy = value;
-    const alpha = value ? 0.45 : 1;
-    const previousUnavailable =
-      this.mode === PlayMode.TUTORIAL ||
-      this.mode === PlayMode.STANDARD ||
-      this.level === 0;
-    const nextUnavailable =
-      this.mode === PlayMode.TUTORIAL
-        ? !this.board?.won
-        : this.mode === PlayMode.STANDARD
-        ? !this.board?.won || this.endlessRunOver
-        : this.mode === PlayMode.CAMPAIGN &&
-          this.level >= this.progress.snapshot.highestUnlocked;
-    this.previousButton.setAlpha(value || previousUnavailable ? 0.45 : 1);
-    this.restartButton.setAlpha(alpha);
-    this.nextButton.setAlpha(value || nextUnavailable ? 0.45 : 1);
-    this.levelsButton.setAlpha(1);
+    this.pauseRestartButton?.setAlpha(value ? 0.45 : 1);
     this.menuButton.setAlpha(1);
   }
 
@@ -1566,16 +1629,6 @@ export class BoardScene extends Phaser.Scene {
       .setFontSize(compact ? 11 : 12)
       .setFixedSize(topButtonWidth, 42)
       .setPosition(margin + topButtonWidth / 2, 28);
-    const campaignNavigation =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
-    this.levelsButton
-      .setFontSize(compact ? 10 : 12)
-      .setFixedSize(compact ? 92 : 112, 42)
-      .setPosition(width - margin - (compact ? 46 : 56), 28)
-      .setVisible(campaignNavigation);
-    if (campaignNavigation) this.levelsButton.setInteractive({ useHandCursor: true });
-    else this.levelsButton.disableInteractive();
-
     this.header
       .setFontSize(compact ? 12 : 15)
       .setFontStyle("bold")
@@ -1611,39 +1664,36 @@ export class BoardScene extends Phaser.Scene {
     );
 
     let boardBottom;
+    const tutorialContinue =
+      this.mode === PlayMode.TUTORIAL && this.board?.won === true;
     if (sideDock) {
       const sideX = contentLeft / 2;
       const sideButtonWidth = contentLeft - 16;
       this.menuButton
         .setFontSize(10)
-        .setFixedSize(sideButtonWidth, 36)
+        .setFixedSize(sideButtonWidth, 40)
         .setPosition(sideX, 23);
-      this.levelsButton
-        .setFontSize(9)
-        .setFixedSize(sideButtonWidth, 34)
-        .setPosition(sideX, 63);
       hintEntries.forEach(([, button], index) => {
         button
-          .setFontSize(9)
-          .setFixedSize(sideButtonWidth, 38)
-          .setPosition(sideX, 112 + index * 44);
+          .setFontSize(10)
+          .setFixedSize(sideButtonWidth, 44)
+          .setPosition(sideX, 84 + index * 48);
       });
-      this.restartButton
-        .setFontSize(9)
-        .setFixedSize(sideButtonWidth, 38)
-        .setPosition(sideX, height - 65);
-      this.previousButton.setFixedSize(40, 36).setPosition(sideX - 24, height - 22);
-      this.nextButton.setFixedSize(40, 36).setPosition(sideX + 24, height - 22);
+      this.nextButton
+        .setText(this.uiText("ИГРАТЬ", "PLAY"))
+        .setFontSize(10)
+        .setFixedSize(sideButtonWidth, 44)
+        .setPosition(sideX, height - 26)
+        .setVisible(tutorialContinue);
+      if (tutorialContinue) this.nextButton.setInteractive({ useHandCursor: true });
+      else this.nextButton.disableInteractive();
       this.status
         .setFontSize(10)
         .setWordWrapWidth(Math.max(240, contentWidth - 30))
         .setPosition(contentCenter, panelTop - 9);
       boardBottom = panelTop - boardBottomGap;
     } else {
-      const hintsY = panelTop - 58;
-      const controlsY = hintsY - 58;
-      const statusY = controlsY - 42;
-      const navGap = compact ? 72 : 86;
+      const actionsY = panelTop - 58;
       const actionWidth = Math.min(
         compact ? 168 : 190,
         Math.max(104, (contentWidth - margin * 2) / Math.max(1, hintEntries.length) - 8),
@@ -1654,41 +1704,24 @@ export class BoardScene extends Phaser.Scene {
         button
           .setFontSize(compact ? 11 : 12)
           .setFixedSize(actionWidth, 46)
-          .setPosition(actionLeft + actionStep * index, hintsY);
+          .setPosition(actionLeft + actionStep * index, actionsY);
       });
-      this.restartButton
-        .setFontSize(compact ? 10 : 12)
-        .setFixedSize(compact ? 116 : 138, 44)
-        .setPosition(contentCenter, controlsY);
-      this.previousButton
-        .setFontSize(20)
-        .setFixedSize(48, 44)
-        .setPosition(contentCenter - navGap, controlsY);
       this.nextButton
-        .setFontSize(this.mode === PlayMode.TUTORIAL ? 11 : 20)
-        .setFixedSize(this.mode === PlayMode.TUTORIAL ? 112 : 48, 44)
-        .setPosition(
-          contentCenter + (this.mode === PlayMode.TUTORIAL ? navGap + 28 : navGap),
-          controlsY,
-        );
+        .setText(this.uiText("ИГРАТЬ", "PLAY"))
+        .setFontSize(11)
+        .setFixedSize(150, 46)
+        .setPosition(contentCenter, actionsY)
+        .setVisible(tutorialContinue);
+      if (tutorialContinue) this.nextButton.setInteractive({ useHandCursor: true });
+      else this.nextButton.disableInteractive();
+      const actionRowVisible = hintEntries.length > 0 || tutorialContinue;
+      const statusY = actionRowVisible ? actionsY - 40 : panelTop - 20;
       this.status
         .setFontSize(compact ? 10 : 12)
         .setWordWrapWidth(Math.max(240, contentWidth - 32))
         .setPosition(contentCenter, statusY);
-      boardBottom = statusY - 22;
+      boardBottom = statusY - 20;
     }
-
-    this.restartButton.setText(
-      this.mode === PlayMode.STANDARD ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN") : this.uiText("ЗАНОВО", "RESTART"),
-    );
-    this.previousButton
-      .setVisible(this.mode !== PlayMode.STANDARD);
-    if (this.mode === PlayMode.STANDARD) {
-      this.previousButton.disableInteractive();
-    } else {
-      this.previousButton.setInteractive({ useHandCursor: true });
-    }
-    this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? this.uiText("ИГРАТЬ", "PLAY") : "›");
 
     const boardTop = topBarHeight + boardTopGap;
     const boardHeight = Math.max(100, boardBottom - boardTop);
@@ -1718,7 +1751,53 @@ export class BoardScene extends Phaser.Scene {
     this.render();
     this.layoutMechanicCard(width, height, compact);
     this.layoutEconomyModal(width, height, compact);
+    this.layoutPauseMenu(width, height);
     this.completionOverlay.layout(width, height);
+  }
+
+  layoutPauseMenu(width, height) {
+    this.pauseMenuGraphics.clear();
+    if (!this.pauseMenuVisible) return;
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    const buttons = [
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      ...(campaignNavigation ? [this.pauseLevelsButton] : []),
+      this.pauseExitButton,
+    ];
+    const compact = width < 560;
+    const cardWidth = Math.min(width - 28, 430);
+    const cardHeight = Math.min(height - 24, 104 + buttons.length * 54);
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    const buttonWidth = Math.min(cardWidth - 36, 330);
+    const startY = y + 88;
+    const step = Math.min(54, (cardHeight - 102) / buttons.length);
+
+    this.pauseMenuHitZone.setPosition(width / 2, height / 2).setSize(width, height);
+    this.pauseMenuHitZone.input?.hitArea?.setTo(0, 0, width, height);
+    this.pauseMenuGraphics.fillStyle(0x000000, 0.78).fillRect(0, 0, width, height);
+    this.pauseMenuGraphics.fillStyle(0x1d2722, 1).fillRoundedRect(x, y, cardWidth, cardHeight, 18);
+    this.pauseMenuGraphics.lineStyle(2, 0x607568, 1).strokeRoundedRect(x, y, cardWidth, cardHeight, 18);
+    this.pauseMenuTitle
+      .setText(this.uiText("ПАУЗА", "PAUSED"))
+      .setFontSize(compact ? 20 : 24)
+      .setPosition(width / 2, y + 38);
+    this.pauseResumeButton.setText(this.uiText("ПРОДОЛЖИТЬ", "RESUME")).setBackgroundColor("#526d5a");
+    this.pauseRestartButton.setText(
+      this.mode === PlayMode.STANDARD
+        ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN")
+        : this.uiText("ЗАНОВО", "RESTART"),
+    );
+    this.pauseLevelsButton.setText(this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"));
+    this.pauseExitButton.setText(this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"));
+    buttons.forEach((button, index) => {
+      button
+        .setFontSize(compact ? 11 : 13)
+        .setFixedSize(buttonWidth, Math.min(44, step - 6))
+        .setPosition(width / 2, startY + index * step);
+    });
   }
 
   layoutEconomyModal(width, height, compact) {
@@ -1891,7 +1970,7 @@ export class BoardScene extends Phaser.Scene {
         ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}  ·  ${this.uiText("ОСТАЛОСЬ", "LEFT")} ${count}/${total}`
         : `ENDLESS  ·  ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}  ·  ${count}/${total}`,
     );
-    this.menuButton.setText(this.uiText("←  МЕНЮ", "←  MENU"));
+    this.menuButton.setText(this.uiText("Ⅱ  ПАУЗА", "Ⅱ  PAUSE"));
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getLeaderboard } from "../leaderboard.js";
+import { layoutSceneHeader } from "../navigation-layout.js";
 import { isShortLandscape } from "../responsive-layout.js";
 import { getSettings } from "../settings.js";
 import { makeButton, makeText } from "../ui.js";
@@ -31,7 +32,7 @@ export class LeaderboardScene extends Phaser.Scene {
       "#9fb2a7",
     ).setOrigin(0.5);
     this.breakdown = makeText(this, "", 11, "#f0d58a").setOrigin(0.5);
-    this.backButton = makeButton(this, this.english ? "← MENU" : "← МЕНЮ", () => {
+    this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
     }, 13);
 
@@ -63,13 +64,18 @@ export class LeaderboardScene extends Phaser.Scene {
   layout() {
     const { width, height } = this.scale;
     const shortLandscape = isShortLandscape(width, height);
+    const header = layoutSceneHeader(
+      { title: this.title, backButton: this.backButton },
+      width,
+      height,
+    );
     const cardWidth = Math.min(width - 24, 650);
-    const cardHeight = Math.min(height - 18, shortLandscape ? 388 : 700);
+    const cardHeight = Math.min(height - header.contentTop - 10, shortLandscape ? 344 : 650);
     const left = (width - cardWidth) / 2;
-    const top = (height - cardHeight) / 2;
-    const headerHeight = shortLandscape ? 76 : 100;
+    const top = header.contentTop + Math.max(0, (height - header.contentTop - cardHeight) / 2);
+    const cardHeaderHeight = shortLandscape ? 42 : 56;
     const footerHeight = shortLandscape ? 64 : 84;
-    const tableHeight = cardHeight - headerHeight - footerHeight;
+    const tableHeight = cardHeight - cardHeaderHeight - footerHeight;
     const rowHeight = tableHeight / this.rows.length;
     const innerLeft = left + 18;
     const innerWidth = cardWidth - 36;
@@ -77,13 +83,12 @@ export class LeaderboardScene extends Phaser.Scene {
     this.background.clear();
     this.background.fillStyle(0x17201c, 1).fillRoundedRect(left, top, cardWidth, cardHeight, 18);
     this.background.lineStyle(2, 0x43564b, 1).strokeRoundedRect(left, top, cardWidth, cardHeight, 18);
-    this.title.setFontSize(shortLandscape ? 19 : 25).setPosition(width / 2, top + 25);
     this.subtitle
       .setFontSize(shortLandscape ? 9 : 11)
-      .setPosition(width / 2, top + (shortLandscape ? 51 : 63));
+      .setPosition(width / 2, top + cardHeaderHeight / 2);
 
     this.rows.forEach((row, index) => {
-      const y = top + headerHeight + rowHeight * (index + 0.5);
+      const y = top + cardHeaderHeight + rowHeight * (index + 0.5);
       row.background.clear();
       row.background.fillStyle(row.entry.isPlayer ? 0xf0d58a : index % 2 === 0 ? 0x202c26 : 0x1b2520, 1);
       row.background.fillRoundedRect(innerLeft, y - rowHeight * 0.42, innerWidth, rowHeight * 0.84, 7);
@@ -99,8 +104,5 @@ export class LeaderboardScene extends Phaser.Scene {
         shortLandscape ? left + cardWidth * 0.61 : width / 2,
         top + cardHeight - (shortLandscape ? 22 : 54),
       );
-    this.backButton
-      .setFixedSize(shortLandscape ? 94 : 118, shortLandscape ? 34 : 42)
-      .setPosition(left + (shortLandscape ? 58 : 72), top + cardHeight - (shortLandscape ? 22 : 27));
   }
 }

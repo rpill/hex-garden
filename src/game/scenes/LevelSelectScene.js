@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
+import { layoutSceneHeader } from "../navigation-layout.js";
 import { getSettings } from "../settings.js";
 import { makeButton, makeText, setButtonEnabled } from "../ui.js";
 
@@ -21,7 +22,7 @@ export class LevelSelectScene extends Phaser.Scene {
       "#ededed",
     ).setOrigin(0.5);
     this.summary = makeText(this, "", 12, "#8f8f8f").setOrigin(0.5);
-    this.backButton = makeButton(this, this.english ? "← MENU" : "← МЕНЮ", () => {
+    this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
     }, 14);
     this.settingsButton = makeButton(this, "⚙", () => {
@@ -98,25 +99,29 @@ export class LevelSelectScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    const header = layoutSceneHeader(
+      {
+        title: this.title,
+        backButton: this.backButton,
+        utilityButton: this.settingsButton,
+      },
+      width,
+      height,
+    );
     const columns = width < 520 ? 5 : 10;
     const itemCount = PROGRESSION_LEVEL_COUNT + 1;
     const rows = Math.ceil(itemCount / columns);
     const availableWidth = Math.max(240, width - 20);
     const cellWidth = Math.min(76, availableWidth / columns);
-    const availableHeight = Math.max(180, height - 142);
+    const availableHeight = Math.max(180, height - header.contentTop - 12);
     const stepY = Math.min(54, availableHeight / rows);
     const cellHeight = Math.max(28, stepY - 6);
     const gridWidth = cellWidth * columns;
     const gridHeight = stepY * rows;
     const left = (width - gridWidth) / 2;
-    const top = 76 + Math.max(0, (availableHeight - gridHeight) / 2);
+    const top = header.contentTop + 24 + Math.max(0, (availableHeight - gridHeight - 24) / 2);
 
-    this.title
-      .setFontSize(width < 520 ? 19 : 24)
-      .setPosition(width / 2, 24);
-    this.summary.setPosition(width / 2, 52);
-    this.backButton.setFixedSize(112, 44).setPosition(68, height - 28);
-    this.settingsButton.setFixedSize(48, 44).setPosition(width - 36, height - 28);
+    this.summary.setPosition(width / 2, header.contentTop + 6);
 
     const tutorialCellWidth = Math.max(34, cellWidth - 6);
     this.tutorialButton
