@@ -90,6 +90,12 @@ export {
   normalizeSettings,
 } from "./settings.js";
 export {
+  FAKE_LEADERBOARD_ENTRIES,
+  LEADERBOARD_STORAGE_KEY,
+  LocalLeaderboardStore,
+  normalizeLeaderboardProfile,
+} from "./leaderboard.js";
+export {
   SolveStatus,
   findLastSolvableSnapshot,
   findWinningRoute,

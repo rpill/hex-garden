@@ -27,6 +27,7 @@ import {
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
+import { getLeaderboard } from "../leaderboard.js";
 import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
 import {
@@ -34,7 +35,7 @@ import {
   getYandexGamesAdapter,
 } from "../../platform/yandex-games.js";
 import { PlayMode } from "../modes.js";
-import { classifyBoardViewport } from "../responsive-layout.js";
+import { boardChromeMetrics } from "../responsive-layout.js";
 import {
   SolveStatus,
   findLastSolvableSnapshot,
@@ -221,6 +222,8 @@ export class BoardScene extends Phaser.Scene {
 
   create() {
     this.economy = getEconomy(this);
+    this.leaderboard = getLeaderboard(this);
+    this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.platform = getYandexGamesAdapter();
     this.pieceViews = new Map();
     this.panelViews = new Map();
@@ -452,8 +455,16 @@ export class BoardScene extends Phaser.Scene {
   }
 
   openMainMenu() {
+    this.submitEndlessResult();
     this.generationToken += 1;
     this.scene.start("menu");
+  }
+
+  submitEndlessResult() {
+    if (this.mode !== PlayMode.STANDARD || !this.leaderboard) return;
+    this.leaderboard.submitEndlessScore(this.endlessScoreState.score, {
+      assisted: this.endlessAssisted,
+    });
   }
 
   restartLevel() {
@@ -463,6 +474,7 @@ export class BoardScene extends Phaser.Scene {
       this.initialPieces.length === 0
     ) return;
     if (this.mode === PlayMode.STANDARD) {
+      this.submitEndlessResult();
       this.endlessScoreTween?.stop();
       this.endlessScoreState = createEndlessScoreState();
       this.displayedEndlessScore = 0;
@@ -603,6 +615,7 @@ export class BoardScene extends Phaser.Scene {
           const snapshot = this.progress.complete(this.level, {
             score: shouldRecordScore ? this.campaignLevelScore : 0,
           });
+          this.leaderboard.syncCampaignScore(snapshot.campaignScore);
           const dust = this.economy.claimCampaignLevel(
             this.level,
             1 + 3 * this.plateRadius * (this.plateRadius + 1),
@@ -1301,6 +1314,7 @@ export class BoardScene extends Phaser.Scene {
         .setDepth(6);
       const count = makeText(this, "", 10, "#d8d8d8")
         .setOrigin(0.5)
+        .setFontStyle("bold")
         .setDepth(6);
       const hitZone = this.add.zone(0, 0, 36, 36).setDepth(7);
       hitZone.setInteractive(
@@ -1525,12 +1539,18 @@ export class BoardScene extends Phaser.Scene {
   layout() {
     const width = this.scale.width;
     const height = this.scale.height;
-    const { compact, portrait, sideDock } = classifyBoardViewport(width, height);
+    const {
+      compact,
+      portrait,
+      sideDock,
+      contentLeft,
+      contentWidth,
+      topBarHeight,
+      boardTopGap,
+      boardBottomGap,
+    } = boardChromeMetrics(width, height);
     const margin = compact ? 10 : 18;
-    const contentLeft = sideDock ? 154 : 0;
-    const contentWidth = width - contentLeft;
     const contentCenter = contentLeft + contentWidth / 2;
-    const topBarHeight = portrait ? 142 : sideDock ? 78 : 86;
 
     this.chromeGraphics.clear();
     this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
@@ -1559,22 +1579,22 @@ export class BoardScene extends Phaser.Scene {
     this.header
       .setFontSize(compact ? 12 : 15)
       .setFontStyle("bold")
-      .setPosition(contentCenter, portrait ? 74 : 27);
+      .setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
     this.endlessHud
       .setFontSize(compact ? 11 : 12)
-      .setPosition(contentCenter, portrait ? 104 : 58);
+      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
     this.campaignHud
       .setFontSize(compact ? 11 : 12)
-      .setPosition(contentCenter, portrait ? 104 : 58);
+      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
     this.dustHud
       .setFontSize(compact ? 10 : 12)
-      .setPosition(width - margin, portrait ? 128 : 58);
+      .setPosition(width - margin, portrait ? 128 : sideDock ? 42 : 58);
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();
     this.tutorialText
       .setFontSize(compact ? 11 : 13)
-      .setPosition(contentCenter, portrait ? 111 : 56)
+      .setPosition(contentCenter, portrait ? 111 : sideDock ? 42 : 56)
       .setWordWrapWidth(Math.max(220, contentWidth - 28));
 
     this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
@@ -1593,24 +1613,32 @@ export class BoardScene extends Phaser.Scene {
     let boardBottom;
     if (sideDock) {
       const sideX = contentLeft / 2;
-      this.menuButton.setPosition(sideX, 28);
+      const sideButtonWidth = contentLeft - 16;
+      this.menuButton
+        .setFontSize(10)
+        .setFixedSize(sideButtonWidth, 36)
+        .setPosition(sideX, 23);
       this.levelsButton
-        .setFixedSize(118, 42)
-        .setPosition(sideX, 78);
+        .setFontSize(9)
+        .setFixedSize(sideButtonWidth, 34)
+        .setPosition(sideX, 63);
       hintEntries.forEach(([, button], index) => {
         button
-          .setFontSize(10)
-          .setFixedSize(124, 44)
-          .setPosition(sideX, 142 + index * 54);
+          .setFontSize(9)
+          .setFixedSize(sideButtonWidth, 38)
+          .setPosition(sideX, 112 + index * 44);
       });
-      this.restartButton.setFixedSize(124, 44).setPosition(sideX, height - 80);
-      this.previousButton.setFixedSize(48, 44).setPosition(sideX - 33, height - 30);
-      this.nextButton.setFixedSize(48, 44).setPosition(sideX + 33, height - 30);
+      this.restartButton
+        .setFontSize(9)
+        .setFixedSize(sideButtonWidth, 38)
+        .setPosition(sideX, height - 65);
+      this.previousButton.setFixedSize(40, 36).setPosition(sideX - 24, height - 22);
+      this.nextButton.setFixedSize(40, 36).setPosition(sideX + 24, height - 22);
       this.status
-        .setFontSize(11)
+        .setFontSize(10)
         .setWordWrapWidth(Math.max(240, contentWidth - 30))
-        .setPosition(contentCenter, panelTop - 18);
-      boardBottom = panelTop - 44;
+        .setPosition(contentCenter, panelTop - 9);
+      boardBottom = panelTop - boardBottomGap;
     } else {
       const hintsY = panelTop - 58;
       const controlsY = hintsY - 58;
@@ -1662,7 +1690,7 @@ export class BoardScene extends Phaser.Scene {
     }
     this.nextButton.setText(this.mode === PlayMode.TUTORIAL ? this.uiText("ИГРАТЬ", "PLAY") : "›");
 
-    const boardTop = topBarHeight + 10;
+    const boardTop = topBarHeight + boardTopGap;
     const boardHeight = Math.max(100, boardBottom - boardTop);
     const boardWidth = Math.max(100, contentWidth - margin * 2);
     const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
@@ -1768,10 +1796,10 @@ export class BoardScene extends Phaser.Scene {
     const useTwoRows = compact && types.length > 9;
     const columns = useTwoRows ? Math.ceil(types.length / 2) : types.length;
     const rows = Math.ceil(types.length / columns);
-    const desiredWidth = columns * (compact ? 48 : 52);
+    const desiredWidth = columns * (compact ? 48 : 54);
     const panelWidth = Math.min(
       contentWidth - 16,
-      compact ? 560 : 760,
+      compact ? 560 : 820,
       Math.max(116, desiredWidth),
     );
     const left = contentLeft + (contentWidth - panelWidth) / 2;
@@ -1814,8 +1842,8 @@ export class BoardScene extends Phaser.Scene {
         .setPosition(x, y)
         .setFontSize(Math.max(10, Math.floor(radius * 0.78)));
       view.count
-        .setPosition(x + radius * 0.72, y - radius * 0.92)
-        .setFontSize(Math.max(8, Math.floor(radius * 0.58)));
+        .setPosition(x + radius * 0.68, y - radius * 0.72)
+        .setFontSize(Math.max(11, Math.floor(radius * 0.68)));
       view.hitZone.setPosition(x, y).setSize(hitDiameter, hitDiameter);
       view.hitZone.input.hitArea.setTo(
         hitDiameter / 2,
@@ -2018,10 +2046,20 @@ export class BoardScene extends Phaser.Scene {
       );
       this.panelGraphics.strokeCircle(x, y, radius);
 
+      if (entry.countVisible && !entry.depleted) {
+        const badgeX = x + radius * 0.68;
+        const badgeY = y - radius * 0.72;
+        const badgeRadius = Math.max(8, radius * 0.5);
+        this.panelGraphics.fillStyle(entry.warning ? 0xb74235 : 0x101713, 1);
+        this.panelGraphics.fillCircle(badgeX, badgeY, badgeRadius);
+        this.panelGraphics.lineStyle(1.5, entry.warning ? 0xffb0a4 : 0xe9eee8, 1);
+        this.panelGraphics.strokeCircle(badgeX, badgeY, badgeRadius);
+      }
+
       view.label.setAlpha(alpha);
       view.count
         .setText(entry.countVisible && !entry.depleted ? String(entry.count) : "")
-        .setColor(entry.warning ? "#e89070" : "#d8d8d8")
+        .setColor("#ffffff")
         .setAlpha(alpha);
     });
   }

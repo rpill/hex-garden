@@ -4,6 +4,7 @@ import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
+import { getLeaderboard } from "../leaderboard.js";
 import { PlayMode } from "../modes.js";
 import { isShortLandscape } from "../responsive-layout.js";
 import { getSettings } from "../settings.js";
@@ -29,6 +30,8 @@ export class MenuScene extends Phaser.Scene {
     this.progress = getCampaignProgress(this);
     this.economy = getEconomy(this);
     this.settings = getSettings(this);
+    this.leaderboard = getLeaderboard(this);
+    this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.english = this.settings.snapshot.language === "en";
     this.endlessAccess = standardEndlessAccess(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
@@ -74,6 +77,9 @@ export class MenuScene extends Phaser.Scene {
     this.shopButton = makeButton(this, this.english ? "SHOP" : "МАГАЗИН", () => {
       this.scene.start("shop", { returnScene: "menu" });
     });
+    this.leaderboardButton = makeButton(this, this.english ? "RANKING" : "РЕЙТИНГ", () => {
+      this.scene.start("leaderboard");
+    });
     this.settingsButton = makeButton(this, this.english ? "SETTINGS" : "НАСТРОЙКИ", () => {
       this.scene.start("settings", { returnScene: "menu" });
     });
@@ -115,7 +121,7 @@ export class MenuScene extends Phaser.Scene {
     const cardX = (width - cardWidth) / 2;
     const cardY = (height - cardHeight) / 2;
     const mainWidth = Math.min(cardWidth - 42, 390);
-    const secondaryWidth = Math.min((mainWidth - 10) / 2, 190);
+    const secondaryWidth = Math.min((mainWidth - 16) / 3, 128);
 
     this.background.clear();
     this.background.fillStyle(0x17201c, 1).fillRoundedRect(cardX, cardY, cardWidth, cardHeight, 22);
@@ -126,7 +132,7 @@ export class MenuScene extends Phaser.Scene {
       const leftCenter = cardX + cardWidth * 0.28;
       const rightCenter = cardX + cardWidth * 0.7;
       const landscapeMainWidth = Math.min(330, cardWidth * 0.42);
-      const landscapeSecondaryWidth = (landscapeMainWidth - 10) / 2;
+      const landscapeSecondaryWidth = (landscapeMainWidth - 16) / 3;
       this.title.setFontSize(29).setPosition(leftCenter, cardY + 70);
       this.subtitle.setFontSize(11).setPosition(leftCenter, cardY + 109);
       this.wallet.setPosition(leftCenter, cardY + 154);
@@ -137,11 +143,17 @@ export class MenuScene extends Phaser.Scene {
       this.campaignButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 72);
       this.standardButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 138);
       this.shopButton
+        .setFontSize(10)
         .setFixedSize(landscapeSecondaryWidth, 48)
-        .setPosition(rightCenter - landscapeSecondaryWidth / 2 - 5, cardY + 210);
+        .setPosition(rightCenter - landscapeSecondaryWidth - 8, cardY + 210);
+      this.leaderboardButton
+        .setFontSize(10)
+        .setFixedSize(landscapeSecondaryWidth, 48)
+        .setPosition(rightCenter, cardY + 210);
       this.settingsButton
+        .setFontSize(10)
         .setFixedSize(landscapeSecondaryWidth, 48)
-        .setPosition(rightCenter + landscapeSecondaryWidth / 2 + 5, cardY + 210);
+        .setPosition(rightCenter + landscapeSecondaryWidth + 8, cardY + 210);
       return;
     }
 
@@ -153,8 +165,9 @@ export class MenuScene extends Phaser.Scene {
     this.wallet.setPosition(centerX, cardY + 158);
     this.campaignButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 224);
     this.standardButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 296);
-    this.shopButton.setFixedSize(secondaryWidth, 50).setPosition(centerX - secondaryWidth / 2 - 5, cardY + 374);
-    this.settingsButton.setFixedSize(secondaryWidth, 50).setPosition(centerX + secondaryWidth / 2 + 5, cardY + 374);
+    this.shopButton.setFontSize(11).setFixedSize(secondaryWidth, 50).setPosition(centerX - secondaryWidth - 8, cardY + 374);
+    this.leaderboardButton.setFontSize(11).setFixedSize(secondaryWidth, 50).setPosition(centerX, cardY + 374);
+    this.settingsButton.setFontSize(11).setFixedSize(secondaryWidth, 50).setPosition(centerX + secondaryWidth + 8, cardY + 374);
     this.note
       .setFontSize(compact ? 9 : 11)
       .setWordWrapWidth(cardWidth - 38)

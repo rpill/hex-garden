@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  boardChromeMetrics,
   classifyBoardViewport,
   isShortLandscape,
 } from "../src/game/responsive-layout.js";
@@ -25,4 +26,12 @@ test("rotation changes layout class in both directions", () => {
   assert.equal(portrait.portrait, true);
   assert.equal(landscape.portrait, false);
   assert.equal(landscape.sideDock, true);
+});
+
+test("phone landscape reserves most of the width and height for the board", () => {
+  const layout = boardChromeMetrics(896, 414);
+  assert.ok(layout.contentLeft <= 116);
+  assert.ok(layout.contentWidth >= 780);
+  assert.equal(layout.topBarHeight, 56);
+  assert.equal(layout.boardBottomGap, 18);
 });
