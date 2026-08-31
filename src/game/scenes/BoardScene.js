@@ -2105,6 +2105,7 @@ export class BoardScene extends Phaser.Scene {
       const radius = this.hexSize * 0.7;
       const alpha = free ? 1 : 0.4;
 
+      if (!view.glyph) {
       this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
       this.atomGraphics.fillCircle(position.x, position.y + Math.max(1, this.hexSize * 0.08), radius * 1.08);
       this.atomGraphics.fillStyle(0x26312b, alpha);
@@ -2134,6 +2135,7 @@ export class BoardScene extends Phaser.Scene {
         1,
       );
       this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
+      }
       view.glyph
         ?.setPosition(position.x, position.y)
         .setDisplaySize(radius * 1.55, radius * 1.55)
