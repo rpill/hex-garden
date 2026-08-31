@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  GAMEPLAY_ATLAS,
+  GAMEPLAY_BACKGROUND,
+  GAMEPLAY_FRAMES,
+} from "../../art-assets.js";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
@@ -138,6 +143,7 @@ export class BoardScene extends Phaser.Scene {
     this.plateRadius = 5;
     this.levelDefinition = undefined;
     this.pieceViews = new Map();
+    this.cellViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
     this.activePanelType = null;
@@ -167,6 +173,15 @@ export class BoardScene extends Phaser.Scene {
     this.positionDeadEnd = false;
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
+  }
+
+  preload() {
+    this.load.multiatlas(
+      GAMEPLAY_ATLAS.key,
+      GAMEPLAY_ATLAS.jsonUrl,
+      GAMEPLAY_ATLAS.baseUrl,
+    );
+    this.load.image(GAMEPLAY_BACKGROUND.key, GAMEPLAY_BACKGROUND.url);
   }
 
   uiText(russian, english) {
@@ -228,12 +243,16 @@ export class BoardScene extends Phaser.Scene {
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.platform = getYandexGamesAdapter();
     this.pieceViews = new Map();
+    this.cellViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
     this.generator = new BrowserLevelGenerator();
+    this.backgroundImage = this.textures.exists(GAMEPLAY_BACKGROUND.key)
+      ? this.add.image(0, 0, GAMEPLAY_BACKGROUND.key).setDepth(-3)
+      : undefined;
     this.chromeGraphics = this.add.graphics().setDepth(-2);
     this.cellGraphics = this.add.graphics();
-    this.atomGraphics = this.add.graphics();
+    this.atomGraphics = this.add.graphics().setDepth(1);
     this.panelGraphics = this.add.graphics().setDepth(4);
     this.tutorialGraphics = this.add.graphics().setDepth(8);
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
@@ -350,6 +369,7 @@ export class BoardScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
       this.generator.terminate();
+      this.clearCellViews();
       this.pieceViews.clear();
       this.panelViews.clear();
     });
@@ -1616,7 +1636,15 @@ export class BoardScene extends Phaser.Scene {
     const contentCenter = contentLeft + contentWidth / 2;
 
     this.chromeGraphics.clear();
-    this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
+    if (this.backgroundImage) {
+      const scale = Math.max(
+        width / this.backgroundImage.width,
+        height / this.backgroundImage.height,
+      );
+      this.backgroundImage.setPosition(width / 2, height / 2).setScale(scale);
+    } else {
+      this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
+    }
     this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, width, topBarHeight);
     this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, topBarHeight, width, topBarHeight);
     if (sideDock) {
@@ -1941,6 +1969,44 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  clearCellViews() {
+    for (const image of this.cellViews.values()) image.destroy();
+    this.cellViews.clear();
+  }
+
+  renderAtlasCells() {
+    const texture = this.textures.exists(GAMEPLAY_ATLAS.key)
+      ? this.textures.get(GAMEPLAY_ATLAS.key)
+      : undefined;
+    if (!texture?.has(GAMEPLAY_FRAMES.hexIdle)) {
+      this.clearCellViews();
+      return false;
+    }
+
+    const wanted = new Set(this.plateCells.map(hexKey));
+    for (const [key, image] of this.cellViews) {
+      if (wanted.has(key)) continue;
+      image.destroy();
+      this.cellViews.delete(key);
+    }
+
+    for (const cell of this.plateCells) {
+      const key = hexKey(cell);
+      let image = this.cellViews.get(key);
+      if (!image) {
+        image = this.add
+          .image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_FRAMES.hexIdle)
+          .setDepth(0);
+        this.cellViews.set(key, image);
+      }
+      const position = this.hexToScreen(cell);
+      image
+        .setPosition(position.x, position.y)
+        .setDisplaySize(this.hexSize * 2, this.hexSize * 2);
+    }
+    return true;
+  }
+
   drawHex(graphics, x, y, radius, fillColor, lineColor, lineWidth = 1) {
     const points = [];
     for (let i = 0; i < 6; i += 1) {
@@ -1977,16 +2043,18 @@ export class BoardScene extends Phaser.Scene {
 
     this.renderPanel();
     this.cellGraphics.clear();
-    for (const cell of this.plateCells) {
-      const position = this.hexToScreen(cell);
-      this.drawHex(
-        this.cellGraphics,
-        position.x,
-        position.y,
-        this.hexSize * 0.96,
-        0x171e1b,
-        0x34423a,
-      );
+    if (!this.renderAtlasCells()) {
+      for (const cell of this.plateCells) {
+        const position = this.hexToScreen(cell);
+        this.drawHex(
+          this.cellGraphics,
+          position.x,
+          position.y,
+          this.hexSize * 0.96,
+          0x171e1b,
+          0x34423a,
+        );
+      }
     }
 
     this.atomGraphics.clear();
