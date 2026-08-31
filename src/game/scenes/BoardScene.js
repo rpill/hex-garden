@@ -4,6 +4,7 @@ import {
   GAMEPLAY_BACKGROUND,
   GAMEPLAY_FONT,
   GAMEPLAY_FRAMES,
+  atomGlyphFrame,
   hexFrameForState,
 } from "../../art-assets.js";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
@@ -1376,7 +1377,13 @@ export class BoardScene extends Phaser.Scene {
     this.clearPieceViews();
     if (!this.board) return;
     for (const piece of this.board.pieces()) {
-      const label = makeText(this, ATOM_LABELS[piece.type], 16, "#111111")
+      const glyphFrame = atomGlyphFrame(piece.type);
+      const glyph = glyphFrame && this.textures.exists(GAMEPLAY_ATLAS.key)
+        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(2)
+        : undefined;
+      const label = glyph
+        ? undefined
+        : makeText(this, ATOM_LABELS[piece.type], 16, "#111111")
         .setOrigin(0.5)
         .setFontStyle("bold")
         .setDepth(2);
@@ -1397,13 +1404,14 @@ export class BoardScene extends Phaser.Scene {
         this.hoveredPieceKey = undefined;
         this.render();
       });
-      this.pieceViews.set(hexKey(piece), { piece, label, hitZone });
+      this.pieceViews.set(hexKey(piece), { piece, glyph, label, hitZone });
     }
   }
 
   clearPieceViews() {
     for (const view of this.pieceViews.values()) {
-      view.label.destroy();
+      view.glyph?.destroy();
+      view.label?.destroy();
       view.hitZone.destroy();
     }
     this.pieceViews.clear();
@@ -2126,8 +2134,12 @@ export class BoardScene extends Phaser.Scene {
         1,
       );
       this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
+      view.glyph
+        ?.setPosition(position.x, position.y)
+        .setDisplaySize(radius * 1.55, radius * 1.55)
+        .setAlpha(alpha);
       view.label
-        .setColor(free ? "#121713" : "#1d231f")
+        ?.setColor(free ? "#121713" : "#1d231f")
         .setAlpha(free ? 1 : 0.5);
     }
     this.renderTutorialPulse(this.time.now);
