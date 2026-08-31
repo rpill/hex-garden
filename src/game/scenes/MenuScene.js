@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+  preloadPaperBackground,
+} from "../../scene-background.js";
 import { standardEndlessAccess } from "../../mode-access.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
@@ -26,7 +31,12 @@ export class MenuScene extends Phaser.Scene {
     super("menu");
   }
 
+  preload() {
+    preloadPaperBackground(this);
+  }
+
   create() {
+    this.paperBackground = createPaperBackground(this);
     this.campaignTestMode = isCampaignTestMode();
     this.progress = getCampaignProgress(this);
     this.economy = getEconomy(this);
@@ -113,6 +123,7 @@ export class MenuScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    layoutPaperBackground(this.paperBackground, width, height);
     const compact = width < 520;
     const shortLandscape = isShortLandscape(width, height);
     const header = sceneHeaderMetrics(width, height);

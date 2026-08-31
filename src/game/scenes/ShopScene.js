@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+  preloadPaperBackground,
+} from "../../scene-background.js";
 import { HINT_PRODUCTS } from "../../economy.js";
 import { getEconomy } from "../economy.js";
 import { getSettings } from "../settings.js";
@@ -15,7 +20,12 @@ export class ShopScene extends Phaser.Scene {
     this.productViews = [];
   }
 
+  preload() {
+    preloadPaperBackground(this);
+  }
+
   create(data = {}) {
+    this.paperBackground = createPaperBackground(this);
     this.returnScene = data.returnScene === "level-select" ? "level-select" : "menu";
     this.economy = getEconomy(this);
     this.english = getSettings(this).snapshot.language === "en";
@@ -84,6 +94,7 @@ export class ShopScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    layoutPaperBackground(this.paperBackground, width, height);
     const compact = width < 520;
     const shortLandscape = height < 520 && width >= 620;
     const centerX = width / 2;

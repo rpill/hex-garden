@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+  preloadPaperBackground,
+} from "../../scene-background.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getLeaderboard } from "../leaderboard.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
@@ -16,7 +21,12 @@ export class LeaderboardScene extends Phaser.Scene {
     this.rows = [];
   }
 
+  preload() {
+    preloadPaperBackground(this);
+  }
+
   create() {
+    this.paperBackground = createPaperBackground(this);
     this.english = getSettings(this).snapshot.language === "en";
     this.progress = getCampaignProgress(this);
     this.leaderboard = getLeaderboard(this);
@@ -63,6 +73,7 @@ export class LeaderboardScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    layoutPaperBackground(this.paperBackground, width, height);
     const shortLandscape = isShortLandscape(width, height);
     const header = layoutSceneHeader(
       { title: this.title, backButton: this.backButton },

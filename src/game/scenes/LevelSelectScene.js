@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+  preloadPaperBackground,
+} from "../../scene-background.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
@@ -12,7 +17,12 @@ export class LevelSelectScene extends Phaser.Scene {
     this.levelButtons = [];
   }
 
+  preload() {
+    preloadPaperBackground(this);
+  }
+
   create() {
+    this.paperBackground = createPaperBackground(this);
     this.progress = getCampaignProgress(this);
     this.english = getSettings(this).snapshot.language === "en";
     this.title = makeText(
@@ -99,6 +109,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    layoutPaperBackground(this.paperBackground, width, height);
     const header = layoutSceneHeader(
       {
         title: this.title,

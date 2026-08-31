@@ -1,4 +1,9 @@
 import Phaser from "phaser";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+  preloadPaperBackground,
+} from "../../scene-background.js";
 import { Language } from "../../settings.js";
 import { applySettings, getSettings } from "../settings.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
@@ -9,7 +14,12 @@ export class SettingsScene extends Phaser.Scene {
     super("settings");
   }
 
+  preload() {
+    preloadPaperBackground(this);
+  }
+
   create(data = {}) {
+    this.paperBackground = createPaperBackground(this);
     this.returnScene = ["menu", "level-select"].includes(data.returnScene)
       ? data.returnScene
       : "menu";
@@ -78,6 +88,7 @@ export class SettingsScene extends Phaser.Scene {
 
   layout() {
     const { width, height } = this.scale;
+    layoutPaperBackground(this.paperBackground, width, height);
     const compact = width < 560;
     const header = layoutSceneHeader(
       { title: this.title, backButton: this.backButton },
