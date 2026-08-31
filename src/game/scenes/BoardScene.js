@@ -1644,12 +1644,16 @@ export class BoardScene extends Phaser.Scene {
       this.backgroundImage.setPosition(width / 2, height / 2).setScale(scale);
     } else {
       this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
-    }
-    this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, width, topBarHeight);
-    this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, topBarHeight, width, topBarHeight);
-    if (sideDock) {
-      this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, contentLeft, height);
-      this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(contentLeft, 0, contentLeft, height);
+      this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, width, topBarHeight);
+      this.chromeGraphics
+        .lineStyle(1, 0x34443b, 1)
+        .lineBetween(0, topBarHeight, width, topBarHeight);
+      if (sideDock) {
+        this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, contentLeft, height);
+        this.chromeGraphics
+          .lineStyle(1, 0x34443b, 1)
+          .lineBetween(contentLeft, 0, contentLeft, height);
+      }
     }
 
     const topButtonWidth = compact ? 96 : 118;
@@ -1680,7 +1684,7 @@ export class BoardScene extends Phaser.Scene {
 
     this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
     const panelTop = this.panelLayout?.top ?? height - 68;
-    if (!sideDock) {
+    if (!sideDock && !this.backgroundImage) {
       const dockTop = Math.max(topBarHeight + 120, panelTop - 144);
       this.chromeGraphics.fillStyle(0x151d19, 0.98).fillRect(0, dockTop, width, height - dockTop);
       this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, dockTop, width, dockTop);
