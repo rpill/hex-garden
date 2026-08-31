@@ -1,3 +1,7 @@
 # Third-party assets
 
-The project currently contains no third-party visual or audio assets.
+## Neucha
+
+- Files: `public/assets/fonts/Neucha.ttf`, `public/assets/fonts/Neucha-OFL.txt`
+- Copyright: 2008–2010 Jovanny Lemonad
+- License: SIL Open Font License 1.1 (full text bundled alongside the font)

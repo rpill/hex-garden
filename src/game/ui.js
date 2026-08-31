@@ -1,6 +1,8 @@
+import { GAMEPLAY_FONT } from "../art-assets.js";
+
 export function makeText(scene, text, size, color = "#d8d8d8") {
   const value = scene.add.text(0, 0, text, {
-    fontFamily: 'Inter, Arial, "Segoe UI", sans-serif',
+    fontFamily: `${GAMEPLAY_FONT.family}, Arial, "Segoe UI", sans-serif`,
     fontSize: `${size}px`,
     color,
     align: "center",

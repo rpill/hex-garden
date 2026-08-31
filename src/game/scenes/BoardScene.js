@@ -2,7 +2,9 @@ import Phaser from "phaser";
 import {
   GAMEPLAY_ATLAS,
   GAMEPLAY_BACKGROUND,
+  GAMEPLAY_FONT,
   GAMEPLAY_FRAMES,
+  hexFrameForState,
 } from "../../art-assets.js";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
@@ -114,7 +116,7 @@ const LOCKED_ATOM_NAMES = Object.freeze({
 
 function makeText(scene, text, size, color = "#d8d8d8") {
   return scene.add.text(0, 0, text, {
-    fontFamily: 'Inter, Arial, "Segoe UI", sans-serif',
+    fontFamily: `${GAMEPLAY_FONT.family}, Arial, "Segoe UI", sans-serif`,
     fontSize: `${size}px`,
     color,
   }).setResolution(Math.min(2, globalThis.devicePixelRatio || 1));
@@ -173,6 +175,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionDeadEnd = false;
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
+    this.hoveredPieceKey = undefined;
   }
 
   preload() {
@@ -235,6 +238,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionDeadEnd = false;
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
+    this.hoveredPieceKey = undefined;
   }
 
   create() {
@@ -1383,6 +1387,16 @@ export class BoardScene extends Phaser.Scene {
       );
       hitZone.input.cursor = "pointer";
       hitZone.on("pointerdown", () => this.selectPiece(piece));
+      hitZone.on("pointerover", (pointer) => {
+        if (pointer.wasTouch) return;
+        this.hoveredPieceKey = hexKey(piece);
+        this.render();
+      });
+      hitZone.on("pointerout", () => {
+        if (this.hoveredPieceKey !== hexKey(piece)) return;
+        this.hoveredPieceKey = undefined;
+        this.render();
+      });
       this.pieceViews.set(hexKey(piece), { piece, label, hitZone });
     }
   }
@@ -1393,6 +1407,7 @@ export class BoardScene extends Phaser.Scene {
       view.hitZone.destroy();
     }
     this.pieceViews.clear();
+    this.hoveredPieceKey = undefined;
   }
 
   rebuildPanelViews() {
@@ -1982,7 +1997,8 @@ export class BoardScene extends Phaser.Scene {
     const texture = this.textures.exists(GAMEPLAY_ATLAS.key)
       ? this.textures.get(GAMEPLAY_ATLAS.key)
       : undefined;
-    if (!texture?.has(GAMEPLAY_FRAMES.hexIdle)) {
+    const requiredFrames = Object.values(GAMEPLAY_FRAMES);
+    if (!texture || !requiredFrames.every((frame) => texture.has(frame))) {
       this.clearCellViews();
       return false;
     }
@@ -1994,6 +2010,7 @@ export class BoardScene extends Phaser.Scene {
       this.cellViews.delete(key);
     }
 
+    const selected = new Set(this.board?.selected.map(hexKey));
     for (const cell of this.plateCells) {
       const key = hexKey(cell);
       let image = this.cellViews.get(key);
@@ -2004,8 +2021,13 @@ export class BoardScene extends Phaser.Scene {
         this.cellViews.set(key, image);
       }
       const position = this.hexToScreen(cell);
+      const frame = hexFrameForState({
+        selected: selected.has(key),
+        hovered: this.hoveredPieceKey === key,
+      });
       image
         .setPosition(position.x, position.y)
+        .setFrame(frame)
         .setDisplaySize(this.hexSize * 2, this.hexSize * 2);
     }
     return true;
@@ -2067,7 +2089,6 @@ export class BoardScene extends Phaser.Scene {
     for (const view of this.pieceViews.values()) {
       const position = this.hexToScreen(view.piece);
       const free = this.board.isFree(view.piece);
-      const isSelected = selected.has(hexKey(view.piece));
       const isPanelMatch = this.activePanelType === view.piece.type;
       const isHinted = this.activeHintKeys.has(hexKey(view.piece));
       const isBlocked = this.blockedMoveKey
@@ -2092,12 +2113,10 @@ export class BoardScene extends Phaser.Scene {
         );
       }
       this.atomGraphics.lineStyle(
-        isSelected || isPanelMatch || isHinted || isBlocked
+        isPanelMatch || isHinted || isBlocked
           ? Math.max(2, this.hexSize * 0.12)
           : Math.max(1, this.hexSize * 0.045),
-        isSelected
-          ? 0xffffff
-          : isBlocked
+        isBlocked
           ? 0xe87070
           : isHinted
           ? 0x8ed18c

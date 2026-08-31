@@ -1,6 +1,12 @@
+@font-face {
+  font-family: "Neucha";
+  src: url("/assets/fonts/Neucha.ttf") format("truetype");
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  font-family: Inter, Arial, "Segoe UI", sans-serif;
+  font-family: "Neucha", Arial, "Segoe UI", sans-serif;
   background: #111714;
   touch-action: none;
 }
