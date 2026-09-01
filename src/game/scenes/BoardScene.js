@@ -1379,7 +1379,7 @@ export class BoardScene extends Phaser.Scene {
     for (const piece of this.board.pieces()) {
       const glyphFrame = atomGlyphFrame(piece.type);
       const glyph = glyphFrame && this.textures.exists(GAMEPLAY_ATLAS.key)
-        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(1).disableInteractive()
+        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(2)
         : undefined;
       const label = glyph
         ? undefined
@@ -1387,7 +1387,7 @@ export class BoardScene extends Phaser.Scene {
         .setOrigin(0.5)
         .setFontStyle("bold")
         .setDepth(2);
-      const hitZone = this.add.zone(0, 0, 56, 56).setDepth(4);
+      const hitZone = this.add.zone(0, 0, 56, 56).setDepth(3);
       hitZone.setInteractive(
         new Phaser.Geom.Circle(28, 28, 28),
         Phaser.Geom.Circle.Contains,
@@ -1794,7 +1794,7 @@ export class BoardScene extends Phaser.Scene {
       const position = this.hexToScreen(view.piece);
       const hitDiameter = Math.max(42, this.hexSize * 1.56);
       view.label
-        .setPosition(position.x, position.y)
+        ?.setPosition(position.x, position.y)
         .setFontSize(Math.max(11, Math.floor(this.hexSize * 0.57)));
       view.hitZone.setPosition(position.x, position.y).setSize(hitDiameter, hitDiameter);
       view.hitZone.input.hitArea.setTo(
