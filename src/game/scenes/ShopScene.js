@@ -1,5 +1,10 @@
 import Phaser from "phaser";
 import {
+  GAMEPLAY_ATLAS,
+  GAMEPLAY_UI_FRAMES,
+  UI_FRAMES,
+} from "../../art-assets.js";
+import {
   createPaperBackground,
   layoutPaperBackground,
   preloadPaperBackground,
@@ -8,7 +13,13 @@ import { HINT_PRODUCTS } from "../../economy.js";
 import { getEconomy } from "../economy.js";
 import { getSettings } from "../settings.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
-import { makeButton, makeText } from "../ui.js";
+import {
+  makeButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+} from "../ui.js";
 
 function formatDust(value) {
   return value.toLocaleString("ru-RU");
@@ -22,6 +33,7 @@ export class ShopScene extends Phaser.Scene {
 
   preload() {
     preloadPaperBackground(this);
+    preloadUiAssets(this);
   }
 
   create(data = {}) {
@@ -29,8 +41,11 @@ export class ShopScene extends Phaser.Scene {
     this.returnScene = data.returnScene === "level-select" ? "level-select" : "menu";
     this.economy = getEconomy(this);
     this.english = getSettings(this).snapshot.language === "en";
-    this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#ededed").setOrigin(0.5);
-    this.balance = makeText(this, "", 16, "#f0d58a").setOrigin(1, 0.5);
+    this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
+    this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#303632").setOrigin(0.5);
+    this.balancePanel = makePanel(this, UI_FRAMES.panelStripWithIcon);
+    this.balanceIcon = this.add.image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_UI_FRAMES.dust);
+    this.balance = makeText(this, "", 16, "#795a1e").setOrigin(1, 0.5);
     this.subtitle = makeText(
       this,
       this.english ? "BOOSTERS ARE PURCHASED IN ADVANCE AND STORED IN YOUR INVENTORY" : "ПОДСКАЗКИ ПОКУПАЮТСЯ ЗАРАНЕЕ И ХРАНЯТСЯ В ИНВЕНТАРЕ",
@@ -40,15 +55,16 @@ export class ShopScene extends Phaser.Scene {
     this.message = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "←  BACK" : "←  НАЗАД", () => {
       this.scene.start(this.returnScene);
-    }, 14);
+    }, 14).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
 
     this.productViews = HINT_PRODUCTS.map((product) => {
-      const title = makeText(this, this.english ? product.titleEn : product.title, 18, "#ededed").setOrigin(0.5);
+      const panel = makePanel(this, UI_FRAMES.panelMainMedium);
+      const title = makeText(this, this.english ? product.titleEn : product.title, 18, "#f5ead0").setOrigin(0.5);
       const description = makeText(
         this,
         this.english ? product.descriptionEn : product.description,
         11,
-        "#9f9f9f",
+        "#5f6863",
       ).setOrigin(0.5);
       const owned = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
       const buy = makeButton(
@@ -57,7 +73,7 @@ export class ShopScene extends Phaser.Scene {
         () => this.purchase(product),
         13,
       );
-      return { product, title, description, owned, buy };
+      return { product, panel, title, description, owned, buy };
     });
 
     this.input.keyboard?.on("keydown-ESC", () => this.scene.start(this.returnScene));
@@ -103,12 +119,17 @@ export class ShopScene extends Phaser.Scene {
       width,
       height,
     );
+    resizeNineSlice(this.titlePanel, Math.max(120, Math.min(width - 230, 320)), header.controlHeight + 8);
+    this.titlePanel.setPosition(header.titleX, header.y);
+    resizeNineSlice(this.balancePanel, 150, 46);
+    this.balancePanel.setPosition(width - 82, header.y);
+    this.balanceIcon.setPosition(width - 137, header.y).setDisplaySize(26, 26);
     const startY = compact ? header.contentTop + 74 : header.contentTop + 82;
     const stepY = Math.min(142, Math.max(104, (height - header.contentTop - 110) / 3));
 
     this.balance
       .setFontSize(compact ? 10 : 12)
-      .setPosition(width - 14, header.y);
+      .setPosition(width - 18, header.y);
     this.subtitle
       .setFontSize(compact ? 9 : 11)
       .setWordWrapWidth(Math.max(240, width - 32))
@@ -119,6 +140,8 @@ export class ShopScene extends Phaser.Scene {
       this.subtitle.setFontSize(9).setPosition(centerX, header.contentTop + 13);
       this.productViews.forEach((view, index) => {
         const x = width * (index + 0.5) / this.productViews.length;
+        resizeNineSlice(view.panel, Math.max(170, width / 3 - 18), 158);
+        view.panel.setPosition(x, header.contentTop + 125);
         view.title.setFontSize(15).setPosition(x, header.contentTop + 62);
         view.description
           .setFontSize(9)
@@ -136,6 +159,8 @@ export class ShopScene extends Phaser.Scene {
 
     this.productViews.forEach((view, index) => {
       const y = startY + stepY * index;
+      resizeNineSlice(view.panel, Math.min(width - 24, 430), Math.max(100, stepY - 8));
+      view.panel.setPosition(centerX, y + 34);
       view.title.setFontSize(compact ? 15 : 18).setPosition(centerX, y);
       view.description
         .setFontSize(compact ? 9 : 11)

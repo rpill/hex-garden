@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import {
   GAMEPLAY_ATLAS,
   GAMEPLAY_BACKGROUND,
-  GAMEPLAY_FONT,
   GAMEPLAY_FRAMES,
+  GAMEPLAY_UI_FRAMES,
+  UI_FRAMES,
   atomGlyphFrame,
   hexFrameForState,
 } from "../../art-assets.js";
@@ -55,6 +56,13 @@ import {
   createTutorialLevel,
   findLongestEmptyNeighbourRun,
 } from "../../tutorial.js";
+import {
+  makeButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+} from "../ui.js";
 
 const CAMPAIGN_SEED = "rules-lab-v1";
 const TOP_BAR_HEIGHT = 52;
@@ -115,25 +123,6 @@ const LOCKED_ATOM_NAMES = Object.freeze({
   [Atom.LEAD]: "СВИНЕЦ (Pb)",
 });
 
-function makeText(scene, text, size, color = "#d8d8d8") {
-  return scene.add.text(0, 0, text, {
-    fontFamily: `${GAMEPLAY_FONT.family}, Arial, "Segoe UI", sans-serif`,
-    fontSize: `${size}px`,
-    color,
-  }).setResolution(Math.min(2, globalThis.devicePixelRatio || 1));
-}
-
-function makeButton(scene, label, onClick) {
-  const text = makeText(scene, label, 16, "#e5e5e5")
-    .setOrigin(0.5)
-    .setPadding(14, 10)
-    .setFontStyle("bold")
-    .setBackgroundColor("#29332e")
-    .setInteractive({ useHandCursor: true });
-  text.on("pointerdown", onClick);
-  return text;
-}
-
 export class BoardScene extends Phaser.Scene {
   constructor() {
     super("board");
@@ -180,11 +169,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.multiatlas(
-      GAMEPLAY_ATLAS.key,
-      GAMEPLAY_ATLAS.jsonUrl,
-      GAMEPLAY_ATLAS.baseUrl,
-    );
+    preloadUiAssets(this);
     this.load.image(GAMEPLAY_BACKGROUND.key, GAMEPLAY_BACKGROUND.url);
   }
 
@@ -258,27 +243,35 @@ export class BoardScene extends Phaser.Scene {
     this.chromeGraphics = this.add.graphics().setDepth(-2);
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics().setDepth(1);
+    this.inventoryPanel = makePanel(this, UI_FRAMES.panelSide, 3);
     this.panelGraphics = this.add.graphics().setDepth(4);
     this.tutorialGraphics = this.add.graphics().setDepth(8);
+    this.headerPanel = makePanel(this, UI_FRAMES.panelStripSmall, 9);
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
+    this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
+      .setVisible(false);
     this.economyModalGraphics = this.add.graphics().setDepth(30);
+    this.economyModalPanel = makePanel(this, UI_FRAMES.panelMainMedium, 30)
+      .setVisible(false);
     this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
       .setDepth(30)
       .setVisible(false);
     this.pauseMenuGraphics = this.add.graphics().setDepth(40);
+    this.pauseMenuPanel = makePanel(this, UI_FRAMES.panelMainMedium, 40)
+      .setVisible(false);
     this.pauseMenuHitZone = this.add.zone(0, 0, 1, 1)
       .setDepth(40)
       .setVisible(false)
       .setInteractive();
-    this.header = makeText(this, "", 16).setOrigin(0.5).setDepth(10);
-    this.status = makeText(this, "", 14, "#b8c3bd").setOrigin(0.5).setDepth(10);
-    this.endlessHud = makeText(this, "", 13, "#f0d58a")
+    this.header = makeText(this, "", 16, "#303632").setOrigin(0.5).setDepth(10);
+    this.status = makeText(this, "", 14, "#48514c").setOrigin(0.5).setDepth(10);
+    this.endlessHud = makeText(this, "", 13, "#795a1e")
       .setOrigin(0.5)
       .setDepth(10);
-    this.campaignHud = makeText(this, "", 13, "#c8edc5")
+    this.campaignHud = makeText(this, "", 13, "#496b4b")
       .setOrigin(0.5)
       .setDepth(10);
-    this.dustHud = makeText(this, "", 12, "#f0d58a")
+    this.dustHud = makeText(this, "", 12, "#795a1e")
       .setOrigin(1, 0.5)
       .setDepth(10);
     this.tutorialText = makeText(this, "", 14, "#f0d58a")
@@ -290,23 +283,23 @@ export class BoardScene extends Phaser.Scene {
         .setDepth(9)
         .setVisible(false),
     );
-    this.mechanicCardText = makeText(this, "", 18, "#ededed")
+    this.mechanicCardText = makeText(this, "", 18, "#303632")
       .setOrigin(0.5)
       .setAlign("center")
       .setDepth(21)
       .setVisible(false);
-    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#f0d58a")
+    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#795a1e")
       .setOrigin(0.5)
       .setDepth(21)
       .setVisible(false);
     this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
     this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
 
-    this.economyModalTitle = makeText(this, "", 19, "#ededed")
+    this.economyModalTitle = makeText(this, "", 19, "#303632")
       .setOrigin(0.5)
       .setDepth(31)
       .setVisible(false);
-    this.economyModalBody = makeText(this, "", 13, "#bdbdbd")
+    this.economyModalBody = makeText(this, "", 13, "#59625d")
       .setOrigin(0.5)
       .setAlign("center")
       .setDepth(31)
@@ -317,22 +310,22 @@ export class BoardScene extends Phaser.Scene {
       .setVisible(false);
     this.economyModalBuy = makeButton(this, this.uiText("КУПИТЬ", "BUY"), () =>
       this.purchaseEconomyModalProduct(),
-    ).setDepth(31).setVisible(false).disableInteractive();
+    ).setIcon(GAMEPLAY_UI_FRAMES.dust, 20).setDepth(31).setVisible(false).disableInteractive();
     this.economyModalAd = makeButton(this, this.uiText("РЕКЛАМА", "AD"), () =>
       this.showRewardedForEconomyModal(),
-    ).setDepth(31).setVisible(false).disableInteractive();
+    ).setIcon(GAMEPLAY_UI_FRAMES.badgeReward, 20).setDepth(31).setVisible(false).disableInteractive();
     this.economyModalClose = makeButton(this, this.uiText("ЗАКРЫТЬ", "CLOSE"), () =>
       this.closeEconomyModal(),
-    ).setDepth(31).setVisible(false).disableInteractive();
+    ).setIcon(GAMEPLAY_UI_FRAMES.back, 18).setDepth(31).setVisible(false).disableInteractive();
 
-    this.nextButton = makeButton(this, this.uiText("ИГРАТЬ", "PLAY"), () => this.changeLevel(1)).setDepth(10).setVisible(false).disableInteractive();
-    this.menuButton = makeButton(this, this.uiText("Ⅱ  ПАУЗА", "Ⅱ  PAUSE"), () => this.openPauseMenu()).setDepth(10);
+    this.nextButton = makeButton(this, this.uiText("ИГРАТЬ", "PLAY"), () => this.changeLevel(1)).setIcon(GAMEPLAY_UI_FRAMES.next, 20).setDepth(10).setVisible(false).disableInteractive();
+    this.menuButton = makeButton(this, this.uiText("ПАУЗА", "PAUSE"), () => this.openPauseMenu()).setIcon(GAMEPLAY_UI_FRAMES.pause, 20).setDepth(10);
     this.hintButtons = new Map([
-      [HintType.MOVE, makeButton(this, "✦  ХОД +", () => this.useHint(HintType.MOVE)).setDepth(10)],
-      [HintType.UNDO, makeButton(this, "↶  ОТМЕНА +", () => this.useHint(HintType.UNDO)).setDepth(10)],
-      [HintType.RESCUE, makeButton(this, "◆  СПАСТИ +", () => this.useHint(HintType.RESCUE)).setDepth(10)],
+      [HintType.MOVE, makeButton(this, "ХОД +", () => this.useHint(HintType.MOVE)).setIcon(GAMEPLAY_UI_FRAMES.hint, 20).setDepth(10)],
+      [HintType.UNDO, makeButton(this, "ОТМЕНА +", () => this.useHint(HintType.UNDO)).setIcon(GAMEPLAY_UI_FRAMES.undo, 20).setDepth(10)],
+      [HintType.RESCUE, makeButton(this, "СПАСТИ +", () => this.useHint(HintType.RESCUE)).setIcon(GAMEPLAY_UI_FRAMES.rescue, 20).setDepth(10)],
     ]);
-    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#f2efe5")
+    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#303632")
       .setOrigin(0.5)
       .setFontStyle("bold")
       .setDepth(41)
@@ -342,14 +335,17 @@ export class BoardScene extends Phaser.Scene {
       .setVisible(false)
       .disableInteractive();
     this.pauseRestartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartFromPause())
+      .setIcon(GAMEPLAY_UI_FRAMES.retry, 20)
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
     this.pauseLevelsButton = makeButton(this, this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"), () => this.exitPauseToLevels())
+      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
     this.pauseExitButton = makeButton(this, this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"), () => this.exitPauseToMenu())
+      .setIcon(GAMEPLAY_UI_FRAMES.back, 20)
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
@@ -534,6 +530,7 @@ export class BoardScene extends Phaser.Scene {
     if (!this.pauseMenuVisible) return;
     this.pauseMenuVisible = false;
     this.pauseMenuGraphics.clear();
+    this.pauseMenuPanel.setVisible(false);
     this.pauseMenuHitZone.setVisible(false).disableInteractive();
     for (const item of [
       this.pauseMenuTitle,
@@ -1356,6 +1353,7 @@ export class BoardScene extends Phaser.Scene {
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
     this.economyModalGraphics.clear();
+    this.economyModalPanel.setVisible(false);
     this.economyModalHitZone.setVisible(false).disableInteractive();
     for (const item of [
       this.economyModalTitle,
@@ -1420,7 +1418,8 @@ export class BoardScene extends Phaser.Scene {
 
   rebuildPanelViews() {
     for (const view of this.panelViews.values()) {
-      view.label.destroy();
+      view.glyph?.destroy();
+      view.label?.destroy();
       view.count.destroy();
       view.hitZone.destroy();
     }
@@ -1429,7 +1428,13 @@ export class BoardScene extends Phaser.Scene {
     this.panelTypes = panelTypesForVariant(this.variant, this.initialPieces);
 
     for (const type of this.panelTypes) {
-      const label = makeText(this, ATOM_LABELS[type], 14, "#111111")
+      const glyphFrame = atomGlyphFrame(type);
+      const glyph = glyphFrame
+        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(6)
+        : undefined;
+      const label = glyph
+        ? undefined
+        : makeText(this, ATOM_LABELS[type], 14, "#111111")
         .setOrigin(0.5)
         .setDepth(6);
       const count = makeText(this, "", 10, "#d8d8d8")
@@ -1443,7 +1448,7 @@ export class BoardScene extends Phaser.Scene {
       );
       hitZone.input.cursor = "pointer";
       hitZone.on("pointerdown", () => this.selectPanelType(type));
-      this.panelViews.set(type, { type, label, count, hitZone });
+      this.panelViews.set(type, { type, glyph, label, count, hitZone });
     }
   }
 
@@ -1631,6 +1636,7 @@ export class BoardScene extends Phaser.Scene {
   hideMechanicCard() {
     this.mechanicCardVisible = false;
     this.mechanicCardGraphics?.clear();
+    this.mechanicCardPanel?.setVisible(false);
     this.mechanicCardText?.setVisible(false);
     this.mechanicCardHint?.setVisible(false);
     this.mechanicCardHitZone?.setVisible(false).disableInteractive();
@@ -1688,6 +1694,12 @@ export class BoardScene extends Phaser.Scene {
       .setFontSize(compact ? 12 : 15)
       .setFontStyle("bold")
       .setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
+    resizeNineSlice(
+      this.headerPanel,
+      Math.min(Math.max(180, contentWidth * 0.58), 380),
+      38,
+    );
+    this.headerPanel.setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
     this.endlessHud
       .setFontSize(compact ? 11 : 12)
       .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
@@ -1812,7 +1824,10 @@ export class BoardScene extends Phaser.Scene {
 
   layoutPauseMenu(width, height) {
     this.pauseMenuGraphics.clear();
-    if (!this.pauseMenuVisible) return;
+    if (!this.pauseMenuVisible) {
+      this.pauseMenuPanel.setVisible(false);
+      return;
+    }
     const campaignNavigation =
       this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
     const buttons = [
@@ -1833,8 +1848,10 @@ export class BoardScene extends Phaser.Scene {
     this.pauseMenuHitZone.setPosition(width / 2, height / 2).setSize(width, height);
     this.pauseMenuHitZone.input?.hitArea?.setTo(0, 0, width, height);
     this.pauseMenuGraphics.fillStyle(0x000000, 0.78).fillRect(0, 0, width, height);
-    this.pauseMenuGraphics.fillStyle(0x1d2722, 1).fillRoundedRect(x, y, cardWidth, cardHeight, 18);
-    this.pauseMenuGraphics.lineStyle(2, 0x607568, 1).strokeRoundedRect(x, y, cardWidth, cardHeight, 18);
+    resizeNineSlice(this.pauseMenuPanel, cardWidth, cardHeight);
+    this.pauseMenuPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
     this.pauseMenuTitle
       .setText(this.uiText("ПАУЗА", "PAUSED"))
       .setFontSize(compact ? 20 : 24)
@@ -1857,7 +1874,10 @@ export class BoardScene extends Phaser.Scene {
 
   layoutEconomyModal(width, height, compact) {
     this.economyModalGraphics.clear();
-    if (!this.economyModalVisible) return;
+    if (!this.economyModalVisible) {
+      this.economyModalPanel.setVisible(false);
+      return;
+    }
     this.economyModalHitZone
       .setPosition(width / 2, height / 2)
       .setSize(width, height);
@@ -1870,10 +1890,10 @@ export class BoardScene extends Phaser.Scene {
     const y = (height - cardHeight) / 2;
     this.economyModalGraphics.fillStyle(0x000000, 0.78);
     this.economyModalGraphics.fillRect(0, 0, width, height);
-    this.economyModalGraphics.fillStyle(0x202020, 1);
-    this.economyModalGraphics.fillRect(x, y, cardWidth, cardHeight);
-    this.economyModalGraphics.lineStyle(2, 0xf0d58a, 1);
-    this.economyModalGraphics.strokeRect(x, y, cardWidth, cardHeight);
+    resizeNineSlice(this.economyModalPanel, cardWidth, cardHeight);
+    this.economyModalPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
     this.economyModalTitle
       .setFontSize(compact ? 16 : 19)
       .setPosition(width / 2, y + 38);
@@ -1909,10 +1929,10 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardGraphics.clear();
     this.mechanicCardGraphics.fillStyle(0x000000, 0.72);
     this.mechanicCardGraphics.fillRect(0, 0, width, height);
-    this.mechanicCardGraphics.fillStyle(0x202020, 1);
-    this.mechanicCardGraphics.fillRect(x, y, cardWidth, cardHeight);
-    this.mechanicCardGraphics.lineStyle(2, 0xf0d58a, 1);
-    this.mechanicCardGraphics.strokeRect(x, y, cardWidth, cardHeight);
+    resizeNineSlice(this.mechanicCardPanel, cardWidth, cardHeight);
+    this.mechanicCardPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
     this.mechanicCardText
       .setFontSize(compact ? 14 : 18)
       .setPosition(width / 2, height / 2 - 18)
@@ -1925,6 +1945,7 @@ export class BoardScene extends Phaser.Scene {
     if (types.length === 0) {
       this.panelLayout = undefined;
       this.panelGraphics.clear();
+      this.inventoryPanel.setVisible(false);
       return;
     }
     const useTwoRows = compact && types.length > 9;
@@ -1968,13 +1989,20 @@ export class BoardScene extends Phaser.Scene {
       entries,
       types,
     };
+    resizeNineSlice(this.inventoryPanel, panelWidth, panelHeight);
+    this.inventoryPanel
+      .setPosition(left + panelWidth / 2, top + panelHeight / 2)
+      .setVisible(true);
     entries.forEach(({ type, x, y }) => {
       const view = this.panelViews.get(type);
       if (!view) return;
       const hitDiameter = Math.max(40, radius * 2.25);
       view.label
-        .setPosition(x, y)
+        ?.setPosition(x, y)
         .setFontSize(Math.max(10, Math.floor(radius * 0.78)));
+      view.glyph
+        ?.setPosition(x, y)
+        .setDisplaySize(radius * 1.7, radius * 1.7);
       view.count
         .setPosition(x + radius * 0.68, y - radius * 0.72)
         .setFontSize(Math.max(11, Math.floor(radius * 0.68)));
@@ -2166,11 +2194,6 @@ export class BoardScene extends Phaser.Scene {
       this.activePanelType = null;
     }
 
-    this.panelGraphics.fillStyle(0x1b2520, 1);
-    this.panelGraphics.fillRoundedRect(left, top, width, height, 14);
-    this.panelGraphics.lineStyle(1, 0x506159, 1);
-    this.panelGraphics.strokeRoundedRect(left, top, width, height, 14);
-
     const saltIndex = types.indexOf(Atom.SALT);
     const oppositeStartIndex = types.findIndex(
       (type) => type === Atom.VITAE || type === Atom.MORS,
@@ -2221,14 +2244,16 @@ export class BoardScene extends Phaser.Scene {
       const x = position.x;
       const y = position.y;
       const alpha = entry.depleted ? 0.18 : entry.locked ? 0.36 : 1;
-      this.panelGraphics.fillStyle(ATOM_COLORS[entry.type], alpha);
-      this.panelGraphics.fillCircle(x, y, radius);
-      this.panelGraphics.lineStyle(
-        entry.selected ? 3 : entry.current ? 2 : 1,
-        entry.selected ? 0xffffff : entry.current ? 0xf0d58a : 0x101010,
-        alpha,
-      );
-      this.panelGraphics.strokeCircle(x, y, radius);
+      if (!view.glyph) {
+        this.panelGraphics.fillStyle(ATOM_COLORS[entry.type], alpha);
+        this.panelGraphics.fillCircle(x, y, radius);
+        this.panelGraphics.lineStyle(
+          entry.selected ? 3 : entry.current ? 2 : 1,
+          entry.selected ? 0xffffff : entry.current ? 0xf0d58a : 0x101010,
+          alpha,
+        );
+        this.panelGraphics.strokeCircle(x, y, radius);
+      }
 
       if (entry.countVisible && !entry.depleted) {
         const badgeX = x + radius * 0.68;
@@ -2240,7 +2265,13 @@ export class BoardScene extends Phaser.Scene {
         this.panelGraphics.strokeCircle(badgeX, badgeY, badgeRadius);
       }
 
-      view.label.setAlpha(alpha);
+      view.glyph
+        ?.setAlpha(alpha)
+        .setDisplaySize(
+          radius * 1.7 * (entry.selected ? 1.08 : 1),
+          radius * 1.7 * (entry.selected ? 1.08 : 1),
+        );
+      view.label?.setAlpha(alpha);
       view.count
         .setText(entry.countVisible && !entry.depleted ? String(entry.count) : "")
         .setColor("#ffffff")

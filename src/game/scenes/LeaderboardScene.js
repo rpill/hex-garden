@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
 import {
   createPaperBackground,
   layoutPaperBackground,
@@ -9,7 +10,13 @@ import { getLeaderboard } from "../leaderboard.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
 import { isShortLandscape } from "../responsive-layout.js";
 import { getSettings } from "../settings.js";
-import { makeButton, makeText } from "../ui.js";
+import {
+  makeButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+} from "../ui.js";
 
 function formatScore(value) {
   return value.toLocaleString("ru-RU");
@@ -23,6 +30,7 @@ export class LeaderboardScene extends Phaser.Scene {
 
   preload() {
     preloadPaperBackground(this);
+    preloadUiAssets(this);
   }
 
   create() {
@@ -31,20 +39,21 @@ export class LeaderboardScene extends Phaser.Scene {
     this.progress = getCampaignProgress(this);
     this.leaderboard = getLeaderboard(this);
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
-    this.background = this.add.graphics();
-    this.title = makeText(this, this.english ? "LEADERBOARD" : "РЕЙТИНГ", 25, "#f2efe5")
+    this.background = makePanel(this, UI_FRAMES.panelMainLarge);
+    this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
+    this.title = makeText(this, this.english ? "LEADERBOARD" : "РЕЙТИНГ", 25, "#303632")
       .setOrigin(0.5)
       .setFontStyle("bold");
     this.subtitle = makeText(
       this,
       this.english ? "LOCAL PREVIEW · CAMPAIGN + BEST ENDLESS" : "ЛОКАЛЬНЫЙ ПРОТОТИП · КАМПАНИЯ + ЛУЧШИЙ ENDLESS",
       11,
-      "#9fb2a7",
+      "#f5ead0",
     ).setOrigin(0.5);
-    this.breakdown = makeText(this, "", 11, "#f0d58a").setOrigin(0.5);
+    this.breakdown = makeText(this, "", 11, "#795a1e").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
-    }, 13);
+    }, 13).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
 
     const standings = this.leaderboard.standings({
       limit: 10,
@@ -52,10 +61,10 @@ export class LeaderboardScene extends Phaser.Scene {
     });
     this.rows = standings.entries.map((entry) => ({
       entry,
-      background: this.add.graphics(),
-      rank: makeText(this, String(entry.rank), 12, entry.isPlayer ? "#101713" : "#aebbb4").setOrigin(0.5),
-      name: makeText(this, entry.name, 13, entry.isPlayer ? "#101713" : "#edf2ee").setOrigin(0, 0.5),
-      score: makeText(this, formatScore(entry.score), 13, entry.isPlayer ? "#101713" : "#f0d58a").setOrigin(1, 0.5),
+      background: makePanel(this, entry.isPlayer ? UI_FRAMES.panelSuccess : UI_FRAMES.panelStripSmall),
+      rank: makeText(this, String(entry.rank), 12, "#303632").setOrigin(0.5),
+      name: makeText(this, entry.name, 13, "#303632").setOrigin(0, 0.5),
+      score: makeText(this, formatScore(entry.score), 13, "#795a1e").setOrigin(1, 0.5),
     }));
     this.breakdown.setText(
       this.english
@@ -80,6 +89,8 @@ export class LeaderboardScene extends Phaser.Scene {
       width,
       height,
     );
+    resizeNineSlice(this.titlePanel, Math.max(120, Math.min(width - 230, 340)), header.controlHeight + 8);
+    this.titlePanel.setPosition(header.titleX, header.y);
     const cardWidth = Math.min(width - 24, 650);
     const cardHeight = Math.min(height - header.contentTop - 10, shortLandscape ? 344 : 650);
     const left = (width - cardWidth) / 2;
@@ -91,18 +102,16 @@ export class LeaderboardScene extends Phaser.Scene {
     const innerLeft = left + 18;
     const innerWidth = cardWidth - 36;
 
-    this.background.clear();
-    this.background.fillStyle(0x17201c, 1).fillRoundedRect(left, top, cardWidth, cardHeight, 18);
-    this.background.lineStyle(2, 0x43564b, 1).strokeRoundedRect(left, top, cardWidth, cardHeight, 18);
+    resizeNineSlice(this.background, cardWidth, cardHeight);
+    this.background.setPosition(width / 2, top + cardHeight / 2);
     this.subtitle
       .setFontSize(shortLandscape ? 9 : 11)
       .setPosition(width / 2, top + cardHeaderHeight / 2);
 
     this.rows.forEach((row, index) => {
       const y = top + cardHeaderHeight + rowHeight * (index + 0.5);
-      row.background.clear();
-      row.background.fillStyle(row.entry.isPlayer ? 0xf0d58a : index % 2 === 0 ? 0x202c26 : 0x1b2520, 1);
-      row.background.fillRoundedRect(innerLeft, y - rowHeight * 0.42, innerWidth, rowHeight * 0.84, 7);
+      resizeNineSlice(row.background, innerWidth, rowHeight * 0.84);
+      row.background.setPosition(innerLeft + innerWidth / 2, y);
       row.rank.setFontSize(shortLandscape ? 10 : 12).setPosition(innerLeft + 24, y);
       row.name.setFontSize(shortLandscape ? 11 : 13).setPosition(innerLeft + 50, y);
       row.score.setFontSize(shortLandscape ? 11 : 13).setPosition(innerLeft + innerWidth - 14, y);

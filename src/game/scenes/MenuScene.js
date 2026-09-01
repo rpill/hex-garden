@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
 import {
   createPaperBackground,
   layoutPaperBackground,
@@ -14,7 +15,13 @@ import { PlayMode } from "../modes.js";
 import { sceneHeaderMetrics } from "../navigation-layout.js";
 import { isShortLandscape } from "../responsive-layout.js";
 import { getSettings } from "../settings.js";
-import { makeButton, makeText } from "../ui.js";
+import {
+  makeButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+} from "../ui.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 
 function russianLevelWord(count) {
@@ -33,6 +40,7 @@ export class MenuScene extends Phaser.Scene {
 
   preload() {
     preloadPaperBackground(this);
+    preloadUiAssets(this);
   }
 
   create() {
@@ -47,8 +55,8 @@ export class MenuScene extends Phaser.Scene {
     this.endlessAccess = standardEndlessAccess(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
     });
-    this.background = this.add.graphics();
-    this.title = makeText(this, "HEX GARDEN", 34, "#f2efe5").setOrigin(0.5);
+    this.background = makePanel(this, UI_FRAMES.panelMainLarge);
+    this.title = makeText(this, "HEX GARDEN", 34, "#303632").setOrigin(0.5);
     this.subtitle = makeText(
       this,
       this.english ? "ALCHEMY PUZZLE" : "АЛХИМИЧЕСКАЯ ГОЛОВОЛОМКА",
@@ -90,15 +98,15 @@ export class MenuScene extends Phaser.Scene {
     });
     this.leaderboardButton = makeButton(this, this.english ? "RANKING" : "РЕЙТИНГ", () => {
       this.scene.start("leaderboard");
-    });
+    }).setIcon(GAMEPLAY_UI_FRAMES.rating, 22);
     this.settingsButton = makeButton(this, this.english ? "SETTINGS" : "НАСТРОЙКИ", () => {
       this.scene.start("settings", { returnScene: "menu" });
-    });
+    }).setIcon(GAMEPLAY_UI_FRAMES.settings, 22, true);
     this.wallet = makeText(
       this,
       `${this.english ? "DUST" : "ПЫЛЬ"}  ${this.economy.snapshot.dust.toLocaleString("ru-RU")}`,
       13,
-      "#f0d58a",
+      "#795a1e",
     ).setOrigin(1, 0.5);
     this.note = makeText(
       this,
@@ -136,10 +144,8 @@ export class MenuScene extends Phaser.Scene {
     const mainWidth = Math.min(cardWidth - 42, 390);
     const secondaryWidth = Math.min((mainWidth - 10) / 2, 190);
 
-    this.background.clear();
-    this.background.fillStyle(0x17201c, 1).fillRoundedRect(cardX, cardY, cardWidth, cardHeight, 22);
-    this.background.lineStyle(2, 0x43564b, 1).strokeRoundedRect(cardX, cardY, cardWidth, cardHeight, 22);
-    this.background.fillStyle(0x89a884, 0.1).fillCircle(centerX, cardY + 96, 72);
+    resizeNineSlice(this.background, cardWidth, cardHeight);
+    this.background.setPosition(centerX, centerY);
 
     if (shortLandscape) {
       const leftCenter = cardX + cardWidth * 0.28;

@@ -1,4 +1,9 @@
-import { makeButton, makeText } from "./ui.js";
+import {
+  GAMEPLAY_ATLAS,
+  GAMEPLAY_UI_FRAMES,
+  UI_FRAMES,
+} from "../art-assets.js";
+import { makeButton, makePanel, makeText, resizeNineSlice } from "./ui.js";
 
 function formatNumber(value) {
   return Math.round(value).toLocaleString("ru-RU");
@@ -11,7 +16,12 @@ export class CompletionOverlay {
     this.data = undefined;
     this.counter = { score: 0, dust: 0, progress: 0 };
     this.graphics = scene.add.graphics().setDepth(40).setVisible(false);
+    this.card = makePanel(scene, UI_FRAMES.panelMainMedium, 40).setVisible(false);
     this.hitZone = scene.add.zone(0, 0, 1, 1).setDepth(40).setVisible(false);
+    this.icon = scene.add
+      .image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_UI_FRAMES.success)
+      .setDepth(41)
+      .setVisible(false);
     this.title = makeText(scene, "", 24, "#ededed")
       .setOrigin(0.5)
       .setDepth(41)
@@ -41,10 +51,12 @@ export class CompletionOverlay {
       .setDepth(41)
       .setVisible(false);
     this.continueButton = makeButton(scene, "ДАЛЬШЕ", () => this.continue(), 14)
+      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
     this.exitButton = makeButton(scene, "К УРОВНЯМ", () => this.exit(), 12)
+      .setIcon(GAMEPLAY_UI_FRAMES.back, 18)
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
@@ -62,6 +74,8 @@ export class CompletionOverlay {
       progress: data.progressStart,
     };
     this.graphics.setVisible(true).setAlpha(0);
+    this.card.setVisible(true).setAlpha(0);
+    this.icon.setVisible(true).setAlpha(0);
     this.hitZone.setVisible(true).setInteractive();
     for (const item of [
       this.title,
@@ -93,6 +107,8 @@ export class CompletionOverlay {
     this.fadeTween = this.scene.tweens.add({
       targets: [
         this.graphics,
+        this.card,
+        this.icon,
         this.title,
         this.subtitle,
         this.score,
@@ -176,12 +192,17 @@ export class CompletionOverlay {
     if (this.hitZone.input?.hitArea) {
       this.hitZone.input.hitArea.setTo(0, 0, width, height);
     }
-    this.title.setFontSize(short ? 19 : compact ? 21 : 24).setPosition(centerX, y + 42 * scale);
-    this.subtitle.setFontSize(short ? 10 : 13).setPosition(centerX, y + 77 * scale);
-    this.score.setFontSize(short ? 16 : 20).setPosition(centerX, y + 126 * scale);
-    this.total.setFontSize(short ? 11 : 13).setPosition(centerX, y + 158 * scale);
-    this.dust.setFontSize(short ? 14 : 18).setPosition(centerX, y + 202 * scale);
-    this.progress.setFontSize(short ? 11 : 13).setPosition(centerX, y + 247 * scale);
+    resizeNineSlice(this.card, this.cardWidth, this.cardHeight);
+    this.card.setPosition(centerX, y + this.cardHeight / 2);
+    this.icon
+      .setDisplaySize(short ? 44 : 58, short ? 44 : 58)
+      .setPosition(centerX, y + 34 * scale);
+    this.title.setFontSize(short ? 19 : compact ? 21 : 24).setPosition(centerX, y + 76 * scale);
+    this.subtitle.setFontSize(short ? 10 : 13).setPosition(centerX, y + 104 * scale);
+    this.score.setFontSize(short ? 16 : 20).setPosition(centerX, y + 140 * scale);
+    this.total.setFontSize(short ? 11 : 13).setPosition(centerX, y + 170 * scale);
+    this.dust.setFontSize(short ? 14 : 18).setPosition(centerX, y + 208 * scale);
+    this.progress.setFontSize(short ? 11 : 13).setPosition(centerX, y + 248 * scale);
     this.unlock
       .setFontSize(short ? 10 : 13)
       .setWordWrapWidth(this.cardWidth - 42)
@@ -207,18 +228,6 @@ export class CompletionOverlay {
     const ratio = Math.max(0, Math.min(1, this.counter.progress / range));
     this.graphics.clear();
     this.graphics.fillStyle(0x000000, 0.8).fillRect(0, 0, width, height);
-    this.graphics.fillStyle(0x202020, 1).fillRect(
-      this.cardX,
-      this.cardY,
-      this.cardWidth,
-      this.cardHeight,
-    );
-    this.graphics.lineStyle(2, 0xf0d58a, 1).strokeRect(
-      this.cardX,
-      this.cardY,
-      this.cardWidth,
-      this.cardHeight,
-    );
     this.graphics.fillStyle(0x111111, 1).fillRoundedRect(
       barX,
       barY,
@@ -263,6 +272,8 @@ export class CompletionOverlay {
     this.visible = false;
     this.data = undefined;
     this.graphics.clear().setVisible(false);
+    this.card.setVisible(false);
+    this.icon.setVisible(false);
     this.hitZone.setVisible(false).disableInteractive();
     for (const item of [
       this.title,

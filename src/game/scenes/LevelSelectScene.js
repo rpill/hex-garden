@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
 import {
   createPaperBackground,
   layoutPaperBackground,
@@ -9,7 +10,15 @@ import { getCampaignProgress } from "../campaign-progress.js";
 import { PlayMode } from "../modes.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
 import { getSettings } from "../settings.js";
-import { makeButton, makeText, setButtonEnabled } from "../ui.js";
+import {
+  makeButton,
+  makeLevelButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+  setButtonEnabled,
+} from "../ui.js";
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -19,37 +28,39 @@ export class LevelSelectScene extends Phaser.Scene {
 
   preload() {
     preloadPaperBackground(this);
+    preloadUiAssets(this);
   }
 
   create() {
     this.paperBackground = createPaperBackground(this);
     this.progress = getCampaignProgress(this);
     this.english = getSettings(this).snapshot.language === "en";
+    this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
     this.title = makeText(
       this,
       this.progress.testMode ? "CAMPAIGN TEST" : this.english ? "CAMPAIGN" : "КАМПАНИЯ",
       24,
-      "#ededed",
+      "#303632",
     ).setOrigin(0.5);
     this.summary = makeText(this, "", 12, "#8f8f8f").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
-    }, 14);
+    }, 14).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
     this.settingsButton = makeButton(this, "⚙", () => {
       this.scene.start("settings", { returnScene: "level-select" });
-    }, 18);
-    this.tutorialButton = makeButton(
+    }, 18).setIcon(GAMEPLAY_UI_FRAMES.settings, 20, true);
+    this.tutorialButton = makeLevelButton(
       this,
       this.english ? "00\nLEARN" : "00\nУЧИТЬСЯ",
       () => this.scene.start("board", { mode: PlayMode.TUTORIAL }),
       12,
     );
-    this.tutorialButton.setAlign("center").setColor("#9ec7df");
+    this.tutorialButton.setAlign("center").setColor("#303632");
 
     this.levelButtons = Array.from(
       { length: PROGRESSION_LEVEL_COUNT },
       (_, level) => {
-        const button = makeButton(
+        const button = makeLevelButton(
           this,
           "",
           () => this.startLevel(level),
@@ -92,9 +103,17 @@ export class LevelSelectScene extends Phaser.Scene {
       button.setText(
         `${String(level + 1).padStart(2, "0")}\n${state}`,
       );
-      button.setColor(
-        completed ? "#a9c6a1" : unlocked ? "#f0d58a" : "#777777",
-      );
+      button
+        .setColor(unlocked ? "#303632" : "#777777")
+        .setLevelState(
+          completed
+            ? "completed"
+            : !unlocked
+            ? "locked"
+            : level === snapshot.highestUnlocked
+            ? "current"
+            : "idle",
+        );
       setButtonEnabled(button, unlocked);
     }
   }
@@ -119,6 +138,8 @@ export class LevelSelectScene extends Phaser.Scene {
       width,
       height,
     );
+    resizeNineSlice(this.titlePanel, Math.max(120, Math.min(width - 230, 320)), header.controlHeight + 8);
+    this.titlePanel.setPosition(header.titleX, header.y);
     const columns = width < 520 ? 5 : 10;
     const itemCount = PROGRESSION_LEVEL_COUNT + 1;
     const rows = Math.ceil(itemCount / columns);
@@ -139,6 +160,9 @@ export class LevelSelectScene extends Phaser.Scene {
       .setPosition(left + cellWidth * 0.5, top + stepY * 0.5)
       .setFixedSize(tutorialCellWidth, cellHeight)
       .setFontSize(Math.max(8, Math.min(12, cellHeight * 0.27)));
+    this.tutorialButton.setLevelState(
+      this.progress.snapshot.tutorialCompleted ? "completed" : "current",
+    );
 
     for (const { level, button } of this.levelButtons) {
       const itemIndex = level + 1;
