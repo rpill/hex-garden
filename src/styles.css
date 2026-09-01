@@ -1,13 +1,7 @@
-@font-face {
-  font-family: "Neucha";
-  src: url("/assets/fonts/Neucha.ttf") format("truetype");
-  font-display: swap;
-}
-
 :root {
   color-scheme: dark;
-  font-family: "Neucha", Arial, "Segoe UI", sans-serif;
-  background: #111714;
+  font-family: "Arial Black", "Trebuchet MS", "Segoe UI", sans-serif;
+  background: #090d14;
   touch-action: none;
 }
 
@@ -23,7 +17,7 @@ body,
   min-height: 100%;
   margin: 0;
   overflow: hidden;
-  background: #111714;
+  background: #090d14;
 }
 
 @supports (height: 100dvh) {

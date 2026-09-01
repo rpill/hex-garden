@@ -10,7 +10,7 @@ import { ShopScene } from "./game/scenes/ShopScene.js";
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "game-root",
-  backgroundColor: "#111714",
+  backgroundColor: "#090d14",
   antialias: true,
   render: {
     antialiasGL: true,

@@ -56,12 +56,12 @@ export class MenuScene extends Phaser.Scene {
       unlockAll: this.progress.testMode,
     });
     this.background = makePanel(this, UI_FRAMES.panelMainLarge);
-    this.title = makeText(this, "HEX GARDEN", 34, "#303632").setOrigin(0.5);
+    this.title = makeText(this, "HEX GARDEN", 34, "#eef3f8").setOrigin(0.5);
     this.subtitle = makeText(
       this,
       this.english ? "ALCHEMY PUZZLE" : "АЛХИМИЧЕСКАЯ ГОЛОВОЛОМКА",
       14,
-      "#8f8f8f",
+      "#9aa7b5",
     ).setOrigin(0.5);
     this.campaignButton = makeButton(this, this.english ? "CAMPAIGN" : "КАМПАНИЯ", () => {
       this.scene.start(
@@ -86,7 +86,7 @@ export class MenuScene extends Phaser.Scene {
                 : `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ УРОВНЯ ${this.endlessAccess.unlockLevel + 1}\n` +
                   `ПРОЙДИТЕ ЕЩЁ ${remaining} ${russianLevelWord(remaining)} КАМПАНИИ`,
             )
-            .setColor("#f0d58a");
+            .setColor("#f3c94f");
           return;
         }
         this.scene.start("board", { mode: PlayMode.STANDARD, level: 0 });
@@ -106,7 +106,7 @@ export class MenuScene extends Phaser.Scene {
       this,
       `${this.english ? "DUST" : "ПЫЛЬ"}  ${this.economy.snapshot.dust.toLocaleString("ru-RU")}`,
       13,
-      "#795a1e",
+      "#f3c94f",
     ).setOrigin(1, 0.5);
     this.note = makeText(
       this,
@@ -118,7 +118,7 @@ export class MenuScene extends Phaser.Scene {
         ? "CAMPAIGN PROGRESS AND SCORE ARE SAVED ON THIS DEVICE"
         : "ПРОГРЕСС И СЧЁТ СОХРАНЯЮТСЯ НА ЭТОМ УСТРОЙСТВЕ",
       11,
-      "#666666",
+      "#9aa7b5",
     ).setOrigin(0.5);
 
     this.scale.on("resize", this.layout, this);

@@ -41,16 +41,16 @@ export class LeaderboardScene extends Phaser.Scene {
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.background = makePanel(this, UI_FRAMES.panelMainLarge);
     this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
-    this.title = makeText(this, this.english ? "LEADERBOARD" : "РЕЙТИНГ", 25, "#303632")
+    this.title = makeText(this, this.english ? "LEADERBOARD" : "РЕЙТИНГ", 25, "#eef3f8")
       .setOrigin(0.5)
       .setFontStyle("bold");
     this.subtitle = makeText(
       this,
       this.english ? "LOCAL PREVIEW · CAMPAIGN + BEST ENDLESS" : "ЛОКАЛЬНЫЙ ПРОТОТИП · КАМПАНИЯ + ЛУЧШИЙ ENDLESS",
       11,
-      "#f5ead0",
+      "#eef3f8",
     ).setOrigin(0.5);
-    this.breakdown = makeText(this, "", 11, "#795a1e").setOrigin(0.5);
+    this.breakdown = makeText(this, "", 11, "#f3c94f").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
     }, 13).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
@@ -62,9 +62,9 @@ export class LeaderboardScene extends Phaser.Scene {
     this.rows = standings.entries.map((entry) => ({
       entry,
       background: makePanel(this, entry.isPlayer ? UI_FRAMES.panelSuccess : UI_FRAMES.panelStripSmall),
-      rank: makeText(this, String(entry.rank), 12, "#303632").setOrigin(0.5),
-      name: makeText(this, entry.name, 13, "#303632").setOrigin(0, 0.5),
-      score: makeText(this, formatScore(entry.score), 13, "#795a1e").setOrigin(1, 0.5),
+      rank: makeText(this, String(entry.rank), 12, "#eef3f8").setOrigin(0.5),
+      name: makeText(this, entry.name, 13, "#eef3f8").setOrigin(0, 0.5),
+      score: makeText(this, formatScore(entry.score), 13, "#f3c94f").setOrigin(1, 0.5),
     }));
     this.breakdown.setText(
       this.english

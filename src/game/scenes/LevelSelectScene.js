@@ -40,9 +40,9 @@ export class LevelSelectScene extends Phaser.Scene {
       this,
       this.progress.testMode ? "CAMPAIGN TEST" : this.english ? "CAMPAIGN" : "КАМПАНИЯ",
       24,
-      "#303632",
+      "#eef3f8",
     ).setOrigin(0.5);
-    this.summary = makeText(this, "", 12, "#8f8f8f").setOrigin(0.5);
+    this.summary = makeText(this, "", 12, "#9aa7b5").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "← BACK" : "← НАЗАД", () => {
       this.scene.start("menu");
     }, 14).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
@@ -55,7 +55,7 @@ export class LevelSelectScene extends Phaser.Scene {
       () => this.scene.start("board", { mode: PlayMode.TUTORIAL }),
       12,
     );
-    this.tutorialButton.setAlign("center").setColor("#303632");
+    this.tutorialButton.setAlign("center").setColor("#eef3f8");
 
     this.levelButtons = Array.from(
       { length: PROGRESSION_LEVEL_COUNT },
@@ -104,7 +104,7 @@ export class LevelSelectScene extends Phaser.Scene {
         `${String(level + 1).padStart(2, "0")}\n${state}`,
       );
       button
-        .setColor(unlocked ? "#303632" : "#777777")
+        .setColor(unlocked ? "#eef3f8" : "#657080")
         .setLevelState(
           completed
             ? "completed"

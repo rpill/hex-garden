@@ -1,13 +1,16 @@
 import Phaser from "phaser";
 import {
-  GAMEPLAY_ATLAS,
-  GAMEPLAY_BACKGROUND,
   GAMEPLAY_FRAMES,
   GAMEPLAY_UI_FRAMES,
+  THEME_COLORS,
   UI_FRAMES,
   atomGlyphFrame,
   hexFrameForState,
 } from "../../art-assets.js";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+} from "../../scene-background.js";
 import { Atom, ATOM_NAMES } from "../../atom-types.js";
 import { GardenBoard } from "../../board.js";
 import { BrowserLevelGenerator } from "../../browser.js";
@@ -170,7 +173,6 @@ export class BoardScene extends Phaser.Scene {
 
   preload() {
     preloadUiAssets(this);
-    this.load.image(GAMEPLAY_BACKGROUND.key, GAMEPLAY_BACKGROUND.url);
   }
 
   uiText(russian, english) {
@@ -237,9 +239,7 @@ export class BoardScene extends Phaser.Scene {
     this.panelViews = new Map();
     this.panelTypes = [];
     this.generator = new BrowserLevelGenerator();
-    this.backgroundImage = this.textures.exists(GAMEPLAY_BACKGROUND.key)
-      ? this.add.image(0, 0, GAMEPLAY_BACKGROUND.key).setDepth(-3)
-      : undefined;
+    this.backgroundImage = createPaperBackground(this).setDepth(-3);
     this.chromeGraphics = this.add.graphics().setDepth(-2);
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics().setDepth(1);
@@ -263,48 +263,48 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(40)
       .setVisible(false)
       .setInteractive();
-    this.header = makeText(this, "", 16, "#303632").setOrigin(0.5).setDepth(10);
-    this.status = makeText(this, "", 14, "#48514c").setOrigin(0.5).setDepth(10);
-    this.endlessHud = makeText(this, "", 13, "#795a1e")
+    this.header = makeText(this, "", 16, "#eef3f8").setOrigin(0.5).setDepth(10);
+    this.status = makeText(this, "", 14, "#9aa7b5").setOrigin(0.5).setDepth(10);
+    this.endlessHud = makeText(this, "", 13, "#f3c94f")
       .setOrigin(0.5)
       .setDepth(10);
-    this.campaignHud = makeText(this, "", 13, "#496b4b")
+    this.campaignHud = makeText(this, "", 13, "#77dc91")
       .setOrigin(0.5)
       .setDepth(10);
-    this.dustHud = makeText(this, "", 12, "#795a1e")
+    this.dustHud = makeText(this, "", 12, "#f3c94f")
       .setOrigin(1, 0.5)
       .setDepth(10);
-    this.tutorialText = makeText(this, "", 14, "#f0d58a")
+    this.tutorialText = makeText(this, "", 14, "#f3c94f")
       .setOrigin(0.5)
       .setDepth(9);
     this.tutorialNeighbourLabels = ["1", "2", "3"].map((number) =>
-      makeText(this, number, 13, "#c8edc5")
+      makeText(this, number, 13, "#77dc91")
         .setOrigin(0.5)
         .setDepth(9)
         .setVisible(false),
     );
-    this.mechanicCardText = makeText(this, "", 18, "#303632")
+    this.mechanicCardText = makeText(this, "", 18, "#eef3f8")
       .setOrigin(0.5)
       .setAlign("center")
       .setDepth(21)
       .setVisible(false);
-    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#795a1e")
+    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#f3c94f")
       .setOrigin(0.5)
       .setDepth(21)
       .setVisible(false);
     this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
     this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
 
-    this.economyModalTitle = makeText(this, "", 19, "#303632")
+    this.economyModalTitle = makeText(this, "", 19, "#eef3f8")
       .setOrigin(0.5)
       .setDepth(31)
       .setVisible(false);
-    this.economyModalBody = makeText(this, "", 13, "#59625d")
+    this.economyModalBody = makeText(this, "", 13, "#9aa7b5")
       .setOrigin(0.5)
       .setAlign("center")
       .setDepth(31)
       .setVisible(false);
-    this.economyModalMessage = makeText(this, "", 12, "#c8edc5")
+    this.economyModalMessage = makeText(this, "", 12, "#77dc91")
       .setOrigin(0.5)
       .setDepth(31)
       .setVisible(false);
@@ -325,7 +325,7 @@ export class BoardScene extends Phaser.Scene {
       [HintType.UNDO, makeButton(this, "ОТМЕНА +", () => this.useHint(HintType.UNDO)).setIcon(GAMEPLAY_UI_FRAMES.undo, 20).setDepth(10)],
       [HintType.RESCUE, makeButton(this, "СПАСТИ +", () => this.useHint(HintType.RESCUE)).setIcon(GAMEPLAY_UI_FRAMES.rescue, 20).setDepth(10)],
     ]);
-    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#303632")
+    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
       .setOrigin(0.5)
       .setFontStyle("bold")
       .setDepth(41)
@@ -675,7 +675,7 @@ export class BoardScene extends Phaser.Scene {
         this.showScorePopup(
           result.removed,
           `+${formatScore(scoredRemoval.award)}`,
-          "#c8edc5",
+          "#77dc91",
         );
         this.animateCampaignScore(
           this.progress.snapshot.campaignScore + this.campaignLevelScore,
@@ -707,7 +707,7 @@ export class BoardScene extends Phaser.Scene {
             this.showScorePopup(
               [],
               `CLEAR +${formatScore(clearAward)}`,
-              "#c8edc5",
+              "#77dc91",
             );
           }
           const snapshot = this.progress.complete(this.level, {
@@ -751,7 +751,7 @@ export class BoardScene extends Phaser.Scene {
           this.showScorePopup(
             [],
             `CLEAR +${formatScore(clearScore.award)}`,
-            "#c8edc5",
+            "#77dc91",
           );
           this.animateEndlessScore(this.endlessScoreState.score);
           message =
@@ -853,7 +853,7 @@ export class BoardScene extends Phaser.Scene {
     );
   }
 
-  showScorePopup(removedPieces, text, color = "#f0d58a") {
+  showScorePopup(removedPieces, text, color = "#f3c94f") {
     if (
       this.mode !== PlayMode.STANDARD &&
       this.mode !== PlayMode.CAMPAIGN
@@ -1281,7 +1281,7 @@ export class BoardScene extends Phaser.Scene {
           ? `${this.uiText("КУПЛЕНО", "PURCHASED")}: +${product.amount}`
           : `${this.uiText("НЕ ХВАТАЕТ", "NEED")} ${product.price - result.snapshot.dust} ${this.uiText("ПЫЛИ", "DUST")}`,
       )
-      .setColor(result.ok ? "#c8edc5" : "#e89070");
+      .setColor(result.ok ? "#77dc91" : "#ff6b67");
     this.updateEconomyUi();
     this.refreshEconomyModal();
   }
@@ -1294,7 +1294,7 @@ export class BoardScene extends Phaser.Scene {
         .setText(
           `${this.uiText("СЛЕДУЮЩАЯ РЕКЛАМА ЧЕРЕЗ", "NEXT AD IN")} ${Math.ceil(waitMs / 1000)}${this.uiText("с", "s")}`,
         )
-        .setColor("#e89070");
+        .setColor("#ff6b67");
       this.refreshEconomyModal();
       return;
     }
@@ -1307,7 +1307,7 @@ export class BoardScene extends Phaser.Scene {
           ? this.uiText("ТЕСТОВАЯ РЕКЛАМА...", "TEST AD...")
           : this.uiText("ЗАГРУЗКА РЕКЛАМЫ...", "LOADING AD..."),
       )
-      .setColor("#f0d58a");
+      .setColor("#f3c94f");
     this.economyModalBuy.disableInteractive().setAlpha(0.4);
     this.economyModalAd.disableInteractive().setAlpha(0.4);
     this.economyModalClose.disableInteractive().setAlpha(0.4);
@@ -1326,19 +1326,19 @@ export class BoardScene extends Phaser.Scene {
       }
       this.economyModalMessage
         .setText(this.uiText("РЕКЛАМНАЯ НАГРАДА УЖЕ ПОЛУЧЕНА", "AD REWARD ALREADY CLAIMED"))
-        .setColor("#e89070");
+        .setColor("#ff6b67");
     } else if (result.status === RewardedAdStatus.CLOSED) {
       this.economyModalMessage
         .setText(this.uiText("НАГРАДА НЕ ПОЛУЧЕНА", "NO REWARD RECEIVED"))
-        .setColor("#e89070");
+        .setColor("#ff6b67");
     } else if (result.status === RewardedAdStatus.BUSY) {
       this.economyModalMessage
         .setText(this.uiText("РЕКЛАМА УЖЕ ОТКРЫТА", "AD IS ALREADY OPEN"))
-        .setColor("#e89070");
+        .setColor("#ff6b67");
     } else {
       this.economyModalMessage
         .setText(this.uiText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА", "AD IS CURRENTLY UNAVAILABLE"))
-        .setColor("#e89070");
+        .setColor("#ff6b67");
     }
     if (!this.economyModalVisible) return;
     this.economyModalBuy.setInteractive({ useHandCursor: true });
@@ -1376,12 +1376,12 @@ export class BoardScene extends Phaser.Scene {
     if (!this.board) return;
     for (const piece of this.board.pieces()) {
       const glyphFrame = atomGlyphFrame(piece.type);
-      const glyph = glyphFrame && this.textures.exists(GAMEPLAY_ATLAS.key)
-        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(2)
+      const glyph = glyphFrame && this.textures.exists(glyphFrame)
+        ? this.add.image(0, 0, glyphFrame).setDepth(2)
         : undefined;
       const label = glyph
         ? undefined
-        : makeText(this, ATOM_LABELS[piece.type], 16, "#111111")
+        : makeText(this, ATOM_LABELS[piece.type], 16, "#eef3f8")
         .setOrigin(0.5)
         .setFontStyle("bold")
         .setDepth(2);
@@ -1429,15 +1429,15 @@ export class BoardScene extends Phaser.Scene {
 
     for (const type of this.panelTypes) {
       const glyphFrame = atomGlyphFrame(type);
-      const glyph = glyphFrame
-        ? this.add.image(0, 0, GAMEPLAY_ATLAS.key, glyphFrame).setDepth(6)
+      const glyph = glyphFrame && this.textures.exists(glyphFrame)
+        ? this.add.image(0, 0, glyphFrame).setDepth(6)
         : undefined;
       const label = glyph
         ? undefined
-        : makeText(this, ATOM_LABELS[type], 14, "#111111")
+        : makeText(this, ATOM_LABELS[type], 14, "#eef3f8")
         .setOrigin(0.5)
         .setDepth(6);
-      const count = makeText(this, "", 10, "#d8d8d8")
+      const count = makeText(this, "", 10, "#eef3f8")
         .setOrigin(0.5)
         .setFontStyle("bold")
         .setDepth(6);
@@ -1558,7 +1558,7 @@ export class BoardScene extends Phaser.Scene {
           .fillStyle(0x6fa878, 0.16 + phase * 0.12)
           .fillPoints(points, true);
         this.tutorialGraphics
-          .lineStyle(2, 0x8ed18c, 0.75 + phase * 0.25)
+          .lineStyle(2, 0x77dc91, 0.75 + phase * 0.25)
           .strokePoints(points, true);
         this.tutorialNeighbourLabels[index]
           .setPosition(screen.x, screen.y)
@@ -1570,7 +1570,7 @@ export class BoardScene extends Phaser.Scene {
     const alpha = 0.45 + phase * 0.5;
     this.tutorialGraphics.lineStyle(
       Math.max(2, this.hexSize * 0.08),
-      0xf0d58a,
+      0xf3c94f,
       alpha,
     );
     for (const position of this.tutorialSolution[this.tutorialStep] ?? []) {
@@ -1665,24 +1665,16 @@ export class BoardScene extends Phaser.Scene {
     const contentCenter = contentLeft + contentWidth / 2;
 
     this.chromeGraphics.clear();
-    if (this.backgroundImage) {
-      const scale = Math.max(
-        width / this.backgroundImage.width,
-        height / this.backgroundImage.height,
-      );
-      this.backgroundImage.setPosition(width / 2, height / 2).setScale(scale);
-    } else {
-      this.chromeGraphics.fillStyle(0x111714, 1).fillRect(0, 0, width, height);
-      this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, width, topBarHeight);
+    layoutPaperBackground(this.backgroundImage, width, height);
+    this.chromeGraphics.fillStyle(THEME_COLORS.chromeRaised, 0.96).fillRect(0, 0, width, topBarHeight);
+    this.chromeGraphics
+      .lineStyle(1, THEME_COLORS.line, 1)
+      .lineBetween(0, topBarHeight, width, topBarHeight);
+    if (sideDock) {
+      this.chromeGraphics.fillStyle(THEME_COLORS.chromeRaised, 0.98).fillRect(0, 0, contentLeft, height);
       this.chromeGraphics
-        .lineStyle(1, 0x34443b, 1)
-        .lineBetween(0, topBarHeight, width, topBarHeight);
-      if (sideDock) {
-        this.chromeGraphics.fillStyle(0x18211d, 1).fillRect(0, 0, contentLeft, height);
-        this.chromeGraphics
-          .lineStyle(1, 0x34443b, 1)
-          .lineBetween(contentLeft, 0, contentLeft, height);
-      }
+        .lineStyle(1, THEME_COLORS.line, 1)
+        .lineBetween(contentLeft, 0, contentLeft, height);
     }
 
     const topButtonWidth = compact ? 96 : 118;
@@ -1719,10 +1711,10 @@ export class BoardScene extends Phaser.Scene {
 
     this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
     const panelTop = this.panelLayout?.top ?? height - 68;
-    if (!sideDock && !this.backgroundImage) {
+    if (!sideDock) {
       const dockTop = Math.max(topBarHeight + 120, panelTop - 144);
-      this.chromeGraphics.fillStyle(0x151d19, 0.98).fillRect(0, dockTop, width, height - dockTop);
-      this.chromeGraphics.lineStyle(1, 0x34443b, 1).lineBetween(0, dockTop, width, dockTop);
+      this.chromeGraphics.fillStyle(THEME_COLORS.chrome, 0.98).fillRect(0, dockTop, width, height - dockTop);
+      this.chromeGraphics.lineStyle(1, THEME_COLORS.line, 1).lineBetween(0, dockTop, width, dockTop);
     }
     const hintEntries = [...this.hintButtons.entries()].filter(
       ([type]) =>
@@ -2030,11 +2022,8 @@ export class BoardScene extends Phaser.Scene {
   }
 
   renderAtlasCells() {
-    const texture = this.textures.exists(GAMEPLAY_ATLAS.key)
-      ? this.textures.get(GAMEPLAY_ATLAS.key)
-      : undefined;
     const requiredFrames = Object.values(GAMEPLAY_FRAMES);
-    if (!texture || !requiredFrames.every((frame) => texture.has(frame))) {
+    if (!requiredFrames.every((frame) => this.textures.exists(frame))) {
       this.clearCellViews();
       return false;
     }
@@ -2052,7 +2041,7 @@ export class BoardScene extends Phaser.Scene {
       let image = this.cellViews.get(key);
       if (!image) {
         image = this.add
-          .image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_FRAMES.hexIdle)
+          .image(0, 0, GAMEPLAY_FRAMES.hexIdle)
           .setDepth(0);
         this.cellViews.set(key, image);
       }
@@ -2063,7 +2052,7 @@ export class BoardScene extends Phaser.Scene {
       });
       image
         .setPosition(position.x, position.y)
-        .setFrame(frame)
+        .setTexture(frame)
         .setDisplaySize(this.hexSize * 2, this.hexSize * 2);
     }
     return true;
@@ -2113,8 +2102,8 @@ export class BoardScene extends Phaser.Scene {
           position.x,
           position.y,
           this.hexSize * 0.96,
-          0x171e1b,
-          0x34423a,
+          0x111823,
+          0x475363,
         );
       }
     }
@@ -2136,7 +2125,7 @@ export class BoardScene extends Phaser.Scene {
       if (!view.glyph) {
       this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
       this.atomGraphics.fillCircle(position.x, position.y + Math.max(1, this.hexSize * 0.08), radius * 1.08);
-      this.atomGraphics.fillStyle(0x26312b, alpha);
+      this.atomGraphics.fillStyle(0x182231, alpha);
       this.atomGraphics.fillCircle(position.x, position.y, radius * 1.04);
       this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], alpha);
       this.atomGraphics.fillCircle(position.x, position.y, radius * 0.9);
@@ -2154,12 +2143,12 @@ export class BoardScene extends Phaser.Scene {
           ? Math.max(2, this.hexSize * 0.12)
           : Math.max(1, this.hexSize * 0.045),
         isBlocked
-          ? 0xe87070
+          ? 0xff6b67
           : isHinted
-          ? 0x8ed18c
+          ? 0x77dc91
           : isPanelMatch
-          ? 0xf0d58a
-          : 0x506159,
+          ? 0xf3c94f
+          : 0x657080,
         1,
       );
       this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
@@ -2169,7 +2158,7 @@ export class BoardScene extends Phaser.Scene {
         .setDisplaySize(radius * 1.55, radius * 1.55)
         .setAlpha(alpha);
       view.label
-        ?.setColor(free ? "#121713" : "#1d231f")
+        ?.setColor(free ? "#eef3f8" : "#9aa7b5")
         .setAlpha(free ? 1 : 0.5);
     }
     this.renderTutorialPulse(this.time.now);
@@ -2249,7 +2238,7 @@ export class BoardScene extends Phaser.Scene {
         this.panelGraphics.fillCircle(x, y, radius);
         this.panelGraphics.lineStyle(
           entry.selected ? 3 : entry.current ? 2 : 1,
-          entry.selected ? 0xffffff : entry.current ? 0xf0d58a : 0x101010,
+          entry.selected ? 0xffffff : entry.current ? 0xf3c94f : 0x101010,
           alpha,
         );
         this.panelGraphics.strokeCircle(x, y, radius);
@@ -2259,7 +2248,7 @@ export class BoardScene extends Phaser.Scene {
         const badgeX = x + radius * 0.68;
         const badgeY = y - radius * 0.72;
         const badgeRadius = Math.max(8, radius * 0.5);
-        this.panelGraphics.fillStyle(entry.warning ? 0xb74235 : 0x101713, 1);
+        this.panelGraphics.fillStyle(entry.warning ? 0xb74235 : 0x090d14, 1);
         this.panelGraphics.fillCircle(badgeX, badgeY, badgeRadius);
         this.panelGraphics.lineStyle(1.5, entry.warning ? 0xffb0a4 : 0xe9eee8, 1);
         this.panelGraphics.strokeCircle(badgeX, badgeY, badgeRadius);

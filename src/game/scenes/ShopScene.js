@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import {
-  GAMEPLAY_ATLAS,
   GAMEPLAY_UI_FRAMES,
   UI_FRAMES,
 } from "../../art-assets.js";
@@ -42,31 +41,31 @@ export class ShopScene extends Phaser.Scene {
     this.economy = getEconomy(this);
     this.english = getSettings(this).snapshot.language === "en";
     this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
-    this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#303632").setOrigin(0.5);
+    this.title = makeText(this, this.english ? "SHOP" : "МАГАЗИН", 26, "#eef3f8").setOrigin(0.5);
     this.balancePanel = makePanel(this, UI_FRAMES.panelStripWithIcon);
-    this.balanceIcon = this.add.image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_UI_FRAMES.dust);
-    this.balance = makeText(this, "", 16, "#795a1e").setOrigin(1, 0.5);
+    this.balanceIcon = this.add.image(0, 0, GAMEPLAY_UI_FRAMES.dust);
+    this.balance = makeText(this, "", 16, "#f3c94f").setOrigin(1, 0.5);
     this.subtitle = makeText(
       this,
       this.english ? "BOOSTERS ARE PURCHASED IN ADVANCE AND STORED IN YOUR INVENTORY" : "ПОДСКАЗКИ ПОКУПАЮТСЯ ЗАРАНЕЕ И ХРАНЯТСЯ В ИНВЕНТАРЕ",
       11,
-      "#8f8f8f",
+      "#9aa7b5",
     ).setOrigin(0.5);
-    this.message = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
+    this.message = makeText(this, "", 12, "#77dc91").setOrigin(0.5);
     this.backButton = makeButton(this, this.english ? "←  BACK" : "←  НАЗАД", () => {
       this.scene.start(this.returnScene);
     }, 14).setIcon(GAMEPLAY_UI_FRAMES.back, 20);
 
     this.productViews = HINT_PRODUCTS.map((product) => {
       const panel = makePanel(this, UI_FRAMES.panelMainMedium);
-      const title = makeText(this, this.english ? product.titleEn : product.title, 18, "#f5ead0").setOrigin(0.5);
+      const title = makeText(this, this.english ? product.titleEn : product.title, 18, "#eef3f8").setOrigin(0.5);
       const description = makeText(
         this,
         this.english ? product.descriptionEn : product.description,
         11,
-        "#5f6863",
+        "#9aa7b5",
       ).setOrigin(0.5);
-      const owned = makeText(this, "", 12, "#c8edc5").setOrigin(0.5);
+      const owned = makeText(this, "", 12, "#77dc91").setOrigin(0.5);
       const buy = makeButton(
         this,
         `${this.english ? "BUY" : "КУПИТЬ"} ×${product.amount}  /  ${product.price} ${this.english ? "DUST" : "ПЫЛИ"}`,
@@ -95,7 +94,7 @@ export class ShopScene extends Phaser.Scene {
           ? `NEED ${product.price - result.snapshot.dust} MORE DUST`
           : `НЕ ХВАТАЕТ ${product.price - result.snapshot.dust} ПЫЛИ`,
       )
-      .setColor(result.ok ? "#c8edc5" : "#e89070");
+      .setColor(result.ok ? "#77dc91" : "#ff6b67");
     this.refresh();
   }
 

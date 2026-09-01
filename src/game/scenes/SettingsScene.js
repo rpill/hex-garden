@@ -34,16 +34,16 @@ export class SettingsScene extends Phaser.Scene {
     this.settings = getSettings(this);
     this.panel = makePanel(this, UI_FRAMES.panelMainMedium);
     this.titlePanel = makePanel(this, UI_FRAMES.panelHeader);
-    this.title = makeText(this, "НАСТРОЙКИ", 28, "#303632").setOrigin(0.5);
-    this.languageLabel = makeText(this, "ЯЗЫК", 13, "#f5ead0").setOrigin(0.5);
+    this.title = makeText(this, "НАСТРОЙКИ", 28, "#eef3f8").setOrigin(0.5);
+    this.languageLabel = makeText(this, "ЯЗЫК", 13, "#eef3f8").setOrigin(0.5);
     this.languageButton = makeButton(this, "", () => this.toggleLanguage(), 15);
-    this.soundLabel = makeText(this, "ЗВУК", 13, "#5f6863").setOrigin(0.5);
+    this.soundLabel = makeText(this, "ЗВУК", 13, "#9aa7b5").setOrigin(0.5);
     this.soundButton = makeButton(this, "", () => this.toggleSound(), 15);
     this.note = makeText(
       this,
       "Настройки сохраняются на этом устройстве",
       12,
-      "#7f8984",
+      "#9aa7b5",
     ).setOrigin(0.5);
     this.backButton = makeButton(this, "НАЗАД", () => this.goBack(), 14)
       .setIcon(GAMEPLAY_UI_FRAMES.back, 20);

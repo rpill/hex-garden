@@ -1,5 +1,4 @@
 import {
-  GAMEPLAY_ATLAS,
   GAMEPLAY_UI_FRAMES,
   UI_FRAMES,
 } from "../art-assets.js";
@@ -19,34 +18,34 @@ export class CompletionOverlay {
     this.card = makePanel(scene, UI_FRAMES.panelMainMedium, 40).setVisible(false);
     this.hitZone = scene.add.zone(0, 0, 1, 1).setDepth(40).setVisible(false);
     this.icon = scene.add
-      .image(0, 0, GAMEPLAY_ATLAS.key, GAMEPLAY_UI_FRAMES.success)
+      .image(0, 0, GAMEPLAY_UI_FRAMES.success)
       .setDepth(41)
       .setVisible(false);
-    this.title = makeText(scene, "", 24, "#ededed")
+    this.title = makeText(scene, "", 24, "#eef3f8")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.subtitle = makeText(scene, "", 13, "#a7a7a7")
+    this.subtitle = makeText(scene, "", 13, "#9aa7b5")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.score = makeText(scene, "", 20, "#c8edc5")
+    this.score = makeText(scene, "", 20, "#77dc91")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.total = makeText(scene, "", 13, "#bdbdbd")
+    this.total = makeText(scene, "", 13, "#9aa7b5")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.dust = makeText(scene, "", 18, "#f0d58a")
+    this.dust = makeText(scene, "", 18, "#f3c94f")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.progress = makeText(scene, "", 13, "#ededed")
+    this.progress = makeText(scene, "", 13, "#eef3f8")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
-    this.unlock = makeText(scene, "", 13, "#f0d58a")
+    this.unlock = makeText(scene, "", 13, "#f3c94f")
       .setOrigin(0.5)
       .setDepth(41)
       .setVisible(false);
@@ -236,7 +235,7 @@ export class CompletionOverlay {
       6,
     );
     if (ratio > 0) {
-      this.graphics.fillStyle(0x8ed18c, 1).fillRoundedRect(
+      this.graphics.fillStyle(0x77dc91, 1).fillRoundedRect(
         barX,
         barY,
         barWidth * ratio,

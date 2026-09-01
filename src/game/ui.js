@@ -1,8 +1,8 @@
 import Phaser from "phaser";
 import {
-  GAMEPLAY_ATLAS,
   GAMEPLAY_FONT,
-  UI_ATLAS,
+  MECHANIZED_ASSET_URLS,
+  THEME_COLORS,
   UI_FRAMES,
 } from "../art-assets.js";
 
@@ -14,8 +14,8 @@ const SLICE_BORDERS = Object.freeze({
 });
 
 function bordersForFrame(frame) {
-  if (frame.startsWith("button_")) return SLICE_BORDERS.button;
-  if (frame.startsWith("level_")) return SLICE_BORDERS.level;
+  if (frame.includes("button-")) return SLICE_BORDERS.button;
+  if (frame.includes("level-")) return SLICE_BORDERS.level;
   if (frame.includes("strip") || frame === UI_FRAMES.panelHeader) {
     return SLICE_BORDERS.strip;
   }
@@ -23,19 +23,12 @@ function bordersForFrame(frame) {
 }
 
 export function preloadUiAssets(scene) {
-  if (!scene.textures.exists(UI_ATLAS.key)) {
-    scene.load.multiatlas(UI_ATLAS.key, UI_ATLAS.jsonUrl, UI_ATLAS.baseUrl);
-  }
-  if (!scene.textures.exists(GAMEPLAY_ATLAS.key)) {
-    scene.load.multiatlas(
-      GAMEPLAY_ATLAS.key,
-      GAMEPLAY_ATLAS.jsonUrl,
-      GAMEPLAY_ATLAS.baseUrl,
-    );
+  for (const [key, url] of Object.entries(MECHANIZED_ASSET_URLS)) {
+    if (!scene.textures.exists(key)) scene.load.image(key, url);
   }
 }
 
-export function makeText(scene, text, size, color = "#3a3f3c") {
+export function makeText(scene, text, size, color = THEME_COLORS.text) {
   const value = scene.add.text(0, 0, text, {
     fontFamily: `${GAMEPLAY_FONT.family}, Arial, "Segoe UI", sans-serif`,
     fontSize: `${size}px`,
@@ -56,7 +49,7 @@ export function resizeNineSlice(slice, width, height) {
 export function makePanel(scene, frame = UI_FRAMES.panelMainMedium, depth = 0) {
   const [left, right, top, bottom] = bordersForFrame(frame);
   return scene.add
-    .nineslice(0, 0, UI_ATLAS.key, frame, 280, 380, left, right, top, bottom)
+    .nineslice(0, 0, frame, undefined, 280, 380, left, right, top, bottom)
     .setDepth(depth);
 }
 
@@ -80,7 +73,7 @@ export class AtlasButton extends Phaser.GameObjects.Container {
   constructor(scene, label, onClick, size = 16, { level = false } = {}) {
     const frames = level ? LEVEL_FRAMES : BUTTON_FRAMES;
     const background = makePanel(scene, frames.idle);
-    const text = makeText(scene, label, size, "#303632")
+    const text = makeText(scene, label, size, THEME_COLORS.text)
       .setOrigin(0.5)
       .setAlign("center")
       .setFontStyle("bold");
@@ -99,16 +92,16 @@ export class AtlasButton extends Phaser.GameObjects.Container {
     this.setFixedSize(this.buttonWidth, this.buttonHeight);
     this.setInteractive({ useHandCursor: true });
     this.on("pointerover", () => {
-      if (this.enabled) this.background.setFrame(this.frames.hover);
+      if (this.enabled) this.background.setTexture(this.frames.hover);
     });
     this.on("pointerout", () => {
-      if (this.enabled) this.background.setFrame(this.baseFrame);
+      if (this.enabled) this.background.setTexture(this.baseFrame);
     });
     this.on("pointerdown", () => {
-      if (this.enabled) this.background.setFrame(this.frames.selected ?? this.baseFrame);
+      if (this.enabled) this.background.setTexture(this.frames.selected ?? this.baseFrame);
     });
     this.on("pointerup", () => {
-      if (this.enabled) this.background.setFrame(this.frames.hover);
+      if (this.enabled) this.background.setTexture(this.frames.hover);
     });
     this.on("pointerdown", onClick);
   }
@@ -145,7 +138,7 @@ export class AtlasButton extends Phaser.GameObjects.Container {
       );
     }
     this.enabled = true;
-    this.background.setFrame(this.baseFrame);
+    this.background.setTexture(this.baseFrame);
     if (config?.useHandCursor && this.input) this.input.cursor = "pointer";
     return this;
   }
@@ -153,14 +146,14 @@ export class AtlasButton extends Phaser.GameObjects.Container {
   disableInteractive() {
     Phaser.GameObjects.Container.prototype.disableInteractive.call(this);
     this.enabled = false;
-    this.background.setFrame(this.frames.disabled ?? this.baseFrame);
+    this.background.setTexture(this.frames.disabled ?? this.baseFrame);
     return this;
   }
 
   setEnabled(enabled) {
     if (!enabled) return this.disableInteractive();
     this.enabled = true;
-    this.background.setFrame(this.baseFrame);
+    this.background.setTexture(this.baseFrame);
     if (this.input) {
       this.input.enabled = true;
       this.input.cursor = "pointer";
@@ -171,7 +164,7 @@ export class AtlasButton extends Phaser.GameObjects.Container {
 
   setBaseFrame(frame) {
     this.baseFrame = frame;
-    if (this.enabled) this.background.setFrame(frame);
+    if (this.enabled) this.background.setTexture(frame);
     return this;
   }
 
@@ -182,10 +175,10 @@ export class AtlasButton extends Phaser.GameObjects.Container {
     return this;
   }
 
-  setIcon(frame, size = 22, iconOnly = false, texture = GAMEPLAY_ATLAS.key) {
+  setIcon(frame, size = 22, iconOnly = false) {
     this.icon?.destroy();
     this.icon = frame
-      ? this.scene.add.image(0, 0, texture, frame).setDisplaySize(size, size)
+      ? this.scene.add.image(0, 0, frame).setDisplaySize(size, size)
       : undefined;
     if (this.icon) this.addAt(this.icon, 1);
     this.iconOnly = iconOnly;
