@@ -115,13 +115,13 @@ export class SettingsScene extends Phaser.Scene {
 
     resizeNineSlice(this.panel, cardWidth, cardHeight);
     this.panel.setPosition(width / 2, y + cardHeight / 2);
-    this.languageLabel.setPosition(width / 2, y + 48);
-    this.languageButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 88);
+    this.languageLabel.setPosition(width / 2, y + 70);
+    this.languageButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 105);
     this.soundLabel.setPosition(width / 2, y + 153);
     this.soundButton.setFixedSize(buttonWidth, 50).setPosition(width / 2, y + 193);
     this.note
       .setFontSize(compact ? 10 : 12)
       .setWordWrapWidth(cardWidth - 32)
-      .setPosition(width / 2, y + cardHeight - 40);
+      .setPosition(width / 2, y + cardHeight - 70);
   }
 }

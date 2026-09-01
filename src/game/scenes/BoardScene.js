@@ -1688,7 +1688,9 @@ export class BoardScene extends Phaser.Scene {
       .setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
     resizeNineSlice(
       this.headerPanel,
-      Math.min(Math.max(180, contentWidth * 0.58), 380),
+      portrait
+        ? Math.min(Math.max(300, contentWidth - 24), 380)
+        : Math.min(Math.max(220, contentWidth * 0.58), 420),
       38,
     );
     this.headerPanel.setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
