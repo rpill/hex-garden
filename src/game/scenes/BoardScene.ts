@@ -1,0 +1,2338 @@
+import Phaser from "phaser";
+import {
+  GAMEPLAY_FRAMES,
+  GAMEPLAY_UI_FRAMES,
+  THEME_COLORS,
+  UI_FRAMES,
+  atomGlyphFrame,
+  hexFrameForState,
+} from "../../art-assets.js";
+import {
+  createPaperBackground,
+  layoutPaperBackground,
+} from "../../scene-background.js";
+import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
+import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
+import { BrowserLevelGenerator } from "../../browser.js";
+import {
+  HintType,
+  type HintTypeValue,
+  type HintProduct,
+  productForHint,
+  rewardedAmountForHint,
+} from "../../economy.js";
+import {
+  boardClearBaseScore,
+  createEndlessScoreState,
+  nextStreakMultiplier,
+  scoreClearedBoard,
+  scoreRemovedAtoms,
+  streakMultiplier,
+  type EndlessScoreState,
+  type ScoreAwardResult,
+} from "../../endless-score.js";
+import { BoardVariant, type BoardVariantValue } from "../../generator.js";
+import { PROGRESSION_LEVEL_COUNT, type ProgressionLevelDefinition } from "../../progression.js";
+import { STANDARD_ENDLESS_UNLOCK_LEVEL } from "../../mode-access.js";
+import { BOARD_CENTER, enumerateBoardCells, hexKey, type HexCoord } from "../../hex.js";
+import {
+  PANEL_METAL_TYPES,
+  createPanelState,
+  panelTypesForVariant,
+} from "../../panel-state.js";
+import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
+import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
+import { getCampaignProgress } from "../campaign-progress.js";
+import { getEconomy } from "../economy.js";
+import { getLeaderboard } from "../leaderboard.js";
+import { getSettings } from "../settings.js";
+import { CompletionOverlay } from "../completion-overlay.js";
+import {
+  RewardedAdStatus,
+  getYandexGamesAdapter,
+} from "../../platform/yandex-games.js";
+import { PlayMode, type PlayModeValue } from "../modes.js";
+import { pieceAlphaForFilter, resolvePieceVisualState } from "../piece-visual-state.js";
+import { openUtilityScene as openCoveredUtilityScene } from "../utility-navigation.js";
+import { boardChromeMetrics } from "../responsive-layout.js";
+import { inventoryAnchorMetrics } from "../presentation-layout.js";
+import { tutorialPresentationStep, type UtilitySceneKey } from "../presentation-model.js";
+import {
+  SolveStatus,
+  type SolveStatusValue,
+  type WinningRouteResult,
+  findLastSolvableSnapshot,
+  findWinningRoute,
+  moveKey,
+} from "../../solver.js";
+import {
+  TUTORIAL_GUIDED_MOVE_COUNT,
+  createTutorialLevel,
+  findLongestEmptyNeighbourRun,
+  type TutorialLevel,
+} from "../../tutorial.js";
+import { BoardHud } from "../board/BoardHud.js";
+import { BoardInventory, type BoardInventoryLayout } from "../board/BoardInventory.js";
+import { BoardTutorial } from "../board/BoardTutorial.js";
+import {
+  makeButton,
+  makeCurrencyDisplay,
+  makeCartIconButton,
+  makeIconButton,
+  makePanel,
+  makeText,
+  preloadUiAssets,
+  resizeNineSlice,
+} from "../ui.js";
+
+const CAMPAIGN_SEED = "rules-lab-v1";
+const TOP_BAR_HEIGHT = 52;
+const BOTTOM_BAR_HEIGHT = 190;
+const PANEL_HIGHLIGHT_DURATION_MS = 2000;
+const MOVE_HINT_DURATION_MS = 4000;
+
+function formatScore(value: number): string {
+  return Math.round(value).toLocaleString("ru-RU");
+}
+
+function formatMultiplier(value: number): string {
+  return Number.isInteger(value) ? value.toFixed(1) : String(value);
+}
+
+const ATOM_LABELS = Object.freeze({
+  [Atom.SALT]: "Sa",
+  [Atom.AIR]: "Ai",
+  [Atom.FIRE]: "Fi",
+  [Atom.WATER]: "Wa",
+  [Atom.EARTH]: "Ea",
+  [Atom.QUICKSILVER]: "Hg",
+  [Atom.GOLD]: "Au",
+  [Atom.SILVER]: "Ag",
+  [Atom.COPPER]: "Cu",
+  [Atom.IRON]: "Fe",
+  [Atom.TIN]: "Sn",
+  [Atom.LEAD]: "Pb",
+  [Atom.VITAE]: "V",
+  [Atom.MORS]: "M",
+  [Atom.QUINTESSENCE]: "Q",
+});
+
+const ATOM_COLORS = Object.freeze({
+  [Atom.SALT]: 0xd8d6cf,
+  [Atom.AIR]: 0xc7d9e8,
+  [Atom.FIRE]: 0xd98370,
+  [Atom.WATER]: 0x76a8c8,
+  [Atom.EARTH]: 0x93ad78,
+  [Atom.QUICKSILVER]: 0xd7d9db,
+  [Atom.GOLD]: 0xc8a84e,
+  [Atom.SILVER]: 0xaebbc6,
+  [Atom.COPPER]: 0xb77958,
+  [Atom.IRON]: 0x858c92,
+  [Atom.TIN]: 0xa2aaa8,
+  [Atom.LEAD]: 0x69717d,
+  [Atom.VITAE]: 0xd8c58e,
+  [Atom.MORS]: 0x86778d,
+  [Atom.QUINTESSENCE]: 0xb49bc8,
+});
+
+const LOCKED_ATOM_NAMES: Readonly<Partial<Record<AtomType, string>>> = Object.freeze({
+  [Atom.GOLD]: "ЗОЛОТО (Au)",
+  [Atom.SILVER]: "СЕРЕБРО (Ag)",
+  [Atom.COPPER]: "МЕДЬ (Cu)",
+  [Atom.IRON]: "ЖЕЛЕЗО (Fe)",
+  [Atom.TIN]: "ОЛОВО (Sn)",
+  [Atom.LEAD]: "СВИНЕЦ (Pb)",
+});
+
+type PieceView = {
+  piece: BoardPiece;
+  glyph: Phaser.GameObjects.Image | undefined;
+  label: Phaser.GameObjects.Text | undefined;
+  hitZone: Phaser.GameObjects.Zone;
+};
+
+type RemovalHistoryEntry = {
+  pieces: readonly BoardPieceInput[];
+  endlessScoreState: Readonly<EndlessScoreState>;
+  campaignLevelScore: number;
+  displayedCampaignScore: number;
+  displayedEndlessScore: number;
+};
+
+type RestoreOptions = {
+  blockedMove?: readonly BoardPieceInput[];
+  winningRoute?: readonly (readonly HexCoord[])[];
+};
+
+type CampaignCompletionArgs = {
+  snapshot: CampaignProgressSnapshot;
+  progressBefore: CampaignProgressSnapshot;
+  scoreAward: number;
+  dustAward: number;
+  dustTotal: number;
+  unlockedEndless: boolean;
+};
+
+type EndlessCompletionArgs = {
+  clearScore: Readonly<ScoreAwardResult>;
+  dustAward: number;
+  dustTotal: number;
+};
+
+type PositionAnalysis = Readonly<{
+  status: SolveStatusValue;
+  route: readonly (readonly HexCoord[])[];
+}>;
+
+function isPlayModeValue(value: unknown): value is PlayModeValue {
+  return typeof value === "string" && (Object.values(PlayMode) as readonly string[]).includes(value);
+}
+
+function boardInitData(data: unknown): { mode?: PlayModeValue; level?: number } {
+  if (typeof data !== "object" || data === null) return {};
+  const raw = data as { mode?: unknown; level?: unknown };
+  return {
+    ...(isPlayModeValue(raw.mode) ? { mode: raw.mode } : {}),
+    ...(Number.isSafeInteger(raw.level) && (raw.level as number) >= 0 ? { level: raw.level as number } : {}),
+  };
+}
+
+export class BoardScene extends Phaser.Scene {
+  level = 0;
+  mode: PlayModeValue = PlayMode.CAMPAIGN;
+  variant: BoardVariantValue = BoardVariant.STANDARD;
+  generationToken = 0;
+  initialPieces: BoardPiece[] = [];
+  plateCells: HexCoord[] = enumerateBoardCells();
+  plateRadius = 5;
+  levelDefinition: Readonly<ProgressionLevelDefinition> | TutorialLevel["definition"] | undefined;
+  boardShape: string | undefined;
+  board: GardenBoard | undefined;
+  pieceViews = new Map<string, PieceView>();
+  cellViews = new Map<string, Phaser.GameObjects.Image>();
+  panelTypes: AtomType[] = [];
+  activePanelType: AtomType | null = null;
+  panelHighlightTimer: Phaser.Time.TimerEvent | undefined;
+  panelLayout: BoardInventoryLayout | undefined;
+  tutorialStep = 0;
+  tutorialSolution: readonly (readonly HexCoord[])[] = [];
+  mechanicCardVisible = false;
+  endlessScoreState: Readonly<EndlessScoreState> = createEndlessScoreState();
+  displayedEndlessScore = 0;
+  endlessScoreTween: Phaser.Tweens.Tween | undefined;
+  endlessRunOver = false;
+  campaignLevelScore = 0;
+  displayedCampaignScore = 0;
+  campaignScoreTween: Phaser.Tweens.Tween | undefined;
+  campaignScoringActive = false;
+  removalHistory: RemovalHistoryEntry[] = [];
+  activeHintKeys = new Set<string>();
+  hintTimer: Phaser.Time.TimerEvent | undefined;
+  endlessAssisted = false;
+  economyModalVisible = false;
+  economyModalProduct: HintProduct | undefined;
+  rewardedAdPending = false;
+  endlessBoardStartScore = 0;
+  certifiedSolution: readonly (readonly HexCoord[])[] = [];
+  knownWinningRoute: readonly (readonly HexCoord[])[] = [];
+  positionSolveStatus: SolveStatusValue = SolveStatus.UNKNOWN;
+  positionDeadEnd = false;
+  blockedMoveKey: string | undefined;
+  pauseMenuVisible = false;
+  hoveredPieceKey: string | undefined;
+  busy = false;
+  english = false;
+  progress!: ReturnType<typeof getCampaignProgress>;
+  economy!: ReturnType<typeof getEconomy>;
+  leaderboard!: ReturnType<typeof getLeaderboard>;
+  platform!: ReturnType<typeof getYandexGamesAdapter>;
+  generator!: BrowserLevelGenerator;
+  hud!: BoardHud;
+  inventory!: BoardInventory;
+  tutorialUi!: BoardTutorial;
+  inventoryPanel!: BoardInventory["panel"];
+  panelGraphics!: BoardInventory["graphics"];
+  panelViews!: BoardInventory["views"];
+  tutorialGraphics!: BoardTutorial["graphics"];
+  tutorialText!: BoardTutorial["text"];
+  tutorialNeighbourLabels!: BoardTutorial["neighbourLabels"];
+  backgroundImage!: ReturnType<typeof createPaperBackground>;
+  chromeGraphics!: Phaser.GameObjects.Graphics;
+  cellGraphics!: Phaser.GameObjects.Graphics;
+  atomGraphics!: Phaser.GameObjects.Graphics;
+  mechanicCardGraphics!: Phaser.GameObjects.Graphics;
+  mechanicCardPanel!: ReturnType<typeof makePanel>;
+  mechanicCardText!: Phaser.GameObjects.Text;
+  mechanicCardHint!: Phaser.GameObjects.Text;
+  mechanicCardHitZone!: Phaser.GameObjects.Zone;
+  economyModalGraphics!: Phaser.GameObjects.Graphics;
+  economyModalPanel!: ReturnType<typeof makePanel>;
+  economyModalHitZone!: Phaser.GameObjects.Zone;
+  economyModalTitle!: Phaser.GameObjects.Text;
+  economyModalBody!: Phaser.GameObjects.Text;
+  economyModalMessage!: Phaser.GameObjects.Text;
+  economyModalBuy!: ReturnType<typeof makeButton>;
+  economyModalAd!: ReturnType<typeof makeButton>;
+  economyModalClose!: ReturnType<typeof makeButton>;
+  pauseMenuGraphics!: Phaser.GameObjects.Graphics;
+  pauseMenuPanel!: ReturnType<typeof makePanel>;
+  pauseMenuHitZone!: Phaser.GameObjects.Zone;
+  pauseMenuTitle!: Phaser.GameObjects.Text;
+  pauseResumeButton!: ReturnType<typeof makeButton>;
+  pauseRestartButton!: ReturnType<typeof makeButton>;
+  pauseLevelsButton!: ReturnType<typeof makeButton>;
+  pauseExitButton!: ReturnType<typeof makeButton>;
+  completionOverlay!: CompletionOverlay;
+  headerPanel!: ReturnType<typeof makePanel>;
+  header!: Phaser.GameObjects.Text;
+  status!: Phaser.GameObjects.Text;
+  endlessHud!: Phaser.GameObjects.Text;
+  campaignHud!: Phaser.GameObjects.Text;
+  dustHud!: ReturnType<typeof makeCurrencyDisplay>;
+  nextButton!: ReturnType<typeof makeButton>;
+  menuButton!: ReturnType<typeof makeIconButton>;
+  shopButton!: ReturnType<typeof makeCartIconButton>;
+  settingsButton!: ReturnType<typeof makeIconButton>;
+  hintButtons!: Map<HintTypeValue, ReturnType<typeof makeButton>>;
+  boardCenterX = 0;
+  boardCenterY = 0;
+  hexSize = 24;
+  constructor() {
+    super("board");
+    this.level = 0;
+    this.mode = PlayMode.CAMPAIGN;
+    this.variant = BoardVariant.STANDARD;
+    this.generationToken = 0;
+    this.initialPieces = [];
+    this.plateCells = enumerateBoardCells();
+    this.plateRadius = 5;
+    this.levelDefinition = undefined;
+    this.pieceViews = new Map();
+    this.cellViews = new Map();
+    this.panelViews = new Map();
+    this.panelTypes = [];
+    this.activePanelType = null;
+    this.panelHighlightTimer = undefined;
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.mechanicCardVisible = false;
+    this.endlessScoreState = createEndlessScoreState();
+    this.displayedEndlessScore = 0;
+    this.endlessScoreTween = undefined;
+    this.endlessRunOver = false;
+    this.campaignLevelScore = 0;
+    this.displayedCampaignScore = 0;
+    this.campaignScoreTween = undefined;
+    this.campaignScoringActive = false;
+    this.removalHistory = [];
+    this.activeHintKeys = new Set();
+    this.hintTimer = undefined;
+    this.endlessAssisted = false;
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
+    this.rewardedAdPending = false;
+    this.endlessBoardStartScore = 0;
+    this.certifiedSolution = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
+    this.pauseMenuVisible = false;
+    this.hoveredPieceKey = undefined;
+  }
+
+  preload(): void {
+    preloadUiAssets(this);
+  }
+
+  uiText(russian: string, english: string): string {
+    return this.english ? english : russian;
+  }
+
+  init(data: unknown = {}): void {
+    const init = boardInitData(data);
+    this.progress = getCampaignProgress(this);
+    this.english = getSettings(this).snapshot.language === "en";
+    this.mode = init.mode ?? PlayMode.CAMPAIGN;
+    this.variant =
+      this.mode === PlayMode.QUINTESSENCE
+        ? BoardVariant.QUINTESSENCE
+        : BoardVariant.STANDARD;
+    const requestedLevel = init.level ?? 0;
+    this.level =
+      this.mode === PlayMode.CAMPAIGN
+        ? Math.min(requestedLevel, this.progress.snapshot.highestUnlocked)
+        : requestedLevel;
+    this.initialPieces = [];
+    this.plateCells = enumerateBoardCells();
+    this.plateRadius = 5;
+    this.levelDefinition = undefined;
+    this.activePanelType = null;
+    this.panelHighlightTimer = undefined;
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.mechanicCardVisible = false;
+    this.endlessScoreState = createEndlessScoreState();
+    this.displayedEndlessScore = 0;
+    this.endlessScoreTween = undefined;
+    this.endlessRunOver = false;
+    this.campaignLevelScore = 0;
+    this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+    this.campaignScoreTween = undefined;
+    this.campaignScoringActive = false;
+    this.removalHistory = [];
+    this.activeHintKeys = new Set();
+    this.hintTimer = undefined;
+    this.endlessAssisted = false;
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
+    this.rewardedAdPending = false;
+    this.endlessBoardStartScore = 0;
+    this.certifiedSolution = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
+    this.pauseMenuVisible = false;
+    this.hoveredPieceKey = undefined;
+  }
+
+  create(): void {
+    this.economy = getEconomy(this);
+    this.leaderboard = getLeaderboard(this);
+    this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
+    this.platform = getYandexGamesAdapter();
+    this.pieceViews = new Map();
+    this.cellViews = new Map();
+    this.panelViews = new Map();
+    this.panelTypes = [];
+    this.generator = new BrowserLevelGenerator();
+    this.backgroundImage = createPaperBackground(this).setDepth(-3);
+    this.chromeGraphics = this.add.graphics().setDepth(-2);
+    this.cellGraphics = this.add.graphics();
+    this.atomGraphics = this.add.graphics().setDepth(1);
+    this.inventory = new BoardInventory(
+      this,
+      {
+        onSelectType: (type) => this.selectPanelType(type),
+        onHint: (type) => this.useHint(type),
+      },
+      {
+        labelForType: (type) => ATOM_LABELS[type],
+        colorForType: (type) => ATOM_COLORS[type],
+        glyphFrameForType: (type) => atomGlyphFrame(type),
+      },
+    );
+    this.inventoryPanel = this.inventory.panel;
+    this.panelGraphics = this.inventory.graphics;
+    this.panelViews = this.inventory.views;
+    this.hintButtons = this.inventory.hintButtons;
+    this.tutorialUi = new BoardTutorial(this);
+    this.tutorialGraphics = this.tutorialUi.graphics;
+    this.tutorialText = this.tutorialUi.text;
+    this.tutorialNeighbourLabels = this.tutorialUi.neighbourLabels;
+    this.hud = new BoardHud(
+      this,
+      { next: this.uiText("ИГРАТЬ", "PLAY") },
+      {
+        onPause: () => this.openPauseMenu(),
+        onShop: () => this.openUtilityScene("shop"),
+        onSettings: () => this.openUtilityScene("settings"),
+        onNext: () => this.changeLevel(1),
+      },
+    );
+    this.headerPanel = this.hud.headerPanel;
+    this.mechanicCardGraphics = this.add.graphics().setDepth(20);
+    this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
+      .setVisible(false);
+    this.economyModalGraphics = this.add.graphics().setDepth(30);
+    this.economyModalPanel = makePanel(this, UI_FRAMES.panelMainMedium, 30)
+      .setVisible(false);
+    this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
+      .setDepth(30)
+      .setVisible(false);
+    this.pauseMenuGraphics = this.add.graphics().setDepth(40);
+    this.pauseMenuPanel = makePanel(this, UI_FRAMES.panelMainMedium, 40)
+      .setVisible(false);
+    this.pauseMenuHitZone = this.add.zone(0, 0, 1, 1)
+      .setDepth(40)
+      .setVisible(false)
+      .setInteractive();
+    this.header = this.hud.header;
+    this.status = this.hud.status;
+    this.endlessHud = this.hud.endless;
+    this.campaignHud = this.hud.campaign;
+    this.dustHud = this.hud.dust;
+    this.mechanicCardText = makeText(this, "", 18, "#eef3f8")
+      .setOrigin(0.5)
+      .setAlign("center")
+      .setDepth(21)
+      .setVisible(false);
+    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#f3c94f")
+      .setOrigin(0.5)
+      .setDepth(21)
+      .setVisible(false);
+    this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
+    this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
+
+    this.economyModalTitle = makeText(this, "", 19, "#eef3f8")
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalBody = makeText(this, "", 13, "#9aa7b5")
+      .setOrigin(0.5)
+      .setAlign("center")
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalMessage = makeText(this, "", 12, "#77dc91")
+      .setOrigin(0.5)
+      .setDepth(31)
+      .setVisible(false);
+    this.economyModalBuy = makeButton(this, this.uiText("КУПИТЬ", "BUY"), () =>
+      this.purchaseEconomyModalProduct(),
+    ).setIcon(GAMEPLAY_UI_FRAMES.dust, 20).setDepth(31).setVisible(false).disableInteractive();
+    this.economyModalAd = makeButton(this, this.uiText("РЕКЛАМА", "AD"), () =>
+      this.showRewardedForEconomyModal(),
+    ).setIcon(GAMEPLAY_UI_FRAMES.badgeReward, 20).setDepth(31).setVisible(false).disableInteractive();
+    this.economyModalClose = makeButton(this, this.uiText("ЗАКРЫТЬ", "CLOSE"), () =>
+      this.closeEconomyModal(),
+    ).setIcon(GAMEPLAY_UI_FRAMES.back, 18).setDepth(31).setVisible(false).disableInteractive();
+
+    this.nextButton = this.hud.nextButton;
+    this.menuButton = this.hud.pauseButton;
+    this.shopButton = this.hud.shopButton;
+    this.settingsButton = this.hud.settingsButton;
+    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
+      .setOrigin(0.5)
+      .setFontStyle("bold")
+      .setDepth(41)
+      .setVisible(false);
+    this.pauseResumeButton = makeButton(this, this.uiText("ПРОДОЛЖИТЬ", "RESUME"), () => this.closePauseMenu())
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseRestartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartFromPause())
+      .setIcon(GAMEPLAY_UI_FRAMES.retry, 20)
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseLevelsButton = makeButton(this, this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"), () => this.exitPauseToLevels())
+      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.pauseExitButton = makeButton(this, this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"), () => this.exitPauseToMenu())
+      .setIcon(GAMEPLAY_UI_FRAMES.back, 20)
+      .setDepth(41)
+      .setVisible(false)
+      .disableInteractive();
+    this.completionOverlay = new CompletionOverlay(this);
+
+    this.input.keyboard?.on("keydown-R", () => this.restartLevel());
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.rewardedAdPending) return;
+      if (this.pauseMenuVisible) {
+        this.closePauseMenu();
+        return;
+      }
+      if (this.completionOverlay.visible) {
+        this.completionOverlay.exit();
+        return;
+      }
+      if (this.economyModalVisible) this.closeEconomyModal();
+      else this.openPauseMenu();
+    });
+
+    this.scale.on("resize", this.layout, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.layout, this);
+      this.generator.terminate();
+      this.clearCellViews();
+      this.pieceViews.clear();
+      this.panelViews.clear();
+    });
+    this.rebuildPanelViews();
+    this.layout();
+    this.loadLevel();
+  }
+
+  async loadLevel(): Promise<void> {
+    const token = ++this.generationToken;
+    if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
+    if (this.mode === PlayMode.STANDARD) {
+      this.endlessBoardStartScore = this.endlessScoreState.score;
+    }
+    this.removalHistory = [];
+    this.knownWinningRoute = [];
+    this.positionSolveStatus = SolveStatus.UNKNOWN;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
+    this.clearMoveHint(false);
+    if (this.mode === PlayMode.CAMPAIGN) {
+      this.campaignScoreTween?.stop();
+      this.campaignLevelScore = 0;
+      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+      this.campaignScoringActive =
+        !this.progress.isCompleted(this.level) ||
+        this.progress.snapshot.levelScores[this.level] === 0;
+    }
+    this.setBusy(true);
+    this.board = undefined;
+    this.initialPieces = [];
+    this.clearPanelHighlight(false);
+    this.tutorialStep = 0;
+    this.tutorialSolution = [];
+    this.hideMechanicCard();
+    this.status.setText("GENERATING");
+    this.clearPieceViews();
+    this.rebuildPanelViews();
+    this.render();
+
+    try {
+      const record =
+        this.mode === PlayMode.TUTORIAL
+          ? createTutorialLevel()
+          : this.mode === PlayMode.CAMPAIGN
+          ? await this.generator.generateProgression(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+            })
+          : this.mode === PlayMode.STANDARD
+          ? await this.generator.generateEndlessRun(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+            })
+          : await this.generator.generate(this.level, {
+              campaignSeed: CAMPAIGN_SEED,
+              variant: this.mode,
+            });
+      if (token !== this.generationToken) return;
+      this.board = record.board;
+      this.variant = record.variant;
+      this.boardShape = record.shape;
+      this.plateCells = "plateCells" in record ? record.plateCells : enumerateBoardCells();
+      this.plateRadius = "plateRadius" in record ? record.plateRadius : 5;
+      this.levelDefinition = "definition" in record ? record.definition : undefined;
+      this.initialPieces = record.pieces.map((piece) => ({ ...piece }));
+      this.certifiedSolution = record.solution.map((move) =>
+        move.map((position) => ({ ...position })),
+      );
+      this.knownWinningRoute = this.certifiedSolution;
+      this.positionSolveStatus = SolveStatus.SOLVED;
+      this.tutorialSolution =
+        this.mode === PlayMode.TUTORIAL
+          ? record.solution.map((move) => move.map((position) => ({ ...position })))
+          : [];
+      this.status.setText("");
+      this.setBusy(false);
+      this.rebuildPanelViews();
+      this.rebuildPieceViews();
+      this.updateTutorialGuide();
+      this.showMechanicCardForLevel();
+      this.layout();
+    } catch (error) {
+      if (token !== this.generationToken) return;
+      this.status.setText(`ERROR: ${error instanceof Error ? error.message : error}`);
+      this.setBusy(false);
+      this.render();
+    }
+  }
+
+  changeLevel(delta: number): void {
+    if (this.busy || this.completionOverlay?.visible) return;
+    if (this.mode === PlayMode.TUTORIAL) {
+      if (delta > 0 && this.board?.won) {
+        this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: 0 });
+      }
+      return;
+    }
+    if (this.mode === PlayMode.STANDARD) {
+      if (delta <= 0 || !this.board?.won || this.endlessRunOver) return;
+      this.level += 1;
+      this.loadLevel();
+      return;
+    }
+    const maximum =
+      this.mode === PlayMode.CAMPAIGN
+        ? this.progress.snapshot.highestUnlocked
+        : Number.MAX_SAFE_INTEGER;
+    const next = Math.min(maximum, Math.max(0, this.level + delta));
+    if (next === this.level) return;
+    this.level = next;
+    this.loadLevel();
+  }
+
+  openLevelSelect(): void {
+    if (this.mode !== PlayMode.CAMPAIGN && this.mode !== PlayMode.TUTORIAL) {
+      return;
+    }
+    this.generationToken += 1;
+    this.scene.start("level-select");
+  }
+
+  openMainMenu(): void {
+    this.submitEndlessResult();
+    this.generationToken += 1;
+    this.scene.start("menu");
+  }
+
+  openUtilityScene(key: UtilitySceneKey): void {
+    if (
+      this.rewardedAdPending ||
+      this.completionOverlay?.visible ||
+      this.economyModalVisible
+    ) return;
+    if (this.pauseMenuVisible) this.closePauseMenu();
+    openCoveredUtilityScene(this, key, { returnScene: "board" });
+  }
+
+  openPauseMenu(): void {
+    if (
+      this.pauseMenuVisible ||
+      this.rewardedAdPending ||
+      this.completionOverlay?.visible ||
+      this.economyModalVisible
+    ) return;
+    this.pauseMenuVisible = true;
+    this.pauseMenuHitZone.setVisible(true).setInteractive();
+    for (const item of [
+      this.pauseMenuTitle,
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      this.pauseExitButton,
+    ]) item.setVisible(true);
+    this.pauseResumeButton.setInteractive({ useHandCursor: true });
+    const canRestart = !this.busy && this.initialPieces.length > 0;
+    this.pauseRestartButton.setAlpha(canRestart ? 1 : 0.45);
+    if (canRestart) this.pauseRestartButton.setInteractive({ useHandCursor: true });
+    else this.pauseRestartButton.disableInteractive();
+    this.pauseExitButton.setInteractive({ useHandCursor: true });
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    this.pauseLevelsButton.setVisible(campaignNavigation);
+    if (campaignNavigation) this.pauseLevelsButton.setInteractive({ useHandCursor: true });
+    else this.pauseLevelsButton.disableInteractive();
+    this.layoutPauseMenu(this.scale.width, this.scale.height);
+  }
+
+  closePauseMenu(): void {
+    if (!this.pauseMenuVisible) return;
+    this.pauseMenuVisible = false;
+    this.pauseMenuGraphics.clear();
+    this.pauseMenuPanel.setVisible(false);
+    this.pauseMenuHitZone.setVisible(false).disableInteractive();
+    for (const item of [
+      this.pauseMenuTitle,
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      this.pauseLevelsButton,
+      this.pauseExitButton,
+    ]) item.setVisible(false).disableInteractive?.();
+  }
+
+  restartFromPause(): void {
+    this.closePauseMenu();
+    this.restartLevel();
+  }
+
+  exitPauseToLevels(): void {
+    this.closePauseMenu();
+    this.openLevelSelect();
+  }
+
+  exitPauseToMenu(): void {
+    this.closePauseMenu();
+    this.openMainMenu();
+  }
+
+  submitEndlessResult(): void {
+    if (this.mode !== PlayMode.STANDARD || !this.leaderboard) return;
+    this.leaderboard.submitEndlessScore(this.endlessScoreState.score, {
+      assisted: this.endlessAssisted,
+    });
+  }
+
+  restartLevel(): void {
+    if (
+      this.busy ||
+      this.completionOverlay?.visible ||
+      this.pauseMenuVisible ||
+      this.initialPieces.length === 0
+    ) return;
+    if (this.mode === PlayMode.STANDARD) {
+      this.submitEndlessResult();
+      this.endlessScoreTween?.stop();
+      this.endlessScoreState = createEndlessScoreState();
+      this.displayedEndlessScore = 0;
+      this.endlessRunOver = false;
+      this.endlessAssisted = false;
+      this.level = 0;
+      this.loadLevel();
+      return;
+    }
+    if (this.mode === PlayMode.CAMPAIGN) {
+      this.campaignScoreTween?.stop();
+      this.campaignLevelScore = 0;
+      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
+      this.campaignScoringActive =
+        !this.progress.isCompleted(this.level) ||
+        this.progress.snapshot.levelScores[this.level] === 0;
+    }
+    this.removalHistory = [];
+    this.knownWinningRoute = this.certifiedSolution;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.positionDeadEnd = false;
+    this.blockedMoveKey = undefined;
+    this.clearMoveHint(false);
+    this.board = new GardenBoard(this.initialPieces);
+    this.clearPanelHighlight(false);
+    this.tutorialStep = 0;
+    this.status.setText("");
+    this.rebuildPieceViews();
+    this.updateTutorialGuide();
+    this.layout();
+  }
+
+  selectPiece(piece: BoardPiece): void {
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      this.completionOverlay?.visible ||
+      this.pauseMenuVisible ||
+      this.positionDeadEnd ||
+      this.endlessRunOver ||
+      !this.board
+    ) {
+      return;
+    }
+    if (!this.tutorialAllowsPiece(piece)) {
+      this.status.setText(this.uiText("Сейчас выберите выделенную пару.", "Select the highlighted pair now."));
+      return;
+    }
+    if (this.wouldCompleteBlockedMove(piece)) {
+      this.board.clearSelection();
+      this.status.setText(
+        this.uiText(
+          "ЭТОТ ХОД УЖЕ ПРИВОДИЛ В ТУПИК — ВЫБЕРИТЕ ДРУГОЙ",
+          "THIS MOVE ALREADY LED TO A DEAD END — CHOOSE ANOTHER",
+        ),
+      );
+      this.render();
+      return;
+    }
+    const beforeRemoval = {
+      pieces: this.board.pieces(),
+      endlessScoreState: { ...this.endlessScoreState },
+      campaignLevelScore: this.campaignLevelScore,
+      displayedCampaignScore: this.displayedCampaignScore,
+      displayedEndlessScore: this.displayedEndlessScore,
+    };
+    const result = this.board.select(piece);
+    if (result.kind === "locked") {
+      this.status.setText(
+        `ЗАБЛОКИРОВАНО: ${LOCKED_ATOM_NAMES[piece.type] ?? ATOM_NAMES[piece.type].toUpperCase()}`,
+      );
+    } else if (result.kind === "selected") {
+      const selected = result.selected.map((item) => ATOM_LABELS[item.type]).join(" + ");
+      this.status.setText(`SELECTED: ${selected}`);
+    } else if (result.kind === "deselected") {
+      this.status.setText("");
+    } else if (result.kind === "removed") {
+      this.blockedMoveKey = undefined;
+      this.removalHistory.push(beforeRemoval);
+      if (this.removalHistory.length > 64) this.removalHistory.shift();
+      this.clearMoveHint(false);
+      let message = "";
+      if (this.mode === PlayMode.STANDARD) {
+        const scoredRemoval = scoreRemovedAtoms(
+          this.endlessScoreState,
+          result.removed.length,
+        );
+        this.endlessScoreState = scoredRemoval.state;
+        this.showScorePopup(result.removed, `+${formatScore(scoredRemoval.award)}`);
+        this.animateEndlessScore(this.endlessScoreState.score);
+      } else if (
+        this.mode === PlayMode.CAMPAIGN &&
+        this.campaignScoringActive
+      ) {
+        const scoredRemoval = scoreRemovedAtoms(
+          { score: this.campaignLevelScore, streak: 0 },
+          result.removed.length,
+        );
+        this.campaignLevelScore = scoredRemoval.state.score;
+        this.showScorePopup(
+          result.removed,
+          `+${formatScore(scoredRemoval.award)}`,
+          "#77dc91",
+        );
+        this.animateCampaignScore(
+          this.progress.snapshot.campaignScore + this.campaignLevelScore,
+        );
+      }
+      if (
+        this.mode === PlayMode.TUTORIAL &&
+        this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT
+      ) {
+        this.tutorialStep += 1;
+      }
+      if (this.board.won) {
+        message = "BOARD CLEARED";
+        if (this.mode === PlayMode.TUTORIAL) {
+          this.progress.completeTutorial();
+          message = "";
+        } else if (this.mode === PlayMode.CAMPAIGN) {
+          const progressBefore = this.progress.snapshot;
+          const alreadyCompleted = this.progress.isCompleted(this.level);
+          const shouldRecordScore =
+            this.campaignScoringActive &&
+            this.progress.snapshot.levelScores[this.level] === 0;
+          let clearAward = 0;
+          if (shouldRecordScore) {
+            clearAward = boardClearBaseScore(
+              1 + 3 * this.plateRadius * (this.plateRadius + 1),
+            );
+            this.campaignLevelScore += clearAward;
+            this.showScorePopup(
+              [],
+              `CLEAR +${formatScore(clearAward)}`,
+              "#77dc91",
+            );
+          }
+          const snapshot = this.progress.complete(this.level, {
+            score: shouldRecordScore ? this.campaignLevelScore : 0,
+          });
+          this.leaderboard.syncCampaignScore(snapshot.campaignScore);
+          const dust = this.economy.claimCampaignLevel(
+            this.level,
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
+          this.campaignScoringActive = false;
+          this.animateCampaignScore(snapshot.campaignScore);
+          if (snapshot.campaignCompleted) {
+            message = `CAMPAIGN COMPLETE   SCORE ${formatScore(snapshot.campaignScore)}`;
+          } else if (!alreadyCompleted && !this.progress.testMode) {
+            message =
+              `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
+          }
+          if (dust.award > 0) message += `   +${dust.award} ПЫЛИ`;
+          const unlockedEndless =
+            !alreadyCompleted &&
+            !this.progress.testMode &&
+            this.level === STANDARD_ENDLESS_UNLOCK_LEVEL;
+          this.showCampaignCompletion({
+            snapshot,
+            progressBefore,
+            scoreAward: shouldRecordScore ? this.campaignLevelScore : 0,
+            dustAward: dust.award,
+            dustTotal: dust.snapshot.dust,
+            unlockedEndless,
+          });
+        } else if (this.mode === PlayMode.STANDARD) {
+          const clearScore = scoreClearedBoard(
+            this.endlessScoreState,
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
+          this.endlessScoreState = clearScore.state;
+          const dust = this.economy.awardEndlessClear(
+            1 + 3 * this.plateRadius * (this.plateRadius + 1),
+          );
+          this.showScorePopup(
+            [],
+            `CLEAR +${formatScore(clearScore.award)}`,
+            "#77dc91",
+          );
+          this.animateEndlessScore(this.endlessScoreState.score);
+          message =
+            `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
+            `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
+          this.showEndlessCompletion({
+            clearScore,
+            dustAward: dust.award,
+            dustTotal: dust.snapshot.dust,
+          });
+        }
+        this.setBusy(false);
+      } else {
+        const analysis = this.analyzeCurrentPosition();
+        if (analysis.status === SolveStatus.DEAD_END) {
+          message = this.deadEndMessage();
+        }
+      }
+      this.status.setText(message);
+      this.rebuildPieceViews();
+      this.updateTutorialGuide();
+    }
+    this.layout();
+  }
+
+  showCampaignCompletion({
+    snapshot,
+    progressBefore,
+    scoreAward,
+    dustAward,
+    dustTotal,
+    unlockedEndless,
+  }: CampaignCompletionArgs): void {
+    const completed = snapshot.completedLevels.length;
+    const campaignComplete = snapshot.campaignCompleted;
+    this.completionOverlay.show(
+      {
+        title: campaignComplete ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE") : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE"),
+        subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${PROGRESSION_LEVEL_COUNT}`,
+        scoreAward,
+        totalScore: snapshot.campaignScore,
+        dustAward,
+        dustTotal,
+        progressStart: progressBefore.completedLevels.length,
+        progressEnd: completed,
+        progressMax: PROGRESSION_LEVEL_COUNT,
+        progressText: (value) =>
+          `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${PROGRESSION_LEVEL_COUNT}`,
+        unlockText: unlockedEndless
+          ? this.uiText("ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS", "NEW MODE UNLOCKED: ENDLESS")
+          : campaignComplete
+          ? this.uiText("ВСЕ УРОВНИ ПРОЙДЕНЫ", "ALL LEVELS COMPLETE")
+          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(PROGRESSION_LEVEL_COUNT, this.level + 2)}`,
+        continueLabel: campaignComplete
+          ? this.uiText("К РЕЗУЛЬТАТАМ", "VIEW RESULTS")
+          : this.uiText("СЛЕДУЮЩИЙ УРОВЕНЬ", "NEXT LEVEL"),
+        exitLabel: this.uiText("К ВЫБОРУ УРОВНЕЙ", "LEVEL SELECT"),
+      },
+      {
+        onContinue: () => {
+          if (campaignComplete) this.openLevelSelect();
+          else this.changeLevel(1);
+        },
+        onExit: () => this.openLevelSelect(),
+      },
+    );
+  }
+
+  showEndlessCompletion({ clearScore, dustAward, dustTotal }: EndlessCompletionArgs): void {
+    const streak = this.endlessScoreState.streak;
+    const next = nextStreakMultiplier(streak);
+    const progressMax = next?.streak ?? Math.max(1, streak);
+    this.completionOverlay.show(
+      {
+        title: this.uiText("ПОЛЕ ОЧИЩЕНО", "BOARD CLEARED"),
+        subtitle: `${this.uiText("ПОЛЕ", "BOARD")} ${String(this.level + 1).padStart(2, "0")}   ·   ${this.uiText("СЕРИЯ", "STREAK")} ${streak}`,
+        scoreAward:
+          this.endlessScoreState.score - this.endlessBoardStartScore,
+        totalScore: this.endlessScoreState.score,
+        dustAward,
+        dustTotal,
+        progressStart: Math.max(0, streak - 1),
+        progressEnd: streak,
+        progressMax,
+        progressText: (value) =>
+          next
+            ? `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)} / ${next.streak}   ${this.uiText("ДО", "TO")} ×${formatMultiplier(next.multiplier)}`
+            : `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)}   ·   ${this.uiText("МАКСИМАЛЬНЫЙ МНОЖИТЕЛЬ", "MAX MULTIPLIER")}`,
+        unlockText:
+          `${this.uiText("БОНУС ОЧИСТКИ", "CLEAR BONUS")} ×${formatMultiplier(clearScore.multiplier)}` +
+          (this.endlessAssisted ? "   ·   ASSISTED" : ""),
+        continueLabel: this.uiText("СЛЕДУЮЩЕЕ ПОЛЕ", "NEXT BOARD"),
+        exitLabel: this.uiText("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"),
+      },
+      {
+        onContinue: () => this.changeLevel(1),
+        onExit: () => this.openMainMenu(),
+      },
+    );
+  }
+
+  showScorePopup(removedPieces: readonly BoardPiece[], text: string, color = "#f3c94f"): void {
+    if (
+      this.mode !== PlayMode.STANDARD &&
+      this.mode !== PlayMode.CAMPAIGN
+    ) {
+      return;
+    }
+    const positions = removedPieces.map((piece) => this.hexToScreen(piece));
+    const x =
+      positions.length > 0
+        ? positions.reduce((sum, position) => sum + position.x, 0) /
+          positions.length
+        : this.boardCenterX;
+    const y =
+      positions.length > 0
+        ? positions.reduce((sum, position) => sum + position.y, 0) /
+          positions.length
+        : this.boardCenterY;
+    const popup = makeText(this, text, positions.length > 0 ? 17 : 21, color)
+      .setOrigin(0.5)
+      .setPosition(x, y)
+      .setDepth(18)
+      .setScale(0.82);
+    this.tweens.add({
+      targets: popup,
+      y: y - (positions.length > 0 ? 42 : 58),
+      alpha: 0,
+      scale: 1.12,
+      duration: positions.length > 0 ? 760 : 1050,
+      ease: "Cubic.Out",
+      onComplete: () => popup.destroy(),
+    });
+  }
+
+  animateEndlessScore(targetScore: number): void {
+    if (this.mode !== PlayMode.STANDARD) return;
+    this.endlessScoreTween?.stop();
+    const counter = { value: this.displayedEndlessScore };
+    const distance = Math.max(1, targetScore - this.displayedEndlessScore);
+    this.endlessScoreTween = this.tweens.add({
+      targets: counter,
+      value: targetScore,
+      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
+      ease: "Cubic.Out",
+      onUpdate: () => {
+        this.displayedEndlessScore = Math.round(counter.value);
+        this.updateEndlessHud();
+      },
+      onComplete: () => {
+        this.displayedEndlessScore = targetScore;
+        this.endlessScoreTween = undefined;
+        this.updateEndlessHud();
+      },
+    });
+  }
+
+  animateCampaignScore(targetScore: number): void {
+    if (this.mode !== PlayMode.CAMPAIGN) return;
+    this.campaignScoreTween?.stop();
+    const counter = { value: this.displayedCampaignScore };
+    const distance = Math.max(1, targetScore - this.displayedCampaignScore);
+    this.campaignScoreTween = this.tweens.add({
+      targets: counter,
+      value: targetScore,
+      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
+      ease: "Cubic.Out",
+      onUpdate: () => {
+        this.displayedCampaignScore = Math.round(counter.value);
+        this.updateCampaignHud();
+      },
+      onComplete: () => {
+        this.displayedCampaignScore = targetScore;
+        this.campaignScoreTween = undefined;
+        this.updateCampaignHud();
+      },
+    });
+  }
+
+  updateEndlessHud(): void {
+    const visible = this.mode === PlayMode.STANDARD;
+    this.endlessHud?.setVisible(visible);
+    if (!visible || !this.endlessHud) return;
+    const streak = this.endlessScoreState.streak;
+    const multiplier = streakMultiplier(streak);
+    const next = nextStreakMultiplier(streak);
+    const nextLabel = next
+      ? `${this.uiText("ДАЛЬШЕ", "NEXT")} ×${formatMultiplier(next.multiplier)} ${this.uiText("НА", "AT")} ${next.streak}`
+      : `${this.uiText("МАКС", "MAX")} ×${formatMultiplier(multiplier)}`;
+    const separator = this.scale.width < 560 ? "\n" : "   ";
+    const assisted = this.endlessAssisted ? "   ASSISTED" : "";
+    this.endlessHud.setText(
+      `${this.uiText("СЧЁТ", "SCORE")} ${formatScore(this.displayedEndlessScore)}   ` +
+        `${this.uiText("СЕРИЯ", "STREAK")} ${streak}   ×${formatMultiplier(multiplier)}` +
+        `${assisted}${separator}${nextLabel}`,
+    );
+  }
+
+  updateCampaignHud(): void {
+    const visible = this.mode === PlayMode.CAMPAIGN;
+    this.campaignHud?.setVisible(visible);
+    if (!visible || !this.campaignHud) return;
+    this.campaignHud.setText(
+      `${this.uiText("СЧЁТ КАМПАНИИ", "CAMPAIGN SCORE")} ${formatScore(this.displayedCampaignScore)}`,
+    );
+  }
+
+  updateEconomyUi(): void {
+    if (!this.economy || !this.hintButtons) return;
+    const snapshot = this.economy.snapshot;
+    const visible =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.STANDARD;
+    this.dustHud?.setValue(snapshot.dust).setVisible(visible);
+
+    const labels = {
+      [HintType.MOVE]: this.uiText("ХОД", "HINT"),
+      [HintType.UNDO]: this.uiText("ОТМЕНА", "UNDO"),
+      [HintType.RESCUE]: this.uiText("СПАСТИ", "RESCUE"),
+    };
+    for (const [type, button] of this.hintButtons) {
+      const typeVisible = visible &&
+        (type !== HintType.RESCUE || this.mode === PlayMode.STANDARD);
+      const count = snapshot.hints[type];
+      const actionAvailable =
+        (type !== HintType.MOVE || !this.positionDeadEnd) &&
+        (type !== HintType.UNDO || !this.endlessRunOver) &&
+        (type !== HintType.RESCUE || this.positionDeadEnd);
+      button
+        .setText(`${labels[type]} ${count > 0 ? `×${count}` : "+"}`)
+        .setVisible(typeVisible)
+        .setAlpha(actionAvailable ? 1 : 0.42);
+      if (typeVisible) button.setInteractive({ useHandCursor: true });
+      else button.disableInteractive();
+    }
+  }
+
+  wouldCompleteBlockedMove(piece: BoardPiece): boolean {
+    if (!this.blockedMoveKey || !this.board?.isFree(piece)) return false;
+    const selected = this.board.selected;
+    if (selected.length === 0 && piece.type !== Atom.GOLD) return false;
+    return moveKey([...selected, piece]) === this.blockedMoveKey;
+  }
+
+  deadEndMessage(): string {
+    return this.mode === PlayMode.STANDARD
+      ? this.uiText(
+          "ТУПИК: ИЗ ЭТОЙ ПОЗИЦИИ ПОЛЕ НЕ ОЧИСТИТЬ — ИСПОЛЬЗУЙТЕ СПАСЕНИЕ ИЛИ НАЧНИТЕ ЗАНОВО",
+          "DEAD END: THIS BOARD CANNOT BE CLEARED — USE RESCUE OR START OVER",
+        )
+      : this.uiText(
+          "ТУПИК: ИЗ ЭТОЙ ПОЗИЦИИ ПОЛЕ НЕ ОЧИСТИТЬ — НАЧНИТЕ УРОВЕНЬ ЗАНОВО",
+          "DEAD END: THIS BOARD CANNOT BE CLEARED — RESTART THE LEVEL",
+        );
+  }
+
+  analyzeCurrentPosition({ maxMilliseconds = 90 }: { maxMilliseconds?: number } = {}): PositionAnalysis {
+    if (!this.board || this.board.won) {
+      this.positionSolveStatus = SolveStatus.SOLVED;
+      this.positionDeadEnd = false;
+      this.knownWinningRoute = [];
+      return { status: SolveStatus.SOLVED, route: [] };
+    }
+    if (this.board.legalMoves().length === 0) {
+      this.positionSolveStatus = SolveStatus.DEAD_END;
+      this.positionDeadEnd = true;
+      this.knownWinningRoute = [];
+      if (this.mode === PlayMode.STANDARD) this.endlessRunOver = true;
+      return { status: SolveStatus.DEAD_END, route: [] };
+    }
+    const analysis = findWinningRoute(this.board, {
+      preferredSolution: this.certifiedSolution,
+      maxMilliseconds,
+      maxVisited: 80_000,
+    });
+    this.positionSolveStatus = analysis.status;
+    this.positionDeadEnd = analysis.status === SolveStatus.DEAD_END;
+    this.knownWinningRoute =
+      analysis.status === SolveStatus.SOLVED ? analysis.route : [];
+    if (this.mode === PlayMode.STANDARD && this.positionDeadEnd) {
+      this.endlessRunOver = true;
+    }
+    return analysis;
+  }
+
+  useHint(type: HintTypeValue): void {
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      this.pauseMenuVisible ||
+      !this.board
+    ) {
+      return;
+    }
+    if (type === HintType.MOVE && this.positionDeadEnd) {
+      this.status.setText(this.deadEndMessage());
+      return;
+    }
+    if (type === HintType.UNDO && this.endlessRunOver) {
+      this.status.setText(
+        this.uiText(
+          "В ТУПИКЕ ОБЫЧНАЯ ОТМЕНА НЕ СПИСЫВАЕТСЯ — ИСПОЛЬЗУЙТЕ СПАСЕНИЕ",
+          "NORMAL UNDO IS NOT SPENT IN A DEAD END — USE RESCUE",
+        ),
+      );
+      return;
+    }
+    if (
+      type === HintType.RESCUE &&
+      (this.mode !== PlayMode.STANDARD || !this.positionDeadEnd)
+    ) {
+      this.status.setText(
+        this.uiText(
+          "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ДОКАЗАННОГО ТУПИКА В ENDLESS",
+          "RESCUE IS AVAILABLE ONLY AFTER A VERIFIED ENDLESS DEAD END",
+        ),
+      );
+      return;
+    }
+    if (type === HintType.RESCUE && this.removalHistory.length === 0) {
+      this.status.setText(
+        this.uiText(
+          "ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН",
+          "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT",
+        ),
+      );
+      return;
+    }
+    if (this.economy.snapshot.hints[type] <= 0) {
+      this.openEconomyModal(type);
+      return;
+    }
+
+    if (type === HintType.MOVE) {
+      if (this.board.won) return;
+      const analysis =
+        this.positionSolveStatus === SolveStatus.SOLVED &&
+        this.knownWinningRoute.length > 0
+          ? { status: SolveStatus.SOLVED, route: this.knownWinningRoute }
+          : this.analyzeCurrentPosition({ maxMilliseconds: 180 });
+      if (analysis.status === SolveStatus.DEAD_END) {
+        this.status.setText(this.deadEndMessage());
+        this.updateEconomyUi();
+        this.render();
+        return;
+      }
+      if (analysis.status === SolveStatus.UNKNOWN || analysis.route.length === 0) {
+        this.status.setText(
+          this.uiText(
+            "НЕ УДАЛОСЬ ПОДТВЕРДИТЬ БЕЗОПАСНЫЙ ХОД — БУСТ НЕ СПИСАН",
+            "NO SAFE MOVE COULD BE VERIFIED — BOOSTER NOT SPENT",
+          ),
+        );
+        return;
+      }
+      const move = analysis.route[0];
+      if (!move) return;
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.clearMoveHint(false);
+      this.activeHintKeys = new Set(move.map(hexKey));
+      this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
+        this.hintTimer = undefined;
+        this.activeHintKeys.clear();
+        this.render();
+      });
+      this.status.setText(
+        this.uiText(
+          "ПОДСВЕЧЕН ХОД, ДЛЯ КОТОРОГО НАЙДЕН ПУТЬ ДО ПОЛНОЙ ЗАЧИСТКИ",
+          "HIGHLIGHTED MOVE HAS A VERIFIED PATH TO A FULL CLEAR",
+        ),
+      );
+      this.render();
+      this.updateEconomyUi();
+      return;
+    }
+
+    if (type === HintType.UNDO) {
+      if (this.endlessRunOver) {
+        this.status.setText("ПОСЛЕ ТУПИКА ИСПОЛЬЗУЙТЕ СПАСЕНИЕ");
+        return;
+      }
+      if (this.removalHistory.length === 0 || this.board.won) {
+        this.status.setText("ПОКА НЕЧЕГО ОТМЕНЯТЬ");
+        return;
+      }
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.restoreLastRemoval("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО");
+      return;
+    }
+
+    if (type === HintType.RESCUE) {
+      if (this.mode !== PlayMode.STANDARD || !this.positionDeadEnd) {
+        this.status.setText(this.uiText("СПАСЕНИЕ ДОСТУПНО ТОЛЬКО ПОСЛЕ ДОКАЗАННОГО ТУПИКА В ENDLESS", "RESCUE IS AVAILABLE ONLY AFTER A VERIFIED ENDLESS DEAD END"));
+        return;
+      }
+      if (this.removalHistory.length === 0) {
+        this.status.setText(this.uiText("ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН", "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT"));
+        return;
+      }
+      const rescue = findLastSolvableSnapshot(
+        this.removalHistory,
+        this.board.pieces(),
+        {
+          preferredSolution: this.certifiedSolution,
+          maxMilliseconds: 240,
+          maxVisited: 160_000,
+        },
+      );
+      if (rescue.status !== SolveStatus.SOLVED) {
+        this.status.setText(
+          rescue.status === SolveStatus.UNKNOWN
+            ? this.uiText("НЕ УДАЛОСЬ НАДЁЖНО НАЙТИ ТОЧКУ СПАСЕНИЯ — БУСТ НЕ СПИСАН", "NO SAFE RESCUE POINT COULD BE VERIFIED — BOOSTER NOT SPENT")
+            : this.uiText("В ЭТОМ ЗАБЕГЕ НЕТ РАЗРЕШИМОЙ ТОЧКИ ВОЗВРАТА — БУСТ НЕ СПИСАН", "THIS RUN HAS NO SOLVABLE RESTORE POINT — BOOSTER NOT SPENT"),
+        );
+        return;
+      }
+      if (!this.economy.consumeHint(type)) return;
+      this.markEndlessAssisted();
+      this.restoreHistorySnapshot(
+        rescue.index,
+        this.uiText("ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ   ·   ТУПИКОВЫЙ ХОД ЗАБЛОКИРОВАН", "RESTORED LAST SOLVABLE POSITION   ·   DEAD-END MOVE BLOCKED"),
+        {
+          blockedMove: rescue.blockedMove,
+          winningRoute: rescue.route,
+        },
+      );
+    }
+  }
+
+  markEndlessAssisted(): void {
+    if (this.mode === PlayMode.STANDARD) this.endlessAssisted = true;
+  }
+
+  restoreLastRemoval(message: string): void {
+    this.restoreHistorySnapshot(this.removalHistory.length - 1, message);
+  }
+
+  restoreHistorySnapshot(index: number, message: string, { blockedMove = [], winningRoute }: RestoreOptions = {}): void {
+    const snapshot = this.removalHistory[index];
+    if (!snapshot) return;
+    this.removalHistory.splice(index);
+    this.board = new GardenBoard(snapshot.pieces);
+    this.endlessScoreState = Object.freeze({ ...snapshot.endlessScoreState });
+    this.campaignLevelScore = snapshot.campaignLevelScore;
+    this.displayedEndlessScore = this.endlessScoreState.score;
+    this.displayedCampaignScore =
+      this.progress.snapshot.campaignScore + this.campaignLevelScore;
+    this.endlessScoreTween?.stop();
+    this.campaignScoreTween?.stop();
+    this.endlessRunOver = false;
+    this.positionDeadEnd = false;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
+    this.blockedMoveKey = blockedMove.length > 0 ? moveKey(blockedMove) : undefined;
+    this.clearPanelHighlight(false);
+    this.clearMoveHint(false);
+    this.status.setText(message);
+    this.setBusy(false);
+    this.rebuildPieceViews();
+    this.updateEconomyUi();
+    this.layout();
+  }
+
+  clearMoveHint(render = true): void {
+    this.hintTimer?.remove(false);
+    this.hintTimer = undefined;
+    this.activeHintKeys?.clear();
+    if (render) this.render();
+  }
+
+  openEconomyModal(type: HintTypeValue): void {
+    const product = productForHint(type);
+    if (!product) return;
+    this.economyModalVisible = true;
+    this.economyModalProduct = product;
+    this.economyModalMessage.setText("").setVisible(true);
+    this.economyModalTitle
+      .setText(this.english ? product.titleEn : product.title)
+      .setVisible(true);
+    this.economyModalBody.setVisible(true);
+    this.economyModalBuy
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+    this.economyModalAd
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+    this.economyModalClose
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+    this.economyModalHitZone.setVisible(true).setInteractive();
+    this.refreshEconomyModal();
+    this.layout();
+  }
+
+  refreshEconomyModal(): void {
+    const product = this.economyModalProduct;
+    if (!product || !this.economyModalVisible) return;
+    const snapshot = this.economy.snapshot;
+    this.economyModalBody.setText(
+      `${this.english ? product.descriptionEn : product.description}\n\n` +
+      `${this.uiText("В ИНВЕНТАРЕ", "OWNED")}: ${snapshot.hints[product.hint]}\n` +
+      `${this.uiText("БАЛАНС", "BALANCE")}: ${formatScore(snapshot.dust)} ${this.uiText("ПЫЛИ", "DUST")}`,
+    );
+    this.economyModalBuy
+      .setText(`${this.uiText("КУПИТЬ", "BUY")} ×${product.amount}  /  ${product.price} ${this.uiText("ПЫЛИ", "DUST")}`)
+      .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
+    const rewardedAmount = rewardedAmountForHint(product.hint);
+    const waitSeconds = Math.ceil(this.economy.rewardedWaitMs() / 1000);
+    this.economyModalAd
+      .setText(
+        waitSeconds > 0
+          ? `${this.uiText("РЕКЛАМА ЧЕРЕЗ", "AD IN")} ${waitSeconds}${this.uiText("с", "s")}`
+          : `${this.uiText("СМОТРЕТЬ РЕКЛАМУ", "WATCH AD")}  /  +${rewardedAmount}`,
+      )
+      .setAlpha(waitSeconds > 0 ? 0.48 : 1);
+  }
+
+  purchaseEconomyModalProduct(): void {
+    if (this.rewardedAdPending) return;
+    const product = this.economyModalProduct;
+    if (!product) return;
+    const result = this.economy.purchase(product.id);
+    this.economyModalMessage
+      .setText(
+        result.ok
+          ? `${this.uiText("КУПЛЕНО", "PURCHASED")}: +${product.amount}`
+          : `${this.uiText("НЕ ХВАТАЕТ", "NEED")} ${product.price - result.snapshot.dust} ${this.uiText("ПЫЛИ", "DUST")}`,
+      )
+      .setColor(result.ok ? "#77dc91" : "#ff6b67");
+    this.updateEconomyUi();
+    this.refreshEconomyModal();
+  }
+
+  async showRewardedForEconomyModal() {
+    if (this.rewardedAdPending || !this.economyModalProduct) return;
+    const waitMs = this.economy.rewardedWaitMs();
+    if (waitMs > 0) {
+      this.economyModalMessage
+        .setText(
+          `${this.uiText("СЛЕДУЮЩАЯ РЕКЛАМА ЧЕРЕЗ", "NEXT AD IN")} ${Math.ceil(waitMs / 1000)}${this.uiText("с", "s")}`,
+        )
+        .setColor("#ff6b67");
+      this.refreshEconomyModal();
+      return;
+    }
+    const product = this.economyModalProduct;
+    const amount = rewardedAmountForHint(product.hint);
+    this.rewardedAdPending = true;
+    this.economyModalMessage
+      .setText(
+        this.platform.isSimulated
+          ? this.uiText("ТЕСТОВАЯ РЕКЛАМА...", "TEST AD...")
+          : this.uiText("ЗАГРУЗКА РЕКЛАМЫ...", "LOADING AD..."),
+      )
+      .setColor("#f3c94f");
+    this.economyModalBuy.disableInteractive().setAlpha(0.4);
+    this.economyModalAd.disableInteractive().setAlpha(0.4);
+    this.economyModalClose.disableInteractive().setAlpha(0.4);
+
+    const result = await this.platform.showRewarded();
+    this.rewardedAdPending = false;
+    if (result.status === RewardedAdStatus.REWARDED) {
+      const grant = this.economy.grantRewardedHint(product.hint, { amount });
+      if (grant.ok) {
+        this.updateEconomyUi();
+        this.closeEconomyModal();
+        this.status.setText(
+          `${this.uiText("ПОЛУЧЕНО", "RECEIVED")}: ${this.english ? product.titleEn : product.title} +${amount}`,
+        );
+        return;
+      }
+      this.economyModalMessage
+        .setText(this.uiText("РЕКЛАМНАЯ НАГРАДА УЖЕ ПОЛУЧЕНА", "AD REWARD ALREADY CLAIMED"))
+        .setColor("#ff6b67");
+    } else if (result.status === RewardedAdStatus.CLOSED) {
+      this.economyModalMessage
+        .setText(this.uiText("НАГРАДА НЕ ПОЛУЧЕНА", "NO REWARD RECEIVED"))
+        .setColor("#ff6b67");
+    } else if (result.status === RewardedAdStatus.BUSY) {
+      this.economyModalMessage
+        .setText(this.uiText("РЕКЛАМА УЖЕ ОТКРЫТА", "AD IS ALREADY OPEN"))
+        .setColor("#ff6b67");
+    } else {
+      this.economyModalMessage
+        .setText(this.uiText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА", "AD IS CURRENTLY UNAVAILABLE"))
+        .setColor("#ff6b67");
+    }
+    if (!this.economyModalVisible) return;
+    this.economyModalBuy.setInteractive({ useHandCursor: true });
+    this.economyModalAd.setInteractive({ useHandCursor: true }).setAlpha(1);
+    this.economyModalClose.setInteractive({ useHandCursor: true }).setAlpha(1);
+    this.updateEconomyUi();
+    this.refreshEconomyModal();
+  }
+
+  closeEconomyModal(): void {
+    if (this.rewardedAdPending) return;
+    this.economyModalVisible = false;
+    this.economyModalProduct = undefined;
+    this.economyModalGraphics.clear();
+    this.economyModalPanel.setVisible(false);
+    this.economyModalHitZone.setVisible(false).disableInteractive();
+    for (const item of [
+      this.economyModalTitle,
+      this.economyModalBody,
+      this.economyModalMessage,
+      this.economyModalBuy,
+      this.economyModalAd,
+      this.economyModalClose,
+    ]) {
+      item.setVisible(false);
+    }
+    this.economyModalBuy.disableInteractive();
+    this.economyModalAd.disableInteractive();
+    this.economyModalClose.disableInteractive();
+    this.render();
+  }
+
+  rebuildPieceViews(): void {
+    this.clearPieceViews();
+    if (!this.board) return;
+    for (const piece of this.board.pieces()) {
+      const glyphFrame = atomGlyphFrame(piece.type);
+      const glyph = glyphFrame && this.textures.exists(glyphFrame)
+        ? this.add.image(0, 0, glyphFrame).setDepth(2)
+        : undefined;
+      const label = glyph
+        ? undefined
+        : makeText(this, ATOM_LABELS[piece.type], 16, "#eef3f8")
+        .setOrigin(0.5)
+        .setFontStyle("bold")
+        .setDepth(2);
+      const hitZone = this.add.zone(0, 0, 56, 56).setDepth(3);
+      hitZone.setInteractive(
+        new Phaser.Geom.Circle(28, 28, 28),
+        Phaser.Geom.Circle.Contains,
+      );
+      if (hitZone.input) hitZone.input.cursor = "pointer";
+      hitZone.on("pointerdown", () => this.selectPiece(piece));
+      hitZone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+        if (pointer.wasTouch) return;
+        this.hoveredPieceKey = hexKey(piece);
+        this.render();
+      });
+      hitZone.on("pointerout", () => {
+        if (this.hoveredPieceKey !== hexKey(piece)) return;
+        this.hoveredPieceKey = undefined;
+        this.render();
+      });
+      this.pieceViews.set(hexKey(piece), { piece, glyph, label, hitZone });
+    }
+  }
+
+  clearPieceViews(): void {
+    for (const view of this.pieceViews.values()) {
+      view.glyph?.destroy();
+      view.label?.destroy();
+      view.hitZone.destroy();
+    }
+    this.pieceViews.clear();
+    this.hoveredPieceKey = undefined;
+  }
+
+  rebuildPanelViews(): void {
+    this.panelTypes = panelTypesForVariant(this.variant, this.initialPieces);
+    this.inventory.rebuild(this.panelTypes);
+    this.panelViews = this.inventory.views;
+    this.panelLayout = undefined;
+  }
+
+  selectPanelType(type: AtomType): void {
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      this.pauseMenuVisible ||
+      !this.board
+    ) return;
+    if (!this.board) {
+      this.inventory.graphics.clear();
+      return;
+    }
+    const state = createPanelState(this.board, {
+      variant: this.variant,
+      types: this.panelTypes,
+    });
+    const entry = state.entries.find((candidate) => candidate.type === type);
+    if (!entry || entry.depleted) return;
+    if (this.activePanelType === type) {
+      this.clearPanelHighlight();
+      return;
+    }
+    this.clearPanelHighlight(false);
+    this.activePanelType = type;
+    this.panelHighlightTimer = this.time.delayedCall(
+      PANEL_HIGHLIGHT_DURATION_MS,
+      () => {
+        this.panelHighlightTimer = undefined;
+        this.activePanelType = null;
+        this.render();
+      },
+    );
+    this.render();
+  }
+
+  clearPanelHighlight(render = true): void {
+    this.panelHighlightTimer?.remove(false);
+    this.panelHighlightTimer = undefined;
+    this.activePanelType = null;
+    if (render) this.render();
+  }
+
+  tutorialAllowsPiece(piece: BoardPiece): boolean {
+    if (
+      this.mode !== PlayMode.TUTORIAL ||
+      this.tutorialStep >= TUTORIAL_GUIDED_MOVE_COUNT
+    ) {
+      return true;
+    }
+    return this.tutorialSolution[this.tutorialStep]?.some(
+      (position) => hexKey(position) === hexKey(piece),
+    ) ?? false;
+  }
+
+  updateTutorialGuide(): void {
+    if (this.mode !== PlayMode.TUTORIAL) {
+      this.tutorialUi.setCopy("", false);
+      return;
+    }
+    if (this.board?.won) {
+      this.tutorialUi.setCopy(
+        this.uiText("Готово. Переходите к первому уровню.", "Done. Continue to level 1."),
+        true,
+      );
+    } else {
+      const presentation = tutorialPresentationStep(
+        Math.min(this.tutorialStep, 2),
+        this.english,
+      );
+      this.tutorialUi.setCopy(presentation.copy, true);
+    }
+    this.status.setText("");
+  }
+
+  renderTutorialPulse(): void {
+    const enabled =
+      this.mode === PlayMode.TUTORIAL &&
+      this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT &&
+      Boolean(this.board);
+    const focus = enabled && this.tutorialStep === 0
+      ? this.tutorialSolution[0]?.[0]
+      : undefined;
+    const emptyRun = focus && this.board
+      ? findLongestEmptyNeighbourRun(this.board.pieces(), focus).slice(0, 3)
+      : [];
+    this.tutorialUi.renderGuide({
+      enabled,
+      step: this.tutorialStep,
+      emptyRun,
+      targets: this.tutorialSolution[this.tutorialStep] ?? [],
+      visiblePieceKeys: new Set(this.pieceViews.keys()),
+      keyFor: hexKey,
+      toScreen: (position) => this.hexToScreen(position),
+      hexSize: this.hexSize,
+    });
+  }
+
+  hideTutorialNeighbourLabels(): void {
+    this.tutorialUi.hideNeighbourLabels();
+  }
+
+  override update(): void {}
+
+  showMechanicCardForLevel(): void {
+    const introduction =
+      this.mode === PlayMode.CAMPAIGN && !this.progress.isCompleted(this.level)
+        ? mechanicIntroductionForLevel(this.level)
+        : undefined;
+    const text = introduction
+      ? this.english ? introduction.textEn : introduction.text
+      : undefined;
+    if (!text) {
+      this.hideMechanicCard();
+      return;
+    }
+    this.mechanicCardVisible = true;
+    this.mechanicCardText.setText(text).setVisible(true);
+    this.mechanicCardHint
+      .setText(this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"))
+      .setVisible(true);
+    this.mechanicCardHitZone
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+  }
+
+  showEndlessUnlockedCard(): void {
+    this.mechanicCardVisible = true;
+    this.mechanicCardText
+      .setText(
+        "ОТКРЫТ НОВЫЙ РЕЖИМ\n\nENDLESS\n\nНАЧНИТЕ С ПОЛЯ НА 37 КЛЕТОК\nИ УДЕРЖИВАЙТЕ СТРИК",
+      )
+      .setVisible(true);
+    this.mechanicCardHint
+      .setText("НАЖМИТЕ, ЧТОБЫ ПРОДОЛЖИТЬ")
+      .setVisible(true);
+    this.mechanicCardHitZone
+      .setVisible(true)
+      .setInteractive({ useHandCursor: true });
+  }
+
+  dismissMechanicCard(): void {
+    if (!this.mechanicCardVisible) return;
+    this.hideMechanicCard();
+    this.render();
+  }
+
+  hideMechanicCard(): void {
+    this.mechanicCardVisible = false;
+    this.mechanicCardGraphics?.clear();
+    this.mechanicCardPanel?.setVisible(false);
+    this.mechanicCardText?.setVisible(false);
+    this.mechanicCardHint?.setVisible(false);
+    this.mechanicCardHitZone?.setVisible(false).disableInteractive();
+  }
+
+  setBusy(value: boolean): void {
+    this.busy = value;
+    this.pauseRestartButton?.setAlpha(value ? 0.45 : 1);
+    this.hud.setBusy(value);
+  }
+
+  layout(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const {
+      compact,
+      portrait,
+      sideDock,
+      contentLeft,
+      contentWidth,
+      topBarHeight,
+      boardTopGap,
+      boardBottomGap,
+    } = boardChromeMetrics(width, height);
+    const margin = compact ? 10 : 18;
+    const contentCenter = contentLeft + contentWidth / 2;
+
+    this.chromeGraphics.clear();
+    layoutPaperBackground(this.backgroundImage, width, height);
+    this.chromeGraphics.fillStyle(THEME_COLORS.chromeRaised, 0.96).fillRect(0, 0, width, topBarHeight);
+    this.chromeGraphics
+      .lineStyle(1, THEME_COLORS.line, 1)
+      .lineBetween(0, topBarHeight, width, topBarHeight);
+    if (sideDock) {
+      this.chromeGraphics.fillStyle(THEME_COLORS.chromeRaised, 0.98).fillRect(0, 0, contentLeft, height);
+      this.chromeGraphics
+        .lineStyle(1, THEME_COLORS.line, 1)
+        .lineBetween(contentLeft, 0, contentLeft, height);
+    }
+
+    const utilitySize = compact ? 42 : 46;
+    const utilityGap = 8;
+    const settingsX = width - margin - utilitySize / 2;
+    const shopX = settingsX - utilitySize - utilityGap;
+    this.menuButton
+      .setFixedSize(utilitySize, utilitySize)
+      .setPosition(margin + utilitySize / 2, 28);
+    this.settingsButton
+      .setFixedSize(utilitySize, utilitySize)
+      .setPosition(settingsX, 28);
+    this.shopButton
+      .setFixedSize(utilitySize, utilitySize)
+      .setPosition(shopX, 28);
+    this.header
+      .setFontSize(compact ? 12 : 15)
+      .setFontStyle("bold")
+      .setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
+    resizeNineSlice(
+      this.headerPanel,
+      portrait
+        ? Math.min(Math.max(300, contentWidth - 24), 380)
+        : Math.min(Math.max(220, contentWidth * 0.58), 420),
+      38,
+    );
+    this.headerPanel.setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
+    this.endlessHud
+      .setFontSize(compact ? 11 : 12)
+      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
+    this.campaignHud
+      .setFontSize(compact ? 11 : 12)
+      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
+    this.dustHud
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(
+        shopX - utilitySize / 2 - (compact ? 38 : 48),
+        28,
+      );
+    this.updateEndlessHud();
+    this.updateCampaignHud();
+    this.updateEconomyUi();
+    this.tutorialUi.layout(
+      contentCenter,
+      portrait ? 111 : sideDock ? 42 : 56,
+      compact ? 11 : 13,
+      Math.max(220, contentWidth - 28),
+    );
+
+    this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
+    const panelTop = this.panelLayout?.top ?? height - 68;
+    if (!sideDock) {
+      const dockTop = Math.max(topBarHeight + 120, panelTop - 144);
+      this.chromeGraphics.fillStyle(THEME_COLORS.chrome, 0.98).fillRect(0, dockTop, width, height - dockTop);
+      this.chromeGraphics.lineStyle(1, THEME_COLORS.line, 1).lineBetween(0, dockTop, width, dockTop);
+    }
+    const hintEntries = [...this.hintButtons.entries()].filter(
+      ([type]) =>
+        (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
+        this.mode === PlayMode.STANDARD,
+    );
+
+    let boardBottom;
+    const tutorialContinue =
+      this.mode === PlayMode.TUTORIAL && this.board?.won === true;
+    if (sideDock) {
+      const sideX = contentLeft / 2;
+      const sideButtonWidth = contentLeft - 16;
+      this.menuButton
+        .setFixedSize(Math.min(40, sideButtonWidth), 40)
+        .setPosition(sideX, 23);
+      hintEntries.forEach(([, button], index) => {
+        button
+          .setFontSize(10)
+          .setFixedSize(sideButtonWidth, 44)
+          .setPosition(sideX, 84 + index * 48);
+      });
+      this.nextButton
+        .setText(this.uiText("ИГРАТЬ", "PLAY"))
+        .setFontSize(10)
+        .setFixedSize(sideButtonWidth, 44)
+        .setPosition(sideX, height - 26)
+        .setVisible(tutorialContinue);
+      if (tutorialContinue) this.nextButton.setInteractive({ useHandCursor: true });
+      else this.nextButton.disableInteractive();
+      this.status
+        .setFontSize(10)
+        .setWordWrapWidth(Math.max(240, contentWidth - 30))
+        .setPosition(contentCenter, panelTop - 9);
+      boardBottom = panelTop - boardBottomGap;
+    } else {
+      const actionsY = panelTop - 58;
+      const actionWidth = Math.min(
+        compact ? 168 : 190,
+        Math.max(104, (contentWidth - margin * 2) / Math.max(1, hintEntries.length) - 8),
+      );
+      const actionStep = actionWidth + 8;
+      const actionLeft = contentCenter - actionStep * (hintEntries.length - 1) / 2;
+      hintEntries.forEach(([, button], index) => {
+        button
+          .setFontSize(compact ? 11 : 12)
+          .setFixedSize(actionWidth, 46)
+          .setPosition(actionLeft + actionStep * index, actionsY);
+      });
+      this.nextButton
+        .setText(this.uiText("ИГРАТЬ", "PLAY"))
+        .setFontSize(11)
+        .setFixedSize(150, 46)
+        .setPosition(contentCenter, actionsY)
+        .setVisible(tutorialContinue);
+      if (tutorialContinue) this.nextButton.setInteractive({ useHandCursor: true });
+      else this.nextButton.disableInteractive();
+      const actionRowVisible = hintEntries.length > 0 || tutorialContinue;
+      const statusY = actionRowVisible ? actionsY - 40 : panelTop - 20;
+      this.status
+        .setFontSize(compact ? 10 : 12)
+        .setWordWrapWidth(Math.max(240, contentWidth - 32))
+        .setPosition(contentCenter, statusY);
+      boardBottom = statusY - 20;
+    }
+
+    const boardTop = topBarHeight + boardTopGap;
+    const boardHeight = Math.max(100, boardBottom - boardTop);
+    const boardWidth = Math.max(100, contentWidth - margin * 2);
+    const plateWidth = Math.sqrt(3) * (this.plateRadius * 2 + 1) + 0.2;
+    const plateHeight = this.plateRadius * 3 + 2.2;
+    this.hexSize = Math.max(
+      9,
+      Math.min(48, boardWidth / plateWidth, boardHeight / plateHeight),
+    );
+    this.boardCenterX = contentCenter;
+    this.boardCenterY = boardTop + boardHeight / 2;
+
+    if (this.panelLayout && !sideDock) {
+      const visualBoardBottom = Math.max(
+        ...this.plateCells.map((cell) => this.hexToScreen(cell).y),
+      ) + this.hexSize * 0.88;
+      const anchor = inventoryAnchorMetrics({
+        boardBottom: visualBoardBottom,
+        panelHeight: this.panelLayout.height,
+        viewportHeight: height,
+        gap: compact ? 8 : 12,
+        bottomPadding: hintEntries.length > 0 || tutorialContinue ? 86 : 10,
+      });
+      this.repositionPanel(anchor.top);
+
+      const panelBottom = anchor.top + this.panelLayout.height;
+      if (hintEntries.length > 0) {
+        const actionY = panelBottom + 30;
+        const actionWidth = Math.min(
+          compact ? 168 : 190,
+          Math.max(104, (contentWidth - margin * 2) / Math.max(1, hintEntries.length) - 8),
+        );
+        const actionStep = actionWidth + 8;
+        const actionLeft = contentCenter - actionStep * (hintEntries.length - 1) / 2;
+        hintEntries.forEach(([, button], index) => {
+          button.setPosition(actionLeft + actionStep * index, actionY);
+        });
+        this.status.setPosition(contentCenter, Math.min(height - 14, actionY + 34));
+      } else if (tutorialContinue) {
+        this.nextButton.setPosition(contentCenter, Math.min(height - 28, panelBottom + 30));
+      }
+    }
+
+    for (const view of this.pieceViews.values()) {
+      const position = this.hexToScreen(view.piece);
+      const hitDiameter = Math.max(42, this.hexSize * 1.56);
+      view.label
+        ?.setPosition(position.x, position.y)
+        .setFontSize(Math.max(11, Math.floor(this.hexSize * 0.57)));
+      view.hitZone.setPosition(position.x, position.y).setSize(hitDiameter, hitDiameter);
+      const hitArea = view.hitZone.input?.hitArea;
+      if (hitArea instanceof Phaser.Geom.Circle) {
+        hitArea.setTo(
+          hitDiameter / 2,
+          hitDiameter / 2,
+          hitDiameter / 2,
+        );
+      }
+    }
+    this.render();
+    this.layoutMechanicCard(width, height, compact);
+    this.layoutEconomyModal(width, height, compact);
+    this.layoutPauseMenu(width, height);
+    this.completionOverlay.layout(width, height);
+  }
+
+  layoutPauseMenu(width: number, height: number): void {
+    this.pauseMenuGraphics.clear();
+    if (!this.pauseMenuVisible) {
+      this.pauseMenuPanel.setVisible(false);
+      return;
+    }
+    const campaignNavigation =
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
+    const buttons = [
+      this.pauseResumeButton,
+      this.pauseRestartButton,
+      ...(campaignNavigation ? [this.pauseLevelsButton] : []),
+      this.pauseExitButton,
+    ];
+    const compact = width < 560;
+    const cardWidth = Math.min(width - 28, 430);
+    const cardHeight = Math.min(height - 24, 104 + buttons.length * 54);
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    const buttonWidth = Math.min(cardWidth - 36, 330);
+    const startY = y + 88;
+    const step = Math.min(54, (cardHeight - 102) / buttons.length);
+
+    this.pauseMenuHitZone.setPosition(width / 2, height / 2).setSize(width, height);
+    this.pauseMenuHitZone.input?.hitArea?.setTo(0, 0, width, height);
+    this.pauseMenuGraphics.fillStyle(0x000000, 0.78).fillRect(0, 0, width, height);
+    resizeNineSlice(this.pauseMenuPanel, cardWidth, cardHeight);
+    this.pauseMenuPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
+    this.pauseMenuTitle
+      .setText(this.uiText("ПАУЗА", "PAUSED"))
+      .setFontSize(compact ? 20 : 24)
+      .setPosition(width / 2, y + 38);
+    this.pauseResumeButton.setText(this.uiText("ПРОДОЛЖИТЬ", "RESUME")).setBackgroundColor("#526d5a");
+    this.pauseRestartButton.setText(
+      this.mode === PlayMode.STANDARD
+        ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN")
+        : this.uiText("ЗАНОВО", "RESTART"),
+    );
+    this.pauseLevelsButton.setText(this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"));
+    this.pauseExitButton.setText(this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"));
+    buttons.forEach((button, index) => {
+      button
+        .setFontSize(compact ? 11 : 13)
+        .setFixedSize(buttonWidth, Math.min(44, step - 6))
+        .setPosition(width / 2, startY + index * step);
+    });
+  }
+
+  layoutEconomyModal(width: number, height: number, compact: boolean): void {
+    this.economyModalGraphics.clear();
+    if (!this.economyModalVisible) {
+      this.economyModalPanel.setVisible(false);
+      return;
+    }
+    this.economyModalHitZone
+      .setPosition(width / 2, height / 2)
+      .setSize(width, height);
+    if (this.economyModalHitZone.input?.hitArea) {
+      this.economyModalHitZone.input.hitArea.setTo(0, 0, width, height);
+    }
+    const cardWidth = Math.min(width - 28, 500);
+    const cardHeight = compact ? 300 : 320;
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    this.economyModalGraphics.fillStyle(0x000000, 0.78);
+    this.economyModalGraphics.fillRect(0, 0, width, height);
+    resizeNineSlice(this.economyModalPanel, cardWidth, cardHeight);
+    this.economyModalPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
+    this.economyModalTitle
+      .setFontSize(compact ? 16 : 19)
+      .setPosition(width / 2, y + 38);
+    this.economyModalBody
+      .setFontSize(compact ? 11 : 13)
+      .setWordWrapWidth(cardWidth - 36)
+      .setPosition(width / 2, y + 112);
+    this.economyModalMessage.setPosition(width / 2, y + 174);
+    this.economyModalAd
+      .setFontSize(compact ? 10 : 13)
+      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
+      .setPosition(width / 2, y + cardHeight - 116);
+    this.economyModalBuy
+      .setFontSize(compact ? 10 : 13)
+      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
+      .setPosition(width / 2, y + cardHeight - 70);
+    this.economyModalClose
+      .setFontSize(compact ? 10 : 12)
+      .setPosition(width / 2, y + cardHeight - 27);
+  }
+
+  layoutMechanicCard(width: number, height: number, compact: boolean): void {
+    this.mechanicCardHitZone.setPosition(width / 2, height / 2).setSize(width, height);
+    if (this.mechanicCardHitZone.input?.hitArea) {
+      this.mechanicCardHitZone.input.hitArea.setTo(0, 0, width, height);
+    }
+    if (!this.mechanicCardVisible) return;
+
+    const cardWidth = Math.min(width - 28, 520);
+    const cardHeight = compact ? 210 : 230;
+    const x = (width - cardWidth) / 2;
+    const y = (height - cardHeight) / 2;
+    this.mechanicCardGraphics.clear();
+    this.mechanicCardGraphics.fillStyle(0x000000, 0.72);
+    this.mechanicCardGraphics.fillRect(0, 0, width, height);
+    resizeNineSlice(this.mechanicCardPanel, cardWidth, cardHeight);
+    this.mechanicCardPanel
+      .setPosition(width / 2, y + cardHeight / 2)
+      .setVisible(true);
+    this.mechanicCardText
+      .setFontSize(compact ? 14 : 18)
+      .setPosition(width / 2, height / 2 - 18)
+      .setWordWrapWidth(cardWidth - 34);
+    this.mechanicCardHint.setPosition(width / 2, y + cardHeight - 28);
+  }
+
+  layoutPanel(contentLeft: number, contentWidth: number, _width: number, height: number, compact: boolean): void {
+    this.panelLayout = this.inventory.layout(
+      contentLeft,
+      contentWidth,
+      height,
+      compact,
+      this.panelTypes,
+    );
+  }
+
+  repositionPanel(top: number): void {
+    this.inventory.reposition(top);
+    this.panelLayout = this.inventory.layoutState;
+  }
+
+  hexToScreen(index: HexCoord): { x: number; y: number } {
+    const q = index.q - BOARD_CENTER.q;
+    const r = index.r - BOARD_CENTER.r;
+    return {
+      x: this.boardCenterX + this.hexSize * Math.sqrt(3) * (q + r / 2),
+      y: this.boardCenterY + this.hexSize * 1.5 * r,
+    };
+  }
+
+  clearCellViews(): void {
+    for (const image of this.cellViews.values()) image.destroy();
+    this.cellViews.clear();
+  }
+
+  renderAtlasCells(): boolean {
+    const requiredFrames = Object.values(GAMEPLAY_FRAMES);
+    if (!requiredFrames.every((frame) => this.textures.exists(frame))) {
+      this.clearCellViews();
+      return false;
+    }
+
+    const wanted = new Set(this.plateCells.map(hexKey));
+    for (const [key, image] of this.cellViews) {
+      if (wanted.has(key)) continue;
+      image.destroy();
+      this.cellViews.delete(key);
+    }
+
+    const selected = new Set(this.board?.selected.map(hexKey));
+    for (const cell of this.plateCells) {
+      const key = hexKey(cell);
+      let image = this.cellViews.get(key);
+      if (!image) {
+        const created: Phaser.GameObjects.Image = this.add
+          .image(0, 0, GAMEPLAY_FRAMES.hexIdle)
+          .setDepth(0);
+        this.cellViews.set(key, created);
+        image = created;
+      }
+      const position = this.hexToScreen(cell);
+      const frame = hexFrameForState({
+        selected: selected.has(key),
+        hovered: this.hoveredPieceKey === key,
+      });
+      image
+        .setPosition(position.x, position.y)
+        .setTexture(frame)
+        .setDisplaySize(this.hexSize * 2, this.hexSize * 2);
+    }
+    return true;
+  }
+
+  drawHex(graphics: Phaser.GameObjects.Graphics, x: number, y: number, radius: number, fillColor: number, lineColor: number, lineWidth = 1): void {
+    const points = [];
+    for (let i = 0; i < 6; i += 1) {
+      const angle = Phaser.Math.DegToRad(60 * i - 30);
+      points.push(
+        new Phaser.Geom.Point(
+          x + radius * Math.cos(angle),
+          y + radius * Math.sin(angle),
+        ),
+      );
+    }
+    graphics.fillStyle(fillColor, 1).fillPoints(points, true);
+    graphics.lineStyle(lineWidth, lineColor, 1).strokePoints(points, true);
+  }
+
+  render(): void {
+    const count = this.board?.size ?? 0;
+    const total = this.initialPieces.length || 0;
+    const levelLabel =
+      this.mode === PlayMode.CAMPAIGN
+        ? `${String(this.level + 1).padStart(2, "0")}/${PROGRESSION_LEVEL_COUNT}`
+        : String(this.level + 1).padStart(4, "0");
+    this.header.setText(
+      this.mode === PlayMode.TUTORIAL
+        ? tutorialPresentationStep(Math.min(this.tutorialStep, 2), this.english).header
+        : this.mode === PlayMode.CAMPAIGN
+        ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}  ·  ${this.uiText("ОСТАЛОСЬ", "LEFT")} ${count}/${total}`
+        : `ENDLESS  ·  ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}  ·  ${count}/${total}`,
+    );
+    this.updateEndlessHud();
+    this.updateCampaignHud();
+    this.updateEconomyUi();
+
+    this.renderPanel();
+    if (this.cellViews.size > 0) this.clearCellViews();
+    this.cellGraphics.clear();
+    for (const cell of this.plateCells) {
+      const position = this.hexToScreen(cell);
+      this.drawHex(
+        this.cellGraphics,
+        position.x,
+        position.y,
+        this.hexSize * 0.95,
+        0x141a22,
+        0x2a3440,
+        Math.max(1, this.hexSize * 0.025),
+      );
+    }
+
+    this.atomGraphics.clear();
+    if (!this.board) return;
+    const selected = new Set(this.board.selected.map(hexKey));
+    for (const view of this.pieceViews.values()) {
+      const position = this.hexToScreen(view.piece);
+      const free = this.board.isFree(view.piece);
+      const isPanelMatch = this.activePanelType === view.piece.type;
+      const isHinted = this.activeHintKeys.has(hexKey(view.piece));
+      const isBlocked =
+        this.blockedMoveKey !== undefined &&
+        this.blockedMoveKey.split("|").includes(hexKey(view.piece));
+      const key = hexKey(view.piece);
+      const radius = this.hexSize * 0.7;
+      const visualState = resolvePieceVisualState({
+        free,
+        selected: selected.has(key),
+        hovered: this.hoveredPieceKey === key,
+        hinted: isHinted,
+        blocked: isBlocked,
+        now: this.time.now,
+      });
+      const filterAlpha = pieceAlphaForFilter({
+        filterActive: this.activePanelType !== null,
+        matchesFilter: isPanelMatch,
+        locked: !free,
+      });
+      const alpha = Math.min(visualState.alpha, filterAlpha);
+
+      if (!view.glyph) {
+        this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
+        this.atomGraphics.fillCircle(
+          position.x,
+          position.y + Math.max(1, this.hexSize * 0.08),
+          radius * 1.08,
+        );
+        this.atomGraphics.fillStyle(0x182231, alpha);
+        this.atomGraphics.fillCircle(position.x, position.y, radius * 1.04);
+        this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], alpha);
+        this.atomGraphics.fillCircle(position.x, position.y, radius * 0.9);
+        if (free) {
+          this.atomGraphics.fillStyle(0xffffff, 0.12);
+          this.atomGraphics.fillEllipse(
+            position.x - radius * 0.22,
+            position.y - radius * 0.27,
+            radius * 0.62,
+            radius * 0.3,
+          );
+        }
+        this.atomGraphics.lineStyle(
+          Math.max(1, this.hexSize * 0.045),
+          0x657080,
+          1,
+        );
+        this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
+      }
+
+      if (visualState.haloAlpha > 0) {
+        const feedbackColor =
+          visualState.kind === "blocked"
+            ? 0xef5a50
+            : visualState.kind === "hinted"
+            ? 0x68cf75
+            : visualState.kind === "selected"
+            ? 0xf3c94f
+            : 0xe4edf6;
+        this.atomGraphics.lineStyle(
+          Math.max(1, this.hexSize * (visualState.haloWidth === 1 ? 0.035 : 0.055)),
+          feedbackColor,
+          visualState.haloAlpha,
+        );
+        this.atomGraphics.strokeCircle(
+          position.x,
+          position.y,
+          radius * 1.1 * visualState.scale,
+        );
+      }
+
+      view.glyph
+        ?.setPosition(position.x, position.y)
+        .setDisplaySize(
+          radius * 1.78 * visualState.scale,
+          radius * 1.78 * visualState.scale,
+        )
+        .setAlpha(alpha);
+      view.label
+        ?.setColor(free ? "#eef3f8" : "#9aa7b5")
+        .setAlpha(free ? 1 : 0.5);
+    }
+    this.renderTutorialPulse();
+  }
+
+  renderPanel(): void {
+    if (!this.panelLayout) {
+      this.inventory.graphics.clear();
+      return;
+    }
+    if (!this.board) {
+      this.inventory.graphics.clear();
+      return;
+    }
+    const state = createPanelState(this.board, {
+      variant: this.variant,
+      activeType: this.activePanelType,
+      types: this.panelTypes,
+    });
+    if (
+      this.activePanelType !== null &&
+      state.entries.find((entry) => entry.type === this.activePanelType)?.depleted
+    ) {
+      this.panelHighlightTimer?.remove(false);
+      this.panelHighlightTimer = undefined;
+      this.activePanelType = null;
+    }
+    this.inventory.render(state);
+  }
+}

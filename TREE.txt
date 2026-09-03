@@ -136,11 +136,69 @@ garden-js/
 │   │       └── REGENERATION_PROMPTS-paper-sketchbook.md
 │   └── superpowers/
 │       ├── plans/
-│       │   └── 2026-09-03-chatgpt-context-workflow.md
+│       │   ├── 2026-09-03-chatgpt-context-workflow.md
+│       │   ├── 2026-09-03-presentation-b1-refinement.md
+│       │   ├── 2026-09-03-typescript-migration-board-boundaries.md
+│       │   └── 2026-09-03-visual-presentation-overhaul.md
 │       └── specs/
-│           └── 2026-09-03-chatgpt-context-workflow-design.md
+│           ├── 2026-09-03-chatgpt-context-workflow-design.md
+│           ├── 2026-09-03-presentation-b1-refinement-design.md
+│           ├── 2026-09-03-typescript-migration-board-boundaries-design.md
+│           └── 2026-09-03-visual-presentation-overhaul-design.md
 ├── public/
 │   └── assets/
+│       ├── chequered-ink/
+│       │   ├── gems/
+│       │   │   ├── air.png
+│       │   │   ├── copper.png
+│       │   │   ├── earth.png
+│       │   │   ├── fire.png
+│       │   │   ├── gold.png
+│       │   │   ├── iron.png
+│       │   │   ├── lead.png
+│       │   │   ├── mors.png
+│       │   │   ├── quicksilver.png
+│       │   │   ├── quintessence.png
+│       │   │   ├── salt.png
+│       │   │   ├── silver.png
+│       │   │   ├── tin.png
+│       │   │   ├── vitae.png
+│       │   │   └── water.png
+│       │   ├── icons/
+│       │   │   ├── back.png
+│       │   │   ├── badge-count.png
+│       │   │   ├── badge-reward.png
+│       │   │   ├── check.png
+│       │   │   ├── dust.png
+│       │   │   ├── failure.png
+│       │   │   ├── hint.png
+│       │   │   ├── next.png
+│       │   │   ├── pause.png
+│       │   │   ├── rating.png
+│       │   │   ├── rescue.png
+│       │   │   ├── retry.png
+│       │   │   ├── settings.png
+│       │   │   ├── shop.png
+│       │   │   ├── success.png
+│       │   │   ├── unavailable.png
+│       │   │   └── undo.png
+│       │   ├── tokens/
+│       │   │   ├── hex-hover.png
+│       │   │   ├── hex-idle.png
+│       │   │   └── hex-selected.png
+│       │   ├── ui/
+│       │   │   ├── button-wide-clicked.png
+│       │   │   ├── button-wide-completed.png
+│       │   │   ├── button-wide-current.png
+│       │   │   ├── button-wide-hover.png
+│       │   │   ├── button-wide-idle.png
+│       │   │   ├── button-wider-clicked.png
+│       │   │   ├── button-wider-hover.png
+│       │   │   ├── button-wider-idle.png
+│       │   │   ├── panel-black.png
+│       │   │   ├── panel-green.png
+│       │   │   └── panel-red.png
+│       │   └── SOURCE.txt
 │       └── mechanized-magic/ [contents omitted]
 ├── scripts/
 │   ├── analyze-original-profiles.mjs
@@ -153,57 +211,70 @@ garden-js/
 │   └── verify-database.mjs
 ├── src/
 │   ├── game/
+│   │   ├── board/
+│   │   │   ├── BoardHud.ts
+│   │   │   ├── BoardInventory.ts
+│   │   │   └── BoardTutorial.ts
 │   │   ├── scenes/
-│   │   │   ├── BoardScene.js
-│   │   │   ├── LeaderboardScene.js
-│   │   │   ├── LevelSelectScene.js
-│   │   │   ├── MenuScene.js
-│   │   │   ├── SettingsScene.js
-│   │   │   └── ShopScene.js
-│   │   ├── campaign-progress.js
-│   │   ├── campaign-test-mode.js
-│   │   ├── completion-overlay.js
-│   │   ├── economy.js
-│   │   ├── leaderboard.js
-│   │   ├── modes.js
-│   │   ├── navigation-layout.js
-│   │   ├── responsive-layout.js
-│   │   ├── settings.js
-│   │   └── ui.js
+│   │   │   ├── BoardScene.ts
+│   │   │   ├── LeaderboardScene.ts
+│   │   │   ├── LevelSelectScene.ts
+│   │   │   ├── MenuScene.ts
+│   │   │   ├── SettingsScene.ts
+│   │   │   └── ShopScene.ts
+│   │   ├── campaign-progress.ts
+│   │   ├── campaign-test-mode.ts
+│   │   ├── completion-overlay.ts
+│   │   ├── economy.ts
+│   │   ├── leaderboard.ts
+│   │   ├── modes.ts
+│   │   ├── navigation-layout.ts
+│   │   ├── piece-visual-state.ts
+│   │   ├── presentation-layout.ts
+│   │   ├── presentation-model.ts
+│   │   ├── responsive-layout.ts
+│   │   ├── settings.ts
+│   │   ├── ui.ts
+│   │   └── utility-navigation.ts
 │   ├── platform/
-│   │   └── yandex-games.js
+│   │   └── yandex-games.ts
 │   ├── services/
-│   ├── art-assets.js
-│   ├── atom-types.js
-│   ├── board.js
-│   ├── browser.js
-│   ├── campaign-progress.js
-│   ├── campaign.js
-│   ├── database.js
-│   ├── economy.js
-│   ├── endless-run.js
-│   ├── endless-score.js
-│   ├── generator-worker.js
-│   ├── generator.js
-│   ├── hex.js
-│   ├── index.js
-│   ├── leaderboard.js
-│   ├── main.js
-│   ├── mechanic-introductions.js
-│   ├── mode-access.js
-│   ├── opening-levels.js
-│   ├── panel-state.js
-│   ├── progression.js
-│   ├── rules.js
-│   ├── scene-background.js
-│   ├── settings.js
-│   ├── solver.js
+│   ├── art-assets.ts
+│   ├── atom-types.ts
+│   ├── board.ts
+│   ├── browser.ts
+│   ├── campaign-progress.ts
+│   ├── campaign.ts
+│   ├── database.ts
+│   ├── economy.ts
+│   ├── endless-run.ts
+│   ├── endless-score.ts
+│   ├── generator-worker.ts
+│   ├── generator.ts
+│   ├── hex.ts
+│   ├── index.ts
+│   ├── leaderboard.ts
+│   ├── main.ts
+│   ├── mechanic-introductions.ts
+│   ├── mode-access.ts
+│   ├── opening-levels.ts
+│   ├── panel-state.ts
+│   ├── persistence.ts
+│   ├── progression.ts
+│   ├── rules.ts
+│   ├── scene-background.ts
+│   ├── settings.ts
+│   ├── solver.ts
 │   ├── styles.css
-│   └── tutorial.js
+│   └── tutorial.ts
 ├── test/
+│   ├── art-assets.test.js
+│   ├── board-presentation-contract.test.js
+│   ├── board-presentation-model.test.js
 │   ├── campaign-progress.test.js
 │   ├── campaign.test.js
 │   ├── chatgpt-context.test.js
+│   ├── completion-presentation.test.js
 │   ├── database.test.js
 │   ├── economy.test.js
 │   ├── endless-run.test.js
@@ -215,11 +286,17 @@ garden-js/
 │   ├── mechanic-introductions.test.js
 │   ├── mode-access.test.js
 │   ├── panel-state.test.js
+│   ├── piece-visual-state.test.js
+│   ├── presentation-layout.test.js
+│   ├── presentation-model.test.js
 │   ├── progression.test.js
 │   ├── rules.test.js
 │   ├── settings.test.js
 │   ├── solver.test.js
 │   ├── tutorial.test.js
+│   ├── typescript-runtime-entry.test.js
+│   ├── ui-state-model.test.js
+│   ├── utility-navigation.test.js
 │   └── yandex-games.test.js
 ├── .gitignore
 ├── AGENTS.md
@@ -233,4 +310,5 @@ garden-js/
 ├── README.md
 ├── RULES_AUDIT.md
 ├── THIRD_PARTY_ASSETS.md
-└── TREE.txt
+├── TREE.txt
+└── tsconfig.json

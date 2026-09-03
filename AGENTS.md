@@ -18,7 +18,8 @@ This project is a mechanics, progression, level-generation, economy, and product
 - A full visual replacement is allowed without changing gameplay rules.
 - Third-party asset packs are allowed when commercial-use rights are suitable and recorded in `THIRD_PARTY_ASSETS.md` when bundled.
 - Do not assume paper, garden, alchemy, elements/metals, cozy, casual, or Mechanized Magic is the final presentation.
-- Current Mechanized Magic runtime assets are temporary implementation state, not approved target art.
+- The runtime currently uses a Chequered Ink tactile-gems/dark-board candidate for live visual evaluation; it is experimental, not approved final art.
+- Mechanized Magic remains bundled legacy art only and must not be treated as the active target.
 - Keep dynamic labels/counts/prices/scores/localized strings in Phaser rather than baking them into raster UI.
 - Local decoration must not resemble an occupied atom, obscure hex boundaries, communicate false state, or interfere with input.
 - See `ART_DIRECTION.md` for current sourcing constraints and rejected directions.
@@ -27,7 +28,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 
 - campaign plates of 37, 61, or 91 cells, plus staged endless plates of 37, 61, and 91 cells;
 - the current variable-size campaign layout or staged endless layout, reaching the full 55-piece composition on the 91-cell phase;
-- flat atom labels and enough state contrast to distinguish free, locked, and selected atoms;
+- clear piece visuals and enough state contrast to distinguish free, locked, and selected atoms;
 - a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
 - previous unlocked level, next unlocked level, restart, and menu/level-select controls;
@@ -56,8 +57,8 @@ The runtime should expose only what is needed to inspect the board and progressi
 - A proven unsolvable position is visibly marked as a dead end and blocks further board selection. Campaign must restart or Undo; Endless may use Rescue or start over. No inappropriate booster purchase or consumption is allowed from this state.
 - Undo restores the board and score to immediately before the latest removal. Rescue is usable only after a proven Endless dead end; it searches history for the most recent solvable state, restores it, and blocks/highlights the specific move that crossed into the unsolvable branch. Rescue is not consumed when no safe restore point can be proven.
 - Any hint, undo, or rescue used in Endless permanently marks that run `ASSISTED`; assisted scores must never be submitted to the future ranked leaderboard.
-- `src/economy.js` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
-- `src/solver.js` is renderer-independent authority for verified winning routes, dead-end proofs, and finding the last solvable history snapshot. It must return `unknown`, never a false dead-end claim, when its bounded search budget is exhausted.
+- `src/economy.ts` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
+- `src/solver.ts` is renderer-independent authority for verified winning routes, dead-end proofs, and finding the last solvable history snapshot. It must return `unknown`, never a false dead-end claim, when its bounded search budget is exhausted.
 
 ## Endless scoring
 
@@ -70,11 +71,11 @@ The runtime should expose only what is needed to inspect the board and progressi
 - A public endless run starts with two 37-cell boards, continues with three 61-cell boards, and uses 91-cell/55-piece layouts from its sixth board onward.
 - Campaign awards the same 10 points per removed atom and size-based clear bonus without any streak multiplier. Its score is persisted per level only on first completion.
 - Future paid or inventory hints must not create a ranked advantage. A run using them must be unranked unless every player receives the same fixed allowance.
-- `src/endless-score.js` is the renderer-independent authority for scoring math.
+- `src/endless-score.ts` is the renderer-independent authority for scoring math.
 
 ## Rules contract
 
-Internal IDs and names must remain those in `src/atom-types.js`.
+Internal IDs and names must remain those in `src/atom-types.ts`.
 
 - An occupied atom is geometrically free when at least 3 consecutive positions in its circular 6-neighbour ring are empty.
 - Positions outside the 91-cell plate count as empty. Geometry is based on occupancy, not plate membership.
@@ -90,11 +91,11 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 - Selecting an already selected atom deselects it according to the original selection state machine.
 - The metal sequence is `Pb -> Sn -> Fe -> Cu -> Ag -> Au`. Removing Fe unlocks Cu, not Au. Only removing Ag can unlock Au.
 
-`src/board.js` is the authority for runtime move behavior. Renderer code must call it and must not duplicate or weaken these rules.
+`src/board.ts` is the authority for runtime move behavior. Renderer code must call it and must not duplicate or weaken these rules.
 
 ## Main progression
 
-- `src/progression.js` owns a separate deterministic 24-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
+- `src/progression.ts` owns a separate deterministic 24-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
 - A separate level 0 tutorial teaches matching and geometric freedom before the numbered campaign.
 - Levels 1-3 introduce the complete element set, Salt, and Vitae/Mors on 37-cell plates.
 - Levels 4-9 introduce Quicksilver and one successive metal per level through Gold on 37-cell plates.
@@ -124,8 +125,10 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 ## Architecture
 
-- Phaser 3 + Vite + native ES modules.
-- Keep rules and generation renderer-independent and Node-testable: `src/atom-types.js`, `src/hex.js`, `src/rules.js`, `src/board.js`, `src/generator.js`, `src/campaign.js`, and `src/progression.js`.
+- Phaser 3 + Vite + strict TypeScript + native ES modules. Runtime source under `src/**` stays `.ts`; do not reintroduce JavaScript runtime modules.
+- Keep rules and generation renderer-independent and Node-testable: `src/atom-types.ts`, `src/hex.ts`, `src/rules.ts`, `src/board.ts`, `src/generator.ts`, `src/campaign.ts`, and `src/progression.ts`.
+- Keep strict TypeScript enabled. Do not use production `any` or `// @ts-ignore` to silence migration/type errors; narrow external `unknown` values explicitly.
+- `BoardScene.ts` owns game/session orchestration. `src/game/board/BoardHud.ts`, `BoardInventory.ts`, and `BoardTutorial.ts` own their Phaser presentation objects and must not import board/solver/progression logic.
 - Active scenes are `MenuScene`, `LevelSelectScene`, `ShopScene`, and `BoardScene`.
 - Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
@@ -142,18 +145,19 @@ Internal IDs and names must remain those in `src/atom-types.js`.
 
 Before handoff:
 
-1. Run `pnpm test` (or the equivalent `node --test` if the package-manager bootstrap is blocked by a local build-script policy).
-2. Run `pnpm build` (or invoke the installed Vite CLI directly for the same reason).
-3. Verify exact 55-piece counts for both endless variants.
-4. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
-5. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
-6. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, all visible return controls, and desktop/phone-portrait/phone-landscape layouts including live orientation changes. Keep the internal quintessence generator covered by automated tests.
-7. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
-8. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
-9. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, dead-end Rescue, and the permanent `ASSISTED` marker.
-10. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
-11. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
-12. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
-13. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route, does not spend in dead/unknown states, and Rescue restores the last solvable state while blocking the proven losing move.
+1. Run `pnpm typecheck`.
+2. Run `pnpm test`.
+3. Run `pnpm build`.
+4. Verify exact 55-piece counts for both endless variants.
+5. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
+6. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
+7. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, all visible return controls, and desktop/phone-portrait/phone-landscape layouts including live orientation changes. Keep the internal quintessence generator covered by automated tests.
+8. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
+9. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
+10. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, dead-end Rescue, and the permanent `ASSISTED` marker.
+11. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
+12. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
+13. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
+14. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route, does not spend in dead/unknown states, and Rescue restores the last solvable state while blocking the proven losing move.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

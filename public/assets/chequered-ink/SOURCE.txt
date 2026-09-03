@@ -1,0 +1,11 @@
+Chequered Ink candidate visual set for Hex Garden.
+
+Source packs:
+- Puzzle Games Graphics Pack: https://ci.itch.io/puzzle-games-graphics-pack
+- Board Game Pieces: https://ci.itch.io/board-game-pieces
+- Cartoon UI Pack: https://ci.itch.io/cartoon-ui-pack
+- Inventory Icons Graphics Pack: https://ci.itch.io/inventory-icons-graphics-pack
+
+License summary (verified 2026-09-03): commercial use is allowed with or without credit. Unaltered assets may not be sold or redistributed as your own game-asset pack.
+
+Only the subset actually used by this candidate integration is bundled here.

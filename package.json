@@ -7,13 +7,14 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test",
-    "inspect": "node scripts/inspect-database.mjs",
-    "generate": "node scripts/generate-database.mjs",
-    "verify": "node scripts/verify-database.mjs",
-    "check:campaign": "node scripts/check-campaign.mjs",
+    "test": "node --import tsx --test",
+    "inspect": "node --import tsx scripts/inspect-database.mjs",
+    "generate": "node --import tsx scripts/generate-database.mjs",
+    "verify": "node --import tsx scripts/verify-database.mjs",
+    "check:campaign": "node --import tsx scripts/check-campaign.mjs",
     "context": "node scripts/chatgpt-context.mjs",
-    "context:last": "node scripts/chatgpt-context.mjs --last-commit"
+    "context:last": "node scripts/chatgpt-context.mjs --last-commit",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=20"
@@ -22,6 +23,9 @@
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
     "vite": "^7.1.3"
   },
   "license": "UNLICENSED",

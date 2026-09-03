@@ -15,7 +15,7 @@ If active prose conflicts with code/tests, do not silently change the implementa
 
 ## Stable gameplay contract
 
-- Preserve internal atom IDs from `src/atom-types.js`.
+- Preserve internal atom IDs from `src/atom-types.ts`.
 - Preserve free-atom geometry and pairing/unlock rules audited in `RULES_AUDIT.md`.
 - Campaign and standard Endless are the public product modes; Quintessence stays internal unless explicitly re-approved.
 - Solver-backed Move/Undo/Rescue behavior and assisted-run policy remain renderer-independent contracts.

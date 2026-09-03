@@ -18,7 +18,7 @@ test("tutorial demonstrates all four elements on a certified compact board", () 
   assert.equal(record.shape, "tutorial-r3");
   assert.equal(record.plateCells.length, 37);
   assert.equal(record.solution.length, 4);
-  assert.equal(TUTORIAL_GUIDED_MOVE_COUNT, 2);
+  assert.equal(TUTORIAL_GUIDED_MOVE_COUNT, 3);
   assert.deepEqual(
     ELEMENT_TYPES.map((type) => counts.get(type)),
     [2, 2, 2, 2],
