@@ -98,6 +98,20 @@ const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
 const REMOVAL_FEEDBACK_DURATION_MS = 280;
 
+type RemovalFeedbackPoint = Readonly<{ x: number; y: number }>;
+
+function straightRemovalPoint(
+  start: RemovalFeedbackPoint,
+  end: RemovalFeedbackPoint,
+  progress: number,
+): RemovalFeedbackPoint {
+  const t = Math.max(0, Math.min(1, progress));
+  return {
+    x: start.x + (end.x - start.x) * t,
+    y: start.y + (end.y - start.y) * t,
+  };
+}
+
 function formatScore(value: number): string {
   return Math.round(value).toLocaleString("ru-RU");
 }
@@ -1204,16 +1218,48 @@ export class BoardScene extends Phaser.Scene {
           y: y + (centroid.y - y) * 0.1 * pullProgress,
         });
 
+        const lineDrawProgress = Math.min(1, linkProgress / 0.3);
+        const pulseProgress = Math.max(0, Math.min(1, (linkProgress - 0.1) / 0.56));
+        const pulseAlpha =
+          pulseProgress > 0 && pulseProgress < 1
+            ? Math.sin(Math.PI * pulseProgress) * 0.58
+            : 0;
+        const lineWidthScale =
+          linkProgress < 0.66
+            ? 1
+            : 0.35 + 0.65 * Math.max(0, (1 - linkProgress) / 0.34);
+        const drawPulse = (start: RemovalFeedbackPoint, end: RemovalFeedbackPoint): void => {
+          if (pulseAlpha <= 0 || lineDrawProgress <= 0.08) return;
+          const pulseT = Math.min(pulseProgress, lineDrawProgress);
+          const pulse = straightRemovalPoint(start, end, pulseT);
+          feedback.fillStyle(0xf4f8fb, pulseAlpha * 0.18);
+          feedback.fillCircle(pulse.x, pulse.y, Math.max(2, this.hexSize * 0.12));
+          feedback.fillStyle(0xf4f8fb, pulseAlpha);
+          feedback.fillCircle(pulse.x, pulse.y, Math.max(1.2, this.hexSize * 0.042));
+        };
+
         if (positions.length === 2 && linkAlpha > 0) {
           const first = pulled(positions[0]!.position);
           const second = pulled(positions[1]!.position);
-          feedback.lineStyle(Math.max(1, this.hexSize * 0.045), 0xdbe7f0, linkAlpha);
-          feedback.lineBetween(first.x, first.y, second.x, second.y);
+          const drawEnd = straightRemovalPoint(first, second, lineDrawProgress);
+          feedback.lineStyle(
+            Math.max(1, this.hexSize * 0.045 * lineWidthScale),
+            0xdbe7f0,
+            linkAlpha,
+          );
+          feedback.lineBetween(first.x, first.y, drawEnd.x, drawEnd.y);
+          drawPulse(first, second);
         } else if (positions.length > 2 && linkAlpha > 0) {
-          feedback.lineStyle(Math.max(1, this.hexSize * 0.04), 0xdbe7f0, linkAlpha * 0.86);
+          feedback.lineStyle(
+            Math.max(1, this.hexSize * 0.04 * lineWidthScale),
+            0xdbe7f0,
+            linkAlpha * 0.86,
+          );
           for (const item of positions) {
             const point = pulled(item.position);
-            feedback.lineBetween(point.x, point.y, centroid.x, centroid.y);
+            const drawEnd = straightRemovalPoint(point, centroid, lineDrawProgress);
+            feedback.lineBetween(point.x, point.y, drawEnd.x, drawEnd.y);
+            drawPulse(point, centroid);
           }
         }
 

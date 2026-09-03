@@ -37,3 +37,19 @@ test("inventory counts acknowledge normal-play removals instead of snapping sile
   assert.match(source, /targets: view\.count/);
   assert.match(source, /Cubic\.Out/);
 });
+
+
+test("pair feedback keeps a straight link but draws, pulses, and fades it instead of showing a static segment", async () => {
+  const source = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /straightRemovalPoint/);
+  assert.match(source, /lineDrawProgress/);
+  assert.match(source, /pulseProgress/);
+  assert.match(source, /lineWidthScale/);
+  assert.match(source, /feedback\.lineBetween\(first\.x, first\.y, drawEnd\.x, drawEnd\.y\)/);
+  assert.match(source, /feedback\.fillCircle\(pulse\.x, pulse\.y/);
+  assert.doesNotMatch(source, /quadraticRemovalPoint|drawRemovalCurve|removalLinkControl/);
+});
