@@ -4,13 +4,24 @@
 
 This project is a mechanics, progression, level-generation, economy, and product-UI test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A product-shaped mode menu, campaign level-select screen, persistent dust wallet, hint inventory, shop, rewarded-ad booster choice, completion reward presentation, language setting, and global sound preference are required. Do not add timers, online leaderboards, forced/interstitial advertisements, real payments, sound assets before the sound design exists, unrelated particles, selectable difficulty modes, or renamed atoms. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, purchased hint controls, optional rewarded ads, victory reward screen, responsive navigation, and saved settings are part of the current progression contract.
 
+### Documentation authority
+
+- Code and tests are the factual current implementation.
+- `PROJECT.md` holds stable product/rules intent.
+- `CURRENT_STATE.md` holds the implementation snapshot.
+- `ART_DIRECTION.md` is the only active visual-direction document.
+- `docs/archive/**` is historical only and must not drive implementation unless explicitly revived by the user.
+- If prose conflicts with code/tests, surface the mismatch instead of silently changing runtime behavior to match old documentation.
+
 ### Visual asset policy
 
-- Project-owned visual assets created specifically for Hex Garden from the approved concepts are allowed. This includes atom glyphs, UI pictograms, subtle paper textures, ink marks, and small board-local botanical details.
-- Third-party, stock, copied, or traced game art is prohibited. Any bundled third-party font must have an appropriate redistributable license recorded in `THIRD_PARTY_ASSETS.md` and must not be loaded from a network at runtime.
-- The subtle repeating paper texture is a foundational surface, not an illustrative background. Full-screen decorative scenes, large non-functional illustrations, and decoration that reduces board size, state contrast, or touch-target clarity remain prohibited unless separately approved.
-- Local board decoration must never resemble an occupied atom, obscure a hex boundary, communicate false state, or interfere with input.
-- Runtime labels, counts, prices, scores, and localized strings must not be baked into raster assets. Phaser remains responsible for text, layout, interaction states, and responsive composition.
+- A full visual replacement is allowed without changing gameplay rules.
+- Third-party asset packs are allowed when commercial-use rights are suitable and recorded in `THIRD_PARTY_ASSETS.md` when bundled.
+- Do not assume paper, garden, alchemy, elements/metals, cozy, casual, or Mechanized Magic is the final presentation.
+- Current Mechanized Magic runtime assets are temporary implementation state, not approved target art.
+- Keep dynamic labels/counts/prices/scores/localized strings in Phaser rather than baking them into raster UI.
+- Local decoration must not resemble an occupied atom, obscure hex boundaries, communicate false state, or interfere with input.
+- See `ART_DIRECTION.md` for current sourcing constraints and rejected directions.
 
 The runtime should expose only what is needed to inspect the board and progression:
 

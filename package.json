@@ -11,7 +11,9 @@
     "inspect": "node scripts/inspect-database.mjs",
     "generate": "node scripts/generate-database.mjs",
     "verify": "node scripts/verify-database.mjs",
-    "check:campaign": "node scripts/check-campaign.mjs"
+    "check:campaign": "node scripts/check-campaign.mjs",
+    "context": "node scripts/chatgpt-context.mjs",
+    "context:last": "node scripts/chatgpt-context.mjs --last-commit"
   },
   "engines": {
     "node": ">=20"
