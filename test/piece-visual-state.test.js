@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { pieceFeedbackKind } from "../src/game/piece-visual-state.js";
+import { pieceFeedbackKind, pieceFilterEmphasis } from "../src/game/piece-visual-state.js";
 
 test("piece feedback reserves rings for direct hint/block feedback", () => {
   assert.equal(pieceFeedbackKind({ panelMatch: true }), null);
@@ -47,4 +47,10 @@ test("blocked feedback wins over hint/selection and locked pieces stay muted", (
   });
   assert.equal(blocked.kind, "blocked");
   assert.ok(blocked.alpha < 0.7);
+});
+
+
+test("panel filtering never reduces piece alpha and only flags matches", () => {
+  assert.deepEqual(pieceFilterEmphasis({ filterActive: true, matchesFilter: false }), { alphaMultiplier: 1, positiveMatch: false });
+  assert.deepEqual(pieceFilterEmphasis({ filterActive: true, matchesFilter: true }), { alphaMultiplier: 1, positiveMatch: true });
 });

@@ -32,6 +32,7 @@ export interface CompletionOverlayData {
   unlockText?: string;
   continueLabel: string;
   exitLabel: string;
+  compactTransition?: boolean;
 }
 
 export interface CompletionOverlayActions {
@@ -145,13 +146,15 @@ export class CompletionOverlay {
       dust: 0,
       progress: data.progressStart,
     };
+
+    const compactTransition = data.compactTransition === true;
     this.graphics.setVisible(true).setAlpha(0);
-    this.progressGraphics.setVisible(true).setAlpha(0);
+    this.progressGraphics.setVisible(!compactTransition).setAlpha(0);
     this.card.setVisible(true).setAlpha(0);
     this.icon.setVisible(true).setAlpha(0);
     this.hitZone.setVisible(true).setInteractive();
-    for (const item of [
-      this.title,
+
+    const resultItems = [
       this.subtitle,
       this.score,
       this.total,
@@ -159,10 +162,11 @@ export class CompletionOverlay {
       this.dustBalance,
       this.progress,
       this.unlock,
-    ]) {
-      item.setVisible(true).setAlpha(0);
+    ];
+    this.title.setVisible(true).setAlpha(0).setText(data.title);
+    for (const item of resultItems) {
+      item.setVisible(!compactTransition).setAlpha(0);
     }
-    this.title.setText(data.title);
     this.subtitle.setText(data.subtitle);
     this.unlock.setText(data.unlockText ?? "");
     this.continueButton
@@ -172,65 +176,76 @@ export class CompletionOverlay {
       .disableInteractive();
     this.exitButton
       .setText(data.exitLabel)
-      .setVisible(true)
+      .setVisible(!compactTransition)
       .setAlpha(0)
       .disableInteractive();
-    this.updateText();
-    this.layout(this.scene.scale.width, this.scene.scale.height);
 
+    if (!compactTransition) this.updateText();
+    this.layout(this.scene.scale.width, this.scene.scale.height);
+    this.draw();
+
+    const fadeTargets = compactTransition
+      ? [this.graphics, this.card, this.icon, this.title]
+      : [
+          this.graphics,
+          this.progressGraphics,
+          this.card,
+          this.icon,
+          this.title,
+          ...resultItems,
+        ];
     this.fadeTween = this.scene.tweens.add({
-      targets: [
-        this.graphics,
-        this.progressGraphics,
-        this.card,
-        this.icon,
-        this.title,
-        this.subtitle,
-        this.score,
-        this.total,
-        this.dust,
-        this.dustBalance,
-        this.progress,
-        this.unlock,
-      ],
+      targets: fadeTargets,
       alpha: 1,
-      duration: 240,
+      duration: compactTransition ? 180 : 240,
       ease: "Cubic.Out",
     });
-    this.countTween = this.scene.tweens.add({
-      targets: this.counter,
-      score: data.scoreAward,
-      dust: data.dustAward,
-      progress: data.progressEnd,
-      duration: 900,
-      ease: "Cubic.Out",
-      onUpdate: () => {
-        this.updateText();
-        this.draw();
-      },
-      onComplete: () => {
-        this.counter.score = data.scoreAward;
-        this.counter.dust = data.dustAward;
-        this.counter.progress = data.progressEnd;
-        this.updateText();
-        this.draw();
-      },
-    });
-    this.revealTimer = this.scene.time.delayedCall(850, () => {
-      if (!this.visible) return;
-      this.continueButton.setInteractive({ useHandCursor: true });
-      this.exitButton.setInteractive({ useHandCursor: true });
-      this.buttonTween = this.scene.tweens.add({
-        targets: [this.continueButton, this.exitButton],
-        alpha: 1,
-        duration: 260,
+
+    if (!compactTransition) {
+      this.countTween = this.scene.tweens.add({
+        targets: this.counter,
+        score: data.scoreAward,
+        dust: data.dustAward,
+        progress: data.progressEnd,
+        duration: 900,
         ease: "Cubic.Out",
+        onUpdate: () => {
+          this.updateText();
+          this.draw();
+        },
+        onComplete: () => {
+          this.counter.score = data.scoreAward;
+          this.counter.dust = data.dustAward;
+          this.counter.progress = data.progressEnd;
+          this.updateText();
+          this.draw();
+        },
       });
-    });
+    }
+
+    this.revealTimer = this.scene.time.delayedCall(
+      compactTransition ? 260 : 850,
+      () => {
+        if (!this.visible) return;
+        this.continueButton.setInteractive({ useHandCursor: true });
+        if (!compactTransition) {
+          this.exitButton.setInteractive({ useHandCursor: true });
+        }
+        const buttonTargets = compactTransition
+          ? [this.continueButton]
+          : [this.continueButton, this.exitButton];
+        this.buttonTween = this.scene.tweens.add({
+          targets: buttonTargets,
+          alpha: 1,
+          duration: 220,
+          ease: "Cubic.Out",
+        });
+      },
+    );
   }
 
   updateText(): void {
-    if (!this.data) return;
+    if (!this.data || this.data.compactTransition) return;
     const english = this.scene.english;
     const scoreAward = Math.round(this.counter.score);
     const dustAward = Math.round(this.counter.dust);
@@ -259,9 +274,34 @@ export class CompletionOverlay {
   }
 
   layout(width: number, height: number): void {
-    if (!this.visible) return;
+    if (!this.visible || !this.data) return;
+    const compactTransition = this.data.compactTransition === true;
+    if (compactTransition) {
+      this.cardWidth = Math.min(width - 24, 440);
+      this.cardHeight = Math.min(height - 20, 230);
+      this.cardX = (width - this.cardWidth) / 2;
+      this.cardY = (height - this.cardHeight) / 2;
+      const centerX = width / 2;
+      const y = this.cardY;
+      this.hitZone.setPosition(width / 2, height / 2).setSize(width, height);
+      if (this.hitZone.input?.hitArea) {
+        this.hitZone.input.hitArea.setTo(0, 0, width, height);
+      }
+      resizeNineSlice(this.card, this.cardWidth, this.cardHeight);
+      this.card.setPosition(centerX, y + this.cardHeight / 2);
+      this.icon.setDisplaySize(52, 52).setPosition(centerX, y + 52);
+      this.title.setFontSize(width < 560 ? 20 : 24).setPosition(centerX, y + 105);
+      this.continueButton
+        .setFontSize(width < 560 ? 12 : 14)
+        .setFixedSize(Math.min(this.cardWidth - 52, 330), 46)
+        .setPosition(centerX, y + 174);
+      this.exitButton.setVisible(false).disableInteractive();
+      this.draw();
+      return;
+    }
+
     const metrics = completionCardMetrics(width, height, {
-      hasUnlock: Boolean(this.data?.unlockText),
+      hasUnlock: Boolean(this.data.unlockText),
     });
     const compact = metrics.compact;
     const short = metrics.short;
@@ -271,7 +311,7 @@ export class CompletionOverlay {
     this.cardY = (height - this.cardHeight) / 2;
     const centerX = width / 2;
     const y = this.cardY;
-    const hasUnlock = Boolean(this.data?.unlockText);
+    const hasUnlock = Boolean(this.data.unlockText);
 
     this.hitZone.setPosition(width / 2, height / 2).setSize(width, height);
     if (this.hitZone.input?.hitArea) {
@@ -333,6 +373,12 @@ export class CompletionOverlay {
   draw(): void {
     if (!this.visible || !this.data) return;
     const { width, height } = this.scene.scale;
+    if (this.data.compactTransition) {
+      this.graphics.clear();
+      this.graphics.fillStyle(0x000000, 0.72).fillRect(0, 0, width, height);
+      this.progressGraphics.clear().setVisible(false);
+      return;
+    }
     const barWidth = this.cardWidth - 86;
     const barHeight = 9;
     const barX = (width - barWidth) / 2;

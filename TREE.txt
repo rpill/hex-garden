@@ -136,11 +136,13 @@ garden-js/
 │   │       └── REGENERATION_PROMPTS-paper-sketchbook.md
 │   └── superpowers/
 │       ├── plans/
+│       │   ├── 2026-09-03-board-ux-overhaul.md
 │       │   ├── 2026-09-03-chatgpt-context-workflow.md
 │       │   ├── 2026-09-03-presentation-b1-refinement.md
 │       │   ├── 2026-09-03-typescript-migration-board-boundaries.md
 │       │   └── 2026-09-03-visual-presentation-overhaul.md
 │       └── specs/
+│           ├── 2026-09-03-board-ux-overhaul-design.md
 │           ├── 2026-09-03-chatgpt-context-workflow-design.md
 │           ├── 2026-09-03-presentation-b1-refinement-design.md
 │           ├── 2026-09-03-typescript-migration-board-boundaries-design.md
@@ -213,6 +215,7 @@ garden-js/
 │   ├── game/
 │   │   ├── board/
 │   │   │   ├── BoardHud.ts
+│   │   │   ├── BoardIntroAnimator.ts
 │   │   │   ├── BoardInventory.ts
 │   │   │   └── BoardTutorial.ts
 │   │   ├── scenes/
@@ -222,6 +225,7 @@ garden-js/
 │   │   │   ├── MenuScene.ts
 │   │   │   ├── SettingsScene.ts
 │   │   │   └── ShopScene.ts
+│   │   ├── board-session-state.ts
 │   │   ├── campaign-progress.ts
 │   │   ├── campaign-test-mode.ts
 │   │   ├── completion-overlay.ts
@@ -234,6 +238,7 @@ garden-js/
 │   │   ├── presentation-model.ts
 │   │   ├── responsive-layout.ts
 │   │   ├── settings.ts
+│   │   ├── tutorial-callout-layout.ts
 │   │   ├── ui.ts
 │   │   └── utility-navigation.ts
 │   ├── platform/
@@ -269,8 +274,10 @@ garden-js/
 │   └── tutorial.ts
 ├── test/
 │   ├── art-assets.test.js
+│   ├── board-intro.test.js
 │   ├── board-presentation-contract.test.js
 │   ├── board-presentation-model.test.js
+│   ├── board-session-state.test.js
 │   ├── campaign-progress.test.js
 │   ├── campaign.test.js
 │   ├── chatgpt-context.test.js
@@ -286,6 +293,7 @@ garden-js/
 │   ├── mechanic-introductions.test.js
 │   ├── mode-access.test.js
 │   ├── panel-state.test.js
+│   ├── phaser-typing-contract.test.js
 │   ├── piece-visual-state.test.js
 │   ├── presentation-layout.test.js
 │   ├── presentation-model.test.js

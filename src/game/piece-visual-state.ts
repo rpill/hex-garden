@@ -12,7 +12,22 @@ export function resolvePieceVisualState({ free = true, selected = false, hovered
   const haloWidth = kind === "idle" ? 0 : kind === "hover" ? 1 : 2;
   return Object.freeze({ kind, alpha, scale, haloAlpha, haloWidth });
 }
-export interface PieceFilterOptions { filterActive?: boolean; matchesFilter?: boolean; locked?: boolean; }
-export function pieceAlphaForFilter({ filterActive = false, matchesFilter = false, locked = false }: PieceFilterOptions = {}): number {
-  if (locked) return filterActive && !matchesFilter ? 0.26 : 0.42; if (!filterActive || matchesFilter) return 1; return 0.46;
+export interface PieceFilterEmphasisOptions {
+  filterActive?: boolean;
+  matchesFilter?: boolean;
+}
+
+export interface PieceFilterEmphasis {
+  alphaMultiplier: 1;
+  positiveMatch: boolean;
+}
+
+export function pieceFilterEmphasis({
+  filterActive = false,
+  matchesFilter = false,
+}: PieceFilterEmphasisOptions = {}): Readonly<PieceFilterEmphasis> {
+  return Object.freeze({
+    alphaMultiplier: 1,
+    positiveMatch: filterActive && matchesFilter,
+  });
 }

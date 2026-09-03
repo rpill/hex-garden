@@ -1,7 +1,6 @@
 import type Phaser from "phaser";
 import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
 import {
-  makeButton,
   makeCartIconButton,
   makeCurrencyDisplay,
   makeIconButton,
@@ -13,11 +12,7 @@ export interface BoardHudActions {
   onPause: () => void;
   onShop: () => void;
   onSettings: () => void;
-  onNext: () => void;
-}
-
-export interface BoardHudLabels {
-  next: string;
+  onRestart: () => void;
 }
 
 export class BoardHud {
@@ -27,12 +22,12 @@ export class BoardHud {
   readonly endless: Phaser.GameObjects.Text;
   readonly campaign: Phaser.GameObjects.Text;
   readonly dust: ReturnType<typeof makeCurrencyDisplay>;
-  readonly nextButton: ReturnType<typeof makeButton>;
   readonly pauseButton: ReturnType<typeof makeIconButton>;
   readonly shopButton: ReturnType<typeof makeCartIconButton>;
   readonly settingsButton: ReturnType<typeof makeIconButton>;
+  readonly restartButton: ReturnType<typeof makeIconButton>;
 
-  constructor(scene: Phaser.Scene, labels: BoardHudLabels, actions: BoardHudActions) {
+  constructor(scene: Phaser.Scene, actions: BoardHudActions) {
     this.headerPanel = makePanel(scene, UI_FRAMES.panelStripSmall, 9);
     this.header = makeText(scene, "", 16, "#eef3f8").setOrigin(0.5).setDepth(10);
     this.status = makeText(scene, "", 14, "#9aa7b5").setOrigin(0.5).setDepth(10);
@@ -43,11 +38,6 @@ export class BoardHud {
       fontSize: 12,
       color: "#f3c94f",
     }).setDepth(10);
-    this.nextButton = makeButton(scene, labels.next, actions.onNext)
-      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
-      .setDepth(10)
-      .setVisible(false)
-      .disableInteractive();
     this.pauseButton = makeIconButton(scene, GAMEPLAY_UI_FRAMES.pause, actions.onPause, {
       size: 46,
       glyphSize: 32,
@@ -57,11 +47,21 @@ export class BoardHud {
       size: 46,
       glyphSize: 32,
     }).setDepth(10);
+    this.restartButton = makeIconButton(
+      scene,
+      GAMEPLAY_UI_FRAMES.retry,
+      actions.onRestart,
+      { size: 42, glyphSize: 26 },
+    ).setDepth(10);
   }
 
   setBusy(busy: boolean): void {
     this.pauseButton.setAlpha(1);
-    this.nextButton.setAlpha(busy ? 0.45 : 1);
+    this.restartButton.setAlpha(busy ? 0.45 : 1);
+  }
+
+  setRestartEmphasis(actualDeadEnd: boolean): void {
+    this.restartButton.setAlpha(actualDeadEnd ? 1 : 0.72);
   }
 
   destroy(): void {
@@ -72,10 +72,10 @@ export class BoardHud {
       this.endless,
       this.campaign,
       this.dust,
-      this.nextButton,
       this.pauseButton,
       this.shopButton,
       this.settingsButton,
+      this.restartButton,
     ]) {
       object.destroy();
     }

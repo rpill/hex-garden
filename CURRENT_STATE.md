@@ -21,7 +21,7 @@ This file is a concise factual snapshot of the current implementation. For stabl
 
 - Public menu modes: Campaign and standard Endless.
 - Campaign: tutorial plus 24 curated progression levels with sequential unlocks and persistent completion/score state.
-- Endless: staged 37 → 61 → 91-cell progression, persistent best local score, streak multipliers, dead-end handling, and assisted-run exclusion from ranked/local-best submission.
+- Endless: staged 37 → 61 → 91-cell progression, persistent best local score, streak multipliers, actual no-moves dead-end handling, and assisted-run exclusion from ranked/local-best submission. Solver-proven unsolvability remains internal while legal moves exist.
 - Quintessence generator/rules remain in code for internal experiments and contract tests but are not exposed as a public mode.
 - Solver-backed Move, Undo, and Rescue flows are implemented.
 - Persistent dust economy, booster inventory, shop bundles, first-clear campaign rewards, Endless dust rewards, and rewarded-ad booster grants are implemented.
@@ -31,6 +31,9 @@ This file is a concise factual snapshot of the current implementation. For stabl
 - Desktop, phone portrait, and phone landscape responsive layouts are implemented in the Phaser UI.
 - Campaign/endless completion reward presentation, level select, shop, settings, and leaderboard scenes are present.
 - Presentation architecture now includes renderer-owned neutral surfaces, state-preserving level hover, icon-based dust displays, a renderer-drawn cart control, larger responsive campaign tiles, visual Shop cards, a compact completion card with an explicit progress layer, and direct Shop/Settings access that preserves and correctly resumes the active Board session.
+- The Board uses floating HUD/action groups rather than full-width top/bottom chrome. Pause + Restart form the system/session group, while Move/Undo/Rescue remain a separate consumable group. Atom counts sit beside their glyphs, and type filtering leaves non-matches unchanged while giving matches restrained positive same-shape emphasis.
+- The tutorial now teaches matching first, geometric freedom second, and the remaining-piece count panel third through local contextual callouts; it never hard-blocks an otherwise legal click. Clearing the tutorial opens a focused `LEVEL 1` transition rather than a small HUD play button.
+- Fresh fields use a skippable centre-out spiral reveal with size-dependent target duration of roughly 1.6–3.2 seconds and overlapping ~200 ms piece entrances; restarting the same field uses a compressed roughly 0.8–1.0 second profile. Returning from Shop/Settings to the same Board session does not replay the intro.
 
 ## Current runtime art state
 
@@ -50,10 +53,10 @@ This file is a concise factual snapshot of the current implementation. For stabl
 ## TypeScript / architecture state
 
 - Runtime source under `src/**` is migrated to strict TypeScript; tests remain JavaScript and run through `tsx`.
-- `BoardScene.ts` remains the gameplay/state orchestrator, while Phaser ownership for the board HUD, inventory, and tutorial is split into `src/game/board/BoardHud.ts`, `BoardInventory.ts`, and `BoardTutorial.ts`.
+- `BoardScene.ts` remains the gameplay/state orchestrator, while Phaser ownership for the board HUD, inventory, tutorial, and board-intro lifecycle is split into `src/game/board/BoardHud.ts`, `BoardInventory.ts`, `BoardTutorial.ts`, and `BoardIntroAnimator.ts`.
 - Atom IDs, solver/status values, worker messages, persistence boundaries, presentation models, and complete atom-to-art mappings now have explicit TypeScript contracts.
 - Tooling scripts under `scripts/*.mjs` remain JavaScript and invoke TypeScript runtime modules through `tsx`.
 
 ## Current focus
 
-The next board-UX pass is intentionally separate from the TypeScript migration: remove the large top/bottom board chrome, move tutorial guidance next to its targets, add a direct restart control, replace intrusive inventory filtering with subtle positive highlighting, distinguish an unsolvable position from a position with no legal moves, and add a skippable spiral board-fill intro. Continue searching for a stronger final piece/icon identity; Chequered Ink remains provisional.
+The revised Board UX pass is ready for live verification: validate tutorial callout placement/order, the remaining-count explanation, focused Level 1 transition, system-vs-consumable grouping, and fresh/restart spiral pacing across desktop, phone portrait, and phone landscape. Continue searching for a stronger final piece/icon identity; Chequered Ink remains provisional and is not the selected final art direction.

@@ -21,3 +21,10 @@ test("AtlasButton icon and padding wrappers satisfy real Phaser contracts", asyn
   assert.match(source, /setCustomIcon\(icon:PositionableIcon\|undefined/);
   assert.doesNotMatch(source, /this\.label\.setPadding\(left,top,right,bottom\)/);
 });
+
+
+test("BoardTutorial avoids explicit undefined for exact optional callout preferences", async () => {
+  const source = await readFile(new URL("../src/game/board/BoardTutorial.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /^\s*preferredSides:\s*state\.preferredSides,?$/m);
+  assert.match(source, /\.\.\.\(state\.preferredSides \? \{ preferredSides: state\.preferredSides \} : \{\}\)/);
+});

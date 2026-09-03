@@ -20,6 +20,10 @@ export interface InventoryAnchorOptions { boardBottom:number; panelHeight:number
 export function inventoryAnchorMetrics({boardBottom,panelHeight,viewportHeight,gap=14,bottomPadding=10}:InventoryAnchorOptions): Readonly<{top:number;centerY:number}> {
   const desiredTop=boardBottom+gap; const maximumTop=Math.max(0,viewportHeight-panelHeight-bottomPadding); const top=Math.min(desiredTop,maximumTop); return Object.freeze({top,centerY:top+panelHeight/2});
 }
+
+export function inventoryCountOffset(radius:number): Readonly<{x:number;y:number}> {
+  return Object.freeze({x:Math.max(12,radius*0.95),y:0});
+}
 export const COMPLETION_DEPTHS=Object.freeze({dim:50,card:51,progress:53,content:54} as const);
 export interface CompletionActionOptions { primaryHeight?:number; secondaryHeight?:number; gap?:number; bottomPadding?:number; }
 export function completionActionMetrics(cardHeight:number,{primaryHeight=40,secondaryHeight=34,gap=12,bottomPadding=20}:CompletionActionOptions={}):Readonly<{primaryY:number;secondaryY:number;gap:number}>{

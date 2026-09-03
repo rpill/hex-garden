@@ -28,13 +28,22 @@ export type GlobalActionIconSemantic="cart"|"settings"|"pause"|"back";
 export function globalActionIconSemantic(action:GlobalActionValue):GlobalActionIconSemantic{
   if(action===GlobalAction.SHOP)return "cart"; if(action===GlobalAction.SETTINGS)return "settings"; if(action===GlobalAction.PAUSE)return "pause"; if(action===GlobalAction.BACK)return "back"; return assertNever(action);
 }
-export interface TutorialPresentationStep { header:string; copy:string; }
+export interface TutorialPresentationStep { copy:string; }
 export function tutorialPresentationStep(step:number,english=false):Readonly<TutorialPresentationStep>{
-  const copyRu=["Фишка доступна, если рядом открыты три клетки подряд.","Выберите две доступные фишки одного типа.","Открыв новые клетки, очистите оставшиеся пары."] as const;
-  const copyEn=["A piece is available when three neighbouring cells are open in a row.","Select two available pieces of the same type.","Open new cells and clear the remaining pairs."] as const;
+  const copyRu=[
+    "Очисти поле: выбери две одинаковые доступные фишки.",
+    "Три пустые клетки подряд делают фишку доступной.",
+    "Здесь видно, сколько фишек каждого типа осталось.",
+  ] as const;
+  const copyEn=[
+    "Clear the board: choose two matching available pieces.",
+    "Three empty cells in a row make a piece available.",
+    "This panel shows how many pieces of each type remain.",
+  ] as const;
   if(!Number.isInteger(step)||step<0||step>=3)throw new RangeError(`Unknown tutorial presentation step: ${step}`);
-  const copy=(english?copyEn:copyRu)[step]; if(copy===undefined)throw new RangeError(`Unknown tutorial presentation step: ${step}`);
-  return Object.freeze({header:english?`TUTORIAL · STEP ${step+1}/3`:`ОБУЧЕНИЕ · ШАГ ${step+1}/3`,copy});
+  const copy=(english?copyEn:copyRu)[step];
+  if(copy===undefined)throw new RangeError(`Unknown tutorial presentation step: ${step}`);
+  return Object.freeze({copy});
 }
 export type UtilityReturnPlan=Readonly<{kind:"resume"|"start";scene:UtilitySceneKey}>;
 export function utilityReturnPlan(returnScene:string|undefined):UtilityReturnPlan{

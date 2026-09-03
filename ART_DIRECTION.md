@@ -43,10 +43,11 @@ These structural decisions are now part of the current visual direction even tho
 - Shop is card-led and visual, not a text-heavy debug list.
 - Completion is a compact result card with stable optional reward/unlock rows.
 
-- Tutorial presentation uses exactly three calm steps with one short sentence at a time. It does not use remaining-piece counts as progress, animated target circles, neighbour numbers, or pulsing scale changes.
-- Inventory filtering must dim non-matching pieces rather than drawing rings around matches; the inventory surface stays visually attached to the board.
+- Tutorial presentation uses exactly three calm contextual steps in this order: matching pair action, three-empty-neighbour freedom rule, remaining-piece count panel. Guidance sits near the thing it explains, never uses a global step header or hard-gates otherwise legal clicks, and tutorial completion presents one obvious Level 1 primary action.
+- Inventory filtering leaves non-matching pieces visually unchanged. Matching pieces receive only restrained positive same-shape emphasis; the inventory surface stays visually attached to the board and counts sit beside glyphs rather than over them.
 - Level hover preserves the tile's semantic state instead of swapping to a generic hover surface.
-- Main UI chrome is renderer-owned and intentionally neutral; third-party raster packs should supply pieces/icons rather than dictate every surface.
+- Main UI chrome is renderer-owned and intentionally neutral; on the Board, controls are composed as small floating groups rather than full-width top/bottom bars. Pause + Restart are a system/session group; Move/Undo/Rescue are a separate consumable group. Third-party raster packs should supply pieces/icons rather than dictate every surface.
+- Fresh boards use a skippable centre-out spiral piece reveal long enough to read as a deliberate assembly ritual (roughly 1.6–3.2 seconds by size, with overlapping local entrances). Restart uses the same ordering in a compressed roughly 0.8–1.0 second profile. This is presentation behavior independent of the final asset family and must not change real board state, scoring, or solver rules.
 - These presentation rules are independent of the current Chequered Ink asset choice and should survive future asset replacement.
 
 ## Rejected directions / production methods

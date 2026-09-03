@@ -31,15 +31,15 @@ The runtime should expose only what is needed to inspect the board and progressi
 - clear piece visuals and enough state contrast to distinguish free, locked, and selected atoms;
 - a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
 - a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
-- previous unlocked level, next unlocked level, restart, and menu/level-select controls;
+- previous unlocked level, next unlocked level, restart, and menu/level-select controls; on the Board, Pause + Restart are system/session controls and must remain visually separate from consumable Move/Undo/Rescue actions;
 - visible on-screen return/navigation controls in every scene; keyboard shortcuts are optional accelerators and never the only way out;
 - direct selection/removal behavior;
-- the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, and click-to-highlight filtering.
+- the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, inline counts beside glyphs, and click-to-highlight filtering that leaves non-matches unchanged and gives matches only restrained positive emphasis.
 - in standard endless, a visible score, cleared-board streak, current multiplier, next multiplier threshold, and animated score awards for removals and board clears.
 - in campaign, a persistent score with animated awards but no streak or multiplier; only a level's first completion can add to that score.
 - a persistent dust wallet, dedicated shop, owned counts for Move/Undo/Rescue items, and an in-board `+` purchase dialog when an item is depleted.
 - a blocking completion reward screen that counts up earned score and dust, shows campaign or streak progress, announces unlocks, and only then offers the next level or exit.
-- distinct desktop, phone portrait, and phone landscape layouts. Portrait uses a readable two-row atom inventory when needed; landscape uses a side action dock; desktop keeps a centered board with top HUD and bottom dock.
+- distinct desktop, phone portrait, and phone landscape layouts. Portrait uses a readable two-row atom inventory when needed; landscape may use a compact side action rail; desktop keeps a centered board with small floating HUD/action groups rather than full-width Board bars. Fresh fields use a skippable centre-out spiral reveal lasting roughly 1.6–3.2 seconds by field size; restarting the same field uses a compressed roughly 0.8–1.0 second profile.
 - persistent Russian/English and sound on/off settings. Sound on/off must control Phaser's global mute state so future audio automatically respects it.
 
 ## Economy
@@ -54,8 +54,8 @@ The runtime should expose only what is needed to inspect the board and progressi
 - A rewarded item is granted only from the platform SDK's confirmed reward callback. Closing, errors, unavailable inventory, or concurrent requests grant nothing.
 - Localhost and `?test=all` simulate a successful rewarded placement for testability. The real Yandex adapter pauses/resumes gameplay around the ad and allows only one rewarded request at a time.
 - Move highlights for four seconds only a move that belongs to a verified route from the current position to an empty board. A merely legal move is not sufficient. If no solution exists or the solver cannot verify one within its safety budget, Move is not consumed.
-- A proven unsolvable position is visibly marked as a dead end and blocks further board selection. Campaign must restart or Undo; Endless may use Rescue or start over. No inappropriate booster purchase or consumption is allowed from this state.
-- Undo restores the board and score to immediately before the latest removal. Rescue is usable only after a proven Endless dead end; it searches history for the most recent solvable state, restores it, and blocks/highlights the specific move that crossed into the unsolvable branch. Rescue is not consumed when no safe restore point can be proven.
+- Solver-proven unsolvability remains internal while legal moves exist and must not block, stop, or warn the player. A player-facing dead end exists only when a non-cleared board has zero legal moves. Move still requires a solver-verified full-clear route and is not consumed when no verified route can be produced.
+- Undo restores the board and score to immediately before the latest removal. Rescue is Endless-only and is available only in an actual zero-legal-moves dead end; it searches history for the most recent solvable state, restores it, and blocks/highlights the specific move that crossed into the losing branch. Rescue is not consumed when no safe restore point can be proven.
 - Any hint, undo, or rescue used in Endless permanently marks that run `ASSISTED`; assisted scores must never be submitted to the future ranked leaderboard.
 - `src/economy.ts` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
 - `src/solver.ts` is renderer-independent authority for verified winning routes, dead-end proofs, and finding the last solvable history snapshot. It must return `unknown`, never a false dead-end claim, when its bounded search budget is exhausted.
@@ -66,7 +66,7 @@ The runtime should expose only what is needed to inspect the board and progressi
 - Clearing a 37/61/91-cell field awards 1000/1500/2000 base points.
 - Streak multipliers are ×1.0 at 0, ×1.25 at 3, ×1.5 at 5, ×2.0 at 8, and ×2.5 at 12 cleared boards; ×2.5 is the cap.
 - Removal points use the current cleared-board streak. A clear first increments the streak and then uses the resulting multiplier for its board bonus.
-- A dead end ends the run. `NEW RUN` resets score and streak and returns to endless level zero.
+- An actual dead end with zero legal moves ends normal play in the run until Rescue restores a safe history state or `NEW RUN` starts over. Solver-proven unsolvability alone does not end play while legal moves remain. `NEW RUN` resets score and streak and returns to endless level zero.
 - Standard endless has no previous-level navigation; cleared boards cannot be replayed to farm score.
 - A public endless run starts with two 37-cell boards, continues with three 61-cell boards, and uses 91-cell/55-piece layouts from its sixth board onward.
 - Campaign awards the same 10 points per removed atom and size-based clear bonus without any streak multiplier. Its score is persisted per level only on first completion.
@@ -96,7 +96,7 @@ Internal IDs and names must remain those in `src/atom-types.ts`.
 ## Main progression
 
 - `src/progression.ts` owns a separate deterministic 24-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
-- A separate level 0 tutorial teaches matching and geometric freedom before the numbered campaign.
+- A separate level 0 tutorial teaches the core matching action first, then geometric freedom, then the remaining-piece inventory/count panel. It never blocks an otherwise legal click, and completion presents one obvious `LEVEL 1` transition into campaign level index 0.
 - Levels 1-3 introduce the complete element set, Salt, and Vitae/Mors on 37-cell plates.
 - Levels 4-9 introduce Quicksilver and one successive metal per level through Gold on 37-cell plates.
 - Levels 10-16 combine the complete standard rules on selected variable masks within a 61-cell capacity.
@@ -128,7 +128,7 @@ Internal IDs and names must remain those in `src/atom-types.ts`.
 - Phaser 3 + Vite + strict TypeScript + native ES modules. Runtime source under `src/**` stays `.ts`; do not reintroduce JavaScript runtime modules.
 - Keep rules and generation renderer-independent and Node-testable: `src/atom-types.ts`, `src/hex.ts`, `src/rules.ts`, `src/board.ts`, `src/generator.ts`, `src/campaign.ts`, and `src/progression.ts`.
 - Keep strict TypeScript enabled. Do not use production `any` or `// @ts-ignore` to silence migration/type errors; narrow external `unknown` values explicitly.
-- `BoardScene.ts` owns game/session orchestration. `src/game/board/BoardHud.ts`, `BoardInventory.ts`, and `BoardTutorial.ts` own their Phaser presentation objects and must not import board/solver/progression logic.
+- `BoardScene.ts` owns game/session orchestration. `src/game/board/BoardHud.ts`, `BoardInventory.ts`, `BoardTutorial.ts`, and `BoardIntroAnimator.ts` own their Phaser presentation/lifecycle concerns and must not import board/solver/progression logic. Pure contextual-callout placement lives in `src/game/tutorial-callout-layout.ts` so Node tests never need to import Phaser.
 - Active scenes are `MenuScene`, `LevelSelectScene`, `ShopScene`, and `BoardScene`.
 - Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
 - Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
@@ -152,12 +152,12 @@ Before handoff:
 5. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
 6. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
 7. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, all visible return controls, and desktop/phone-portrait/phone-landscape layouts including live orientation changes. Keep the internal quintessence generator covered by automated tests.
-8. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, dead-end run termination, new-run reset, disabled backward farming, and narrow-layout score HUD.
+8. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, actual zero-legal-moves dead-end handling, hidden solver-unsolvable states with legal moves, new-run reset, disabled backward farming, and narrow-layout score HUD.
 9. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
-10. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, dead-end Rescue, and the permanent `ASSISTED` marker.
+10. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, Rescue only at an actual zero-legal-moves Endless dead end, and the permanent `ASSISTED` marker.
 11. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
 12. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
 13. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
-14. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route, does not spend in dead/unknown states, and Rescue restores the last solvable state while blocking the proven losing move.
+14. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route and does not spend when no verified route is available; verify solver-unsolvable states stay hidden while legal moves exist; and verify Rescue restores the last solvable state only from an actual zero-legal-moves dead end while blocking the proven losing move.
 
 See `RULES_AUDIT.md` for the source audit behind the contract.

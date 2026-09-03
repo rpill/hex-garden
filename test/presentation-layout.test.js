@@ -6,6 +6,7 @@ import {
   levelGridMetrics,
   shopGridMetrics,
 } from "../src/game/presentation-layout.js";
+import { boardFloatingMetrics } from "../src/game/responsive-layout.js";
 
 test("desktop campaign layout uses large tiles and at most six columns", () => {
   const layout = levelGridMetrics(1768, 864, 25, 80);
@@ -35,4 +36,20 @@ test("completion card stays compact and makes room for optional unlock row", () 
   assert.ok(plain.width >= 500 && plain.width <= 600);
   assert.ok(unlocked.height > plain.height);
   assert.ok(unlocked.height < 500);
+});
+
+
+test("floating board metrics reserve space without a top-bar height contract", () => {
+  const desktop = boardFloatingMetrics(1280, 800);
+  const portrait = boardFloatingMetrics(390, 844);
+  const landscape = boardFloatingMetrics(844, 390);
+
+  assert.equal(desktop.contentLeft, 0);
+  assert.equal(portrait.contentLeft, 0);
+  assert.equal(landscape.actionRail, true);
+  assert.ok(landscape.contentLeft > 0);
+  for (const metrics of [desktop, portrait, landscape]) {
+    assert.ok(metrics.contentWidth > 0);
+    assert.ok(metrics.topInset > 0);
+  }
 });
