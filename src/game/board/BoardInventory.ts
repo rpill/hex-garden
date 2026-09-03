@@ -4,6 +4,7 @@ import { Atom, type AtomType } from "../../atom-types.js";
 import { HintType, type HintTypeValue } from "../../economy.js";
 import { PANEL_METAL_TYPES, type PanelState } from "../../panel-state.js";
 import { makeButton, makePanel, makeText, resizeNineSlice } from "../ui.js";
+import { inventoryCountOffset } from "../presentation-layout.js";
 
 export interface BoardInventoryActions {
   onSelectType: (type: AtomType) => void;
@@ -142,7 +143,8 @@ export class BoardInventory {
       const hitDiameter = Math.max(40, radius * 2.25);
       view.label?.setPosition(x, y).setFontSize(Math.max(10, Math.floor(radius * 0.78)));
       view.glyph?.setPosition(x, y).setDisplaySize(radius * 1.7, radius * 1.7);
-      view.count.setPosition(x + radius * 0.68, y - radius * 0.72).setFontSize(Math.max(11, Math.floor(radius * 0.68)));
+      const countOffset = inventoryCountOffset(radius);
+      view.count.setPosition(x + countOffset.x, y + countOffset.y).setFontSize(Math.max(11, Math.floor(radius * 0.68)));
       view.hitZone.setPosition(x, y).setSize(hitDiameter, hitDiameter);
       view.hitZone.input?.hitArea?.setTo?.(hitDiameter / 2, hitDiameter / 2, hitDiameter / 2);
     }
@@ -162,8 +164,30 @@ export class BoardInventory {
       if (!view) continue;
       view.label?.setPosition(entry.x, entry.y);
       view.glyph?.setPosition(entry.x, entry.y);
-      view.count.setPosition(entry.x + layout.radius * 0.68, entry.y - layout.radius * 0.72);
+      const countOffset = inventoryCountOffset(layout.radius);
+      view.count.setPosition(entry.x + countOffset.x, entry.y + countOffset.y);
       view.hitZone.setPosition(entry.x, entry.y);
+    }
+  }
+
+  setPresentationVisible(visible: boolean): void {
+    this.panel.setVisible(visible && this.layoutState !== undefined);
+    this.graphics.setVisible(visible);
+    for (const view of this.views.values()) {
+      view.glyph?.setVisible(visible);
+      view.label?.setVisible(visible);
+      view.count.setVisible(visible);
+      view.hitZone.setVisible(visible);
+      if (visible) {
+        view.hitZone.setInteractive({ useHandCursor: true });
+      } else {
+        view.hitZone.disableInteractive();
+      }
+    }
+    if (!visible) {
+      for (const button of this.hintButtons.values()) {
+        button.setVisible(false).disableInteractive();
+      }
     }
   }
 
@@ -219,18 +243,12 @@ export class BoardInventory {
         this.graphics.lineStyle(entry.selected ? 3 : entry.current ? 2 : 1, entry.selected ? 0xffffff : entry.current ? 0xf3c94f : 0x101010, alpha);
         this.graphics.strokeCircle(x, y, radius);
       }
-      if (entry.countVisible && !entry.depleted) {
-        const badgeX = x + radius * 0.68;
-        const badgeY = y - radius * 0.72;
-        const badgeRadius = Math.max(8, radius * 0.5);
-        this.graphics.fillStyle(entry.warning ? 0xb74235 : 0x090d14, 1);
-        this.graphics.fillCircle(badgeX, badgeY, badgeRadius);
-        this.graphics.lineStyle(1.5, entry.warning ? 0xffb0a4 : 0xe9eee8, 1);
-        this.graphics.strokeCircle(badgeX, badgeY, badgeRadius);
-      }
       view.glyph?.setAlpha(alpha).setDisplaySize(radius * 1.7, radius * 1.7);
       view.label?.setAlpha(alpha);
-      view.count.setText(entry.countVisible && !entry.depleted ? String(entry.count) : "").setColor("#ffffff").setAlpha(alpha);
+      view.count
+        .setText(entry.countVisible && !entry.depleted ? `×${entry.count}` : "")
+        .setColor(entry.warning ? "#ffb0a4" : "#ffffff")
+        .setAlpha(alpha);
     });
   }
 
