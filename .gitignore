@@ -8,3 +8,5 @@ Thumbs.db
 .worktrees/
 # Generated ChatGPT context
 _chatgpt_bundle/
+# Local source asset packs
+assets/Mechanized Magic/
