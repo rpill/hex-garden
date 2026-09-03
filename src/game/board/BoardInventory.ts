@@ -17,6 +17,11 @@ export interface BoardInventoryPresentation {
   glyphFrameForType: (type: AtomType) => string | undefined;
 }
 
+export interface BoardInventoryRevealState {
+  revealedCounts: ReadonlyMap<AtomType, number>;
+  activationProgress: ReadonlyMap<AtomType, number>;
+}
+
 export interface BoardInventoryEntryLayout {
   type: AtomType;
   row: number;
@@ -43,6 +48,8 @@ type PanelView = {
   label?: Phaser.GameObjects.Text;
   count: Phaser.GameObjects.Text;
   hitZone: Phaser.GameObjects.Zone;
+  lastIntroCount?: number;
+  lastRenderedCount?: number;
 };
 
 export class BoardInventory {
@@ -170,7 +177,7 @@ export class BoardInventory {
     }
   }
 
-  setPresentationVisible(visible: boolean): void {
+  setPresentationVisible(visible: boolean, controlsEnabled = visible): void {
     this.panel.setVisible(visible && this.layoutState !== undefined);
     this.graphics.setVisible(visible);
     for (const view of this.views.values()) {
@@ -178,7 +185,7 @@ export class BoardInventory {
       view.label?.setVisible(visible);
       view.count.setVisible(visible);
       view.hitZone.setVisible(visible);
-      if (visible) {
+      if (visible && controlsEnabled) {
         view.hitZone.setInteractive({ useHandCursor: true });
       } else {
         view.hitZone.disableInteractive();
@@ -188,10 +195,18 @@ export class BoardInventory {
       for (const button of this.hintButtons.values()) {
         button.setVisible(false).disableInteractive();
       }
+    } else if (!controlsEnabled) {
+      for (const button of this.hintButtons.values()) {
+        button.setAlpha(0.42);
+        button.disableInteractive();
+      }
     }
   }
 
-  render(state: Readonly<PanelState>): void {
+  render(
+    state: Readonly<PanelState>,
+    reveal?: Readonly<BoardInventoryRevealState>,
+  ): void {
     this.graphics.clear();
     const layout = this.layoutState;
     if (!layout) return;
@@ -236,19 +251,105 @@ export class BoardInventory {
       const position = entries[index];
       if (!view || !position) return;
       const { x, y } = position;
-      const alpha = entry.depleted ? 0.18 : entry.locked ? 0.36 : 1;
+      const baseAlpha = entry.depleted ? 0.18 : entry.locked ? 0.36 : 1;
+      const revealedCount = reveal?.revealedCounts.get(entry.type) ?? entry.count;
+      const activationProgress = reveal
+        ? Math.max(0, Math.min(1, reveal.activationProgress.get(entry.type) ?? 0))
+        : 1;
+      const revealed = reveal === undefined || revealedCount > 0;
+      const easedActivation = 1 - Math.pow(1 - activationProgress, 3);
+      const revealAlpha = reveal
+        ? revealed
+          ? 0.22 + easedActivation * 0.78
+          : 0.22
+        : 1;
+      const revealScale = reveal
+        ? revealed
+          ? 0.88 + easedActivation * 0.12
+          : 0.88
+        : 1;
+      const alpha = baseAlpha * revealAlpha;
+      const displayRadius = radius * revealScale;
+
       if (!view.glyph) {
         this.graphics.fillStyle(this.#presentation.colorForType(entry.type), alpha);
-        this.graphics.fillCircle(x, y, radius);
-        this.graphics.lineStyle(entry.selected ? 3 : entry.current ? 2 : 1, entry.selected ? 0xffffff : entry.current ? 0xf3c94f : 0x101010, alpha);
-        this.graphics.strokeCircle(x, y, radius);
+        this.graphics.fillCircle(x, y, displayRadius);
+        this.graphics.lineStyle(
+          entry.selected ? 3 : entry.current ? 2 : 1,
+          entry.selected ? 0xffffff : entry.current ? 0xf3c94f : 0x101010,
+          alpha,
+        );
+        this.graphics.strokeCircle(x, y, displayRadius);
       }
-      view.glyph?.setAlpha(alpha).setDisplaySize(radius * 1.7, radius * 1.7);
-      view.label?.setAlpha(alpha);
+      view.glyph
+        ?.setAlpha(alpha)
+        .setDisplaySize(radius * 1.7 * revealScale, radius * 1.7 * revealScale);
+      view.label?.setAlpha(alpha).setScale(revealScale);
+
+      if (reveal) {
+        if (view.lastIntroCount !== revealedCount) {
+          const previousCount = view.lastIntroCount ?? 0;
+          view.lastIntroCount = revealedCount;
+          this.#scene.tweens.killTweensOf(view.count);
+          if (revealedCount > 0) {
+            view.count.setScale(previousCount === 0 ? 0.82 : 1.16);
+            this.#scene.tweens.add({
+              targets: view.count,
+              scale: 1,
+              duration: previousCount === 0 ? 180 : 130,
+              ease: "Cubic.Out",
+            });
+          } else {
+            view.count.setScale(1);
+          }
+        }
+      } else {
+        if (view.lastIntroCount !== undefined) {
+          this.#scene.tweens.killTweensOf(view.count);
+          delete view.lastIntroCount;
+          view.count.setScale(1);
+        }
+        const previousCount = view.lastRenderedCount;
+        if (previousCount !== undefined && entry.count < previousCount) {
+          this.#scene.tweens.killTweensOf(view.count);
+          view.count.setScale(1.16);
+          this.#scene.tweens.add({
+            targets: view.count,
+            scale: 1,
+            duration: 150,
+            ease: "Cubic.Out",
+          });
+          if (view.glyph) {
+            this.#scene.tweens.killTweensOf(view.glyph);
+            view.glyph.setScale(view.glyph.scaleX * 1.06, view.glyph.scaleY * 1.06);
+            this.#scene.tweens.add({
+              targets: view.glyph,
+              scaleX: view.glyph.scaleX / 1.06,
+              scaleY: view.glyph.scaleY / 1.06,
+              duration: 170,
+              ease: "Cubic.Out",
+            });
+          }
+        }
+        view.lastRenderedCount = entry.count;
+      }
+
+      const countText = reveal
+        ? entry.countVisible && revealedCount > 0
+          ? `×${revealedCount}`
+          : ""
+        : entry.countVisible && !entry.depleted
+        ? `×${entry.count}`
+        : "";
+      const countAlpha = reveal && revealed
+        ? alpha * (0.55 + easedActivation * 0.45)
+        : reveal
+        ? 0
+        : alpha;
       view.count
-        .setText(entry.countVisible && !entry.depleted ? `×${entry.count}` : "")
+        .setText(countText)
         .setColor(entry.warning ? "#ffb0a4" : "#ffffff")
-        .setAlpha(alpha);
+        .setAlpha(countAlpha);
     });
   }
 

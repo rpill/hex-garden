@@ -72,7 +72,11 @@ import {
   type TutorialLevel,
 } from "../../tutorial.js";
 import { BoardHud } from "../board/BoardHud.js";
-import { BoardInventory, type BoardInventoryLayout } from "../board/BoardInventory.js";
+import {
+  BoardInventory,
+  type BoardInventoryLayout,
+  type BoardInventoryRevealState,
+} from "../board/BoardInventory.js";
 import { BoardTutorial } from "../board/BoardTutorial.js";
 import {
   BoardIntroAnimator,
@@ -92,6 +96,7 @@ import {
 const CAMPAIGN_SEED = "rules-lab-v1";
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
+const REMOVAL_FEEDBACK_DURATION_MS = 280;
 
 function formatScore(value: number): string {
   return Math.round(value).toLocaleString("ru-RU");
@@ -244,6 +249,7 @@ export class BoardScene extends Phaser.Scene {
   blockedMoveKey: string | undefined;
   pauseMenuVisible = false;
   hoveredPieceKey: string | undefined;
+  removalFeedbackActive = false;
   busy = false;
   english = false;
   progress!: ReturnType<typeof getCampaignProgress>;
@@ -347,6 +353,7 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
+    this.removalFeedbackActive = false;
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
     this.pendingBoardIntroProfile = undefined;
@@ -407,6 +414,7 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
+    this.removalFeedbackActive = false;
     this.introAnimator?.stop();
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
@@ -585,6 +593,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.removalFeedbackActive = false;
     this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
       this.campaignScoreTween?.stop();
@@ -703,6 +712,7 @@ export class BoardScene extends Phaser.Scene {
   openUtilityScene(key: UtilitySceneKey): void {
     if (
       this.rewardedAdPending ||
+      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.economyModalVisible
     ) return;
@@ -714,6 +724,7 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.pauseMenuVisible ||
       this.rewardedAdPending ||
+      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.economyModalVisible
     ) return;
@@ -779,6 +790,7 @@ export class BoardScene extends Phaser.Scene {
   restartLevel(): void {
     if (
       this.busy ||
+      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.initialPieces.length === 0
@@ -823,6 +835,7 @@ export class BoardScene extends Phaser.Scene {
     this.introAnimator?.stop();
     if (!this.board || this.initialPieces.length === 0) return;
 
+    this.introRevealedKeys = new Set();
     this.introAnimator = new BoardIntroAnimator({
       scene: this,
       positions: this.initialPieces,
@@ -845,6 +858,7 @@ export class BoardScene extends Phaser.Scene {
   selectPiece(piece: BoardPiece): void {
     if (
       this.busy ||
+      this.removalFeedbackActive ||
       this.mechanicCardVisible ||
       this.economyModalVisible ||
       this.completionOverlay?.visible ||
@@ -883,6 +897,7 @@ export class BoardScene extends Phaser.Scene {
     } else if (result.kind === "deselected") {
       this.status.setText("");
     } else if (result.kind === "removed") {
+      this.animateRemovalFeedback(result.removed);
       this.blockedMoveKey = undefined;
       this.removalHistory.push(beforeRemoval);
       if (this.removalHistory.length > 64) this.removalHistory.shift();
@@ -924,7 +939,7 @@ export class BoardScene extends Phaser.Scene {
         message = "BOARD CLEARED";
         if (this.mode === PlayMode.TUTORIAL) {
           this.progress.completeTutorial();
-          this.showTutorialCompletion();
+          this.scheduleWonBoardCompletion(() => this.showTutorialCompletion());
           message = "";
         } else if (this.mode === PlayMode.CAMPAIGN) {
           const progressBefore = this.progress.snapshot;
@@ -965,14 +980,16 @@ export class BoardScene extends Phaser.Scene {
             !alreadyCompleted &&
             !this.progress.testMode &&
             this.level === STANDARD_ENDLESS_UNLOCK_LEVEL;
-          this.showCampaignCompletion({
-            snapshot,
-            progressBefore,
-            scoreAward: shouldRecordScore ? this.campaignLevelScore : 0,
-            dustAward: dust.award,
-            dustTotal: dust.snapshot.dust,
-            unlockedEndless,
-          });
+          this.scheduleWonBoardCompletion(() =>
+            this.showCampaignCompletion({
+              snapshot,
+              progressBefore,
+              scoreAward: shouldRecordScore ? this.campaignLevelScore : 0,
+              dustAward: dust.award,
+              dustTotal: dust.snapshot.dust,
+              unlockedEndless,
+            }),
+          );
         } else if (this.mode === PlayMode.STANDARD) {
           const clearScore = scoreClearedBoard(
             this.endlessScoreState,
@@ -991,11 +1008,13 @@ export class BoardScene extends Phaser.Scene {
           message =
             `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
             `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
-          this.showEndlessCompletion({
-            clearScore,
-            dustAward: dust.award,
-            dustTotal: dust.snapshot.dust,
-          });
+          this.scheduleWonBoardCompletion(() =>
+            this.showEndlessCompletion({
+              clearScore,
+              dustAward: dust.award,
+              dustTotal: dust.snapshot.dust,
+            }),
+          );
         }
         this.setBusy(false);
       } else {
@@ -1111,6 +1130,123 @@ export class BoardScene extends Phaser.Scene {
         onExit: () => this.openMainMenu(),
       },
     );
+  }
+
+  animateRemovalFeedback(removedPieces: readonly BoardPiece[]): void {
+    if (removedPieces.length === 0) return;
+    this.removalFeedbackActive = true;
+
+    const positions = removedPieces.map((piece) => ({
+      piece,
+      position: this.hexToScreen(piece),
+    }));
+    const centroid = positions.reduce(
+      (acc, item) => ({
+        x: acc.x + item.position.x / positions.length,
+        y: acc.y + item.position.y / positions.length,
+      }),
+      { x: 0, y: 0 },
+    );
+    const feedback = this.add.graphics().setDepth(11);
+    const progress = { linkProgress: 0 };
+
+    for (const { piece, position } of positions) {
+      const view = this.pieceViews.get(hexKey(piece));
+      const glyphFrame = atomGlyphFrame(piece.type);
+      const transient = glyphFrame && this.textures.exists(glyphFrame)
+        ? this.add.image(position.x, position.y, glyphFrame)
+            .setDepth(12)
+            .setDisplaySize(
+              view?.glyph?.displayWidth ?? this.hexSize * 1.25,
+              view?.glyph?.displayHeight ?? this.hexSize * 1.25,
+            )
+            .setAlpha(view?.glyph?.alpha ?? 1)
+        : makeText(this, ATOM_LABELS[piece.type], 16, "#eef3f8")
+            .setOrigin(0.5)
+            .setPosition(position.x, position.y)
+            .setDepth(12);
+      const dx = centroid.x - position.x;
+      const dy = centroid.y - position.y;
+      const distance = Math.hypot(dx, dy);
+      const pull = Math.min(12, distance * 0.12);
+      const targetX = distance > 0 ? position.x + (dx / distance) * pull : position.x;
+      const targetY = distance > 0 ? position.y + (dy / distance) * pull : position.y;
+      const targetScaleX = transient.scaleX * 0.76;
+      const targetScaleY = transient.scaleY * 0.76;
+      this.tweens.add({
+        targets: transient,
+        x: targetX,
+        y: targetY,
+        scaleX: targetScaleX,
+        scaleY: targetScaleY,
+        alpha: 0,
+        delay: 50,
+        duration: REMOVAL_FEEDBACK_DURATION_MS - 50,
+        ease: "Cubic.InOut",
+        onComplete: () => transient.destroy(),
+      });
+    }
+
+    this.tweens.add({
+      targets: progress,
+      linkProgress: 1,
+      duration: REMOVAL_FEEDBACK_DURATION_MS,
+      ease: "Sine.InOut",
+      onUpdate: () => {
+        const linkProgress = progress.linkProgress;
+        feedback.clear();
+        const pullProgress = Math.min(1, linkProgress / 0.72);
+        const linkAlpha = linkProgress < 0.42
+          ? (linkProgress / 0.42) * 0.42
+          : Math.max(0, (1 - linkProgress) / 0.58) * 0.42;
+        const pulled = ({ x, y }: { x: number; y: number }) => ({
+          x: x + (centroid.x - x) * 0.1 * pullProgress,
+          y: y + (centroid.y - y) * 0.1 * pullProgress,
+        });
+
+        if (positions.length === 2 && linkAlpha > 0) {
+          const first = pulled(positions[0]!.position);
+          const second = pulled(positions[1]!.position);
+          feedback.lineStyle(Math.max(1, this.hexSize * 0.045), 0xdbe7f0, linkAlpha);
+          feedback.lineBetween(first.x, first.y, second.x, second.y);
+        } else if (positions.length > 2 && linkAlpha > 0) {
+          feedback.lineStyle(Math.max(1, this.hexSize * 0.04), 0xdbe7f0, linkAlpha * 0.86);
+          for (const item of positions) {
+            const point = pulled(item.position);
+            feedback.lineBetween(point.x, point.y, centroid.x, centroid.y);
+          }
+        }
+
+        const ringProgress = Math.max(0, (linkProgress - 0.32) / 0.68);
+        if (ringProgress > 0) {
+          feedback.lineStyle(
+            Math.max(1, this.hexSize * 0.035),
+            0xdbe7f0,
+            (1 - ringProgress) * 0.28,
+          );
+          for (const { position } of positions) {
+            feedback.strokeCircle(
+              position.x,
+              position.y,
+              this.hexSize * (0.48 + ringProgress * 0.3),
+            );
+          }
+        }
+      },
+      onComplete: () => {
+        feedback.destroy();
+        this.removalFeedbackActive = false;
+        this.render();
+      },
+    });
+  }
+
+  scheduleWonBoardCompletion(showCompletion: () => void): void {
+    const completedBoard = this.board;
+    this.time.delayedCall(REMOVAL_FEEDBACK_DURATION_MS, () => {
+      if (!completedBoard?.won || this.board !== completedBoard) return;
+      showCompletion();
+    });
   }
 
   showScorePopup(removedPieces: readonly BoardPiece[], text: string, color = "#f3c94f"): void {
@@ -2309,9 +2445,11 @@ export class BoardScene extends Phaser.Scene {
 
     const introActive = this.introAnimator?.active === true;
     const inventoryVisible =
-      this.board !== undefined && !this.mechanicCardVisible && !introActive;
-    this.renderPanel();
-    this.inventory.setPresentationVisible(inventoryVisible);
+      this.board !== undefined && !this.mechanicCardVisible;
+    const boardActionsEnabled =
+      inventoryVisible && !introActive && !this.removalFeedbackActive;
+    this.renderPanel(introActive);
+    this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
     if (this.cellViews.size > 0) this.clearCellViews();
     this.cellGraphics.clear();
     if (this.levelGeometryReady) {
@@ -2357,7 +2495,7 @@ export class BoardScene extends Phaser.Scene {
         view.hitZone.disableInteractive();
         continue;
       }
-      if (introActive) {
+      if (introActive || this.removalFeedbackActive) {
         view.hitZone.disableInteractive();
       } else if (!view.hitZone.input?.enabled) {
         const hitDiameter = Math.max(42, this.hexSize * 1.56);
@@ -2466,7 +2604,28 @@ export class BoardScene extends Phaser.Scene {
     this.renderTutorialGuide();
   }
 
-  renderPanel(): void {
+  introInventoryRevealState(): Readonly<BoardInventoryRevealState> | undefined {
+    const animator = this.introAnimator;
+    if (!animator?.active) return undefined;
+
+    const revealedCounts = new Map<AtomType, number>();
+    const activationProgress = new Map<AtomType, number>();
+    for (const piece of this.initialPieces) {
+      const key = hexKey(piece);
+      if (!this.introRevealedKeys.has(key)) continue;
+      revealedCounts.set(piece.type, (revealedCounts.get(piece.type) ?? 0) + 1);
+      activationProgress.set(
+        piece.type,
+        Math.max(
+          activationProgress.get(piece.type) ?? 0,
+          animator.entranceProgress(key, this.time.now),
+        ),
+      );
+    }
+    return { revealedCounts, activationProgress };
+  }
+
+  renderPanel(introActive = false): void {
     if (!this.panelLayout) {
       this.inventory.graphics.clear();
       return;
@@ -2488,6 +2647,7 @@ export class BoardScene extends Phaser.Scene {
       this.panelHighlightTimer = undefined;
       this.activePanelType = null;
     }
-    this.inventory.render(state);
+    const introReveal = introActive ? this.introInventoryRevealState() : undefined;
+    this.inventory.render(state, introReveal);
   }
 }

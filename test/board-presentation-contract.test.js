@@ -121,3 +121,66 @@ test("mechanic cards show the real glyphs for every introduced atom", async () =
   assert.match(source, /atomGlyphFrame\(type\)/);
   assert.match(source, /layoutMechanicCardGlyphs/);
 });
+
+test("spiral reveal keeps inventory and consumables visible but disables all board actions", async () => {
+  const boardSource = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+  const inventorySource = await readFile(
+    new URL("../src/game/board/BoardInventory.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    boardSource,
+    /const inventoryVisible\s*=\s*this\.board !== undefined && !this\.mechanicCardVisible/,
+  );
+  assert.match(
+    boardSource,
+    /const boardActionsEnabled\s*=\s*inventoryVisible && !introActive/,
+  );
+  assert.match(
+    boardSource,
+    /inventory\.setPresentationVisible\(inventoryVisible, boardActionsEnabled\)/,
+  );
+  assert.match(inventorySource, /setPresentationVisible\(visible: boolean, controlsEnabled = visible\)/);
+  assert.match(inventorySource, /if \(visible && controlsEnabled\)[\s\S]{0,300}setInteractive/);
+  assert.match(
+    inventorySource,
+    /if \(!visible\)[\s\S]{0,220}button\.setVisible\(false\)\.disableInteractive\(\)/,
+  );
+  assert.match(
+    inventorySource,
+    /else if \(!controlsEnabled\)[\s\S]{0,260}button\.disableInteractive\(\)/,
+  );
+  assert.doesNotMatch(
+    inventorySource,
+    /if \(!controlsEnabled\)[\s\S]{0,220}button\.setVisible\(false\)/,
+  );
+});
+
+test("spiral reveal derives live inventory counts from revealed board pieces", async () => {
+  const boardSource = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+  const inventorySource = await readFile(
+    new URL("../src/game/board/BoardInventory.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(boardSource, /startBoardIntro\([^)]*\): void \{[\s\S]{0,300}this\.introRevealedKeys = new Set\(\)/);
+  assert.match(boardSource, /introInventoryRevealState\(\)/);
+  assert.match(boardSource, /revealedCounts = new Map<AtomType, number>\(\)/);
+  assert.match(boardSource, /this\.introRevealedKeys\.has\(key\)/);
+  assert.match(boardSource, /entranceProgress\(key, this\.time\.now\)/);
+  assert.match(boardSource, /this\.inventory\.render\(state, introReveal\)/);
+
+  assert.match(inventorySource, /export interface BoardInventoryRevealState/);
+  assert.match(inventorySource, /revealedCounts: ReadonlyMap<AtomType, number>/);
+  assert.match(inventorySource, /activationProgress: ReadonlyMap<AtomType, number>/);
+  assert.match(inventorySource, /revealedCount > 0/);
+  assert.match(inventorySource, /`×\$\{revealedCount\}`/);
+  assert.match(inventorySource, /lastIntroCount/);
+});
