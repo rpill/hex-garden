@@ -79,6 +79,8 @@ import {
   type TutorialLevel,
 } from "../../tutorial.js";
 import { BoardHud } from "../board/BoardHud.js";
+import { BoardAssistance } from "../board/BoardAssistance.js";
+import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
 import {
   createAttemptState,
@@ -273,6 +275,7 @@ export class BoardScene extends Phaser.Scene {
   leaderboard!: ReturnType<typeof getLeaderboard>;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
   generator!: BrowserLevelGenerator;
+  assistance!: BoardAssistance;
   hud!: BoardHud;
   introAnimator: BoardIntroAnimator | undefined;
   introRevealedKeys = new Set<string>();
@@ -433,6 +436,7 @@ export class BoardScene extends Phaser.Scene {
     this.leaderboard = getLeaderboard(this);
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.platform = getYandexGamesAdapter();
+    this.assistance = new BoardAssistance(this.platform);
     this.pieceViews = new Map();
     this.cellViews = new Map();
     this.panelViews = new Map();
@@ -1346,6 +1350,59 @@ export class BoardScene extends Phaser.Scene {
     this.restoreLastRemoval(this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"));
   }
 
+  async useCampaignHint(): Promise<void> {
+    const session = this.campaignSession;
+    if (!session || !this.board || this.board.won || this.rewardedAdPending) return;
+
+    const policy = assistancePolicy(PlayMode.CAMPAIGN, this.level);
+    this.hud.setHintBusy(true);
+    this.rewardedAdPending = policy.rewardRequired;
+    try {
+      const result = await session.requestHint(
+        this.assistance,
+        policy.rewardRequired,
+        this.certifiedSolution,
+      );
+      if (result.kind === "unavailable") {
+        this.status.setText(
+          this.uiText(
+            "ПОДСКАЗКА СЕЙЧАС НЕДОСТУПНА",
+            "NO VERIFIED HINT AVAILABLE",
+          ),
+        );
+        return;
+      }
+      if (result.kind === "reward-denied") {
+        this.status.setText(
+          this.uiText(
+            "ПОДСКАЗКА НЕ ПОЛУЧЕНА",
+            "HINT WAS NOT GRANTED",
+          ),
+        );
+        return;
+      }
+
+      const move = result.move;
+      this.clearMoveHint(false);
+      this.activeHintKeys = new Set(move.map(hexKey));
+      this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
+        this.hintTimer = undefined;
+        this.activeHintKeys.clear();
+        this.render();
+      });
+      this.status.setText(
+        this.uiText(
+          "ПОДСВЕЧЕН ХОД, ДЛЯ КОТОРОГО НАЙДЕН ПУТЬ ДО ПОЛНОЙ ЗАЧИСТКИ",
+          "HIGHLIGHTED MOVE HAS A VERIFIED PATH TO A FULL CLEAR",
+        ),
+      );
+      this.render();
+    } finally {
+      this.rewardedAdPending = false;
+      this.hud.setHintBusy(this.busy);
+    }
+  }
+
   useHint(type: HintTypeValue): void {
     if (
       this.busy ||
@@ -1354,6 +1411,10 @@ export class BoardScene extends Phaser.Scene {
       this.pauseMenuVisible ||
       !this.board
     ) {
+      return;
+    }
+    if (type === HintType.MOVE && this.mode === PlayMode.CAMPAIGN) {
+      void this.useCampaignHint();
       return;
     }
     if (

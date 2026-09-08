@@ -4,6 +4,7 @@ import test from "node:test";
 import { Atom } from "../src/atom-types.js";
 import { getCampaignLevel } from "../src/campaign-levels.js";
 import { CampaignBoardSession } from "../src/game/board/CampaignBoardSession.js";
+import { SolveStatus } from "../src/solver.js";
 
 function normalizedPieces(pieces) {
   return pieces
@@ -89,4 +90,74 @@ test("BoardScene loads Campaign through the fixed session instead of the generat
   const source = await readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8");
   assert.match(source, /new CampaignBoardSession\(getCampaignLevel\(this\.level\)\)/);
   assert.doesNotMatch(source, /PlayMode\.CAMPAIGN\s*\?\s*await this\.generator\.generate\(this\.level\)/);
+});
+
+
+test("unknown campaign hint does not request reward or invalidate Clean", async () => {
+  const level = getCampaignLevel(0);
+  const session = new CampaignBoardSession(level);
+  let rewardCalls = 0;
+  const assistance = {
+    findHint() {
+      return { status: SolveStatus.UNKNOWN, route: [], visited: 1 };
+    },
+    async confirmReward() {
+      rewardCalls += 1;
+      return true;
+    },
+  };
+
+  const result = await session.requestHint(assistance, true, level.solution);
+
+  assert.equal(result.kind, "unavailable");
+  assert.equal(result.solverStatus, SolveStatus.UNKNOWN);
+  assert.equal(rewardCalls, 0);
+  assert.equal(session.cleanEligible, true);
+});
+
+test("verified campaign hint reveals only the first move after reward and then invalidates Clean", async () => {
+  const level = getCampaignLevel(0);
+  const session = new CampaignBoardSession(level);
+  const route = level.solution.slice(0, 2);
+  assert.ok(route.length > 0);
+  let rewardCalls = 0;
+  const assistance = {
+    findHint() {
+      return { status: SolveStatus.SOLVED, route, visited: 2 };
+    },
+    async confirmReward(required) {
+      rewardCalls += 1;
+      assert.equal(required, true);
+      return true;
+    },
+  };
+
+  const result = await session.requestHint(assistance, true, level.solution);
+
+  assert.equal(result.kind, "revealed");
+  assert.deepEqual(result.move, route[0]);
+  assert.equal("route" in result, false);
+  assert.equal(rewardCalls, 1);
+  assert.equal(session.cleanEligible, false);
+});
+
+test("declined rewarded hint keeps campaign attempt Clean", async () => {
+  const level = getCampaignLevel(5);
+  const session = new CampaignBoardSession(level);
+  let rewardCalls = 0;
+  const assistance = {
+    findHint() {
+      return { status: SolveStatus.SOLVED, route: level.solution.slice(0, 1), visited: 1 };
+    },
+    async confirmReward() {
+      rewardCalls += 1;
+      return false;
+    },
+  };
+
+  const result = await session.requestHint(assistance, true, level.solution);
+
+  assert.equal(result.kind, "reward-denied");
+  assert.equal(rewardCalls, 1);
+  assert.equal(session.cleanEligible, true);
 });

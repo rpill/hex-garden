@@ -1,5 +1,7 @@
 import { GardenBoard, type BoardPieceInput } from "../../board.js";
 import type { CampaignLevelRecord } from "../../campaign-levels.js";
+import type { HexCoord } from "../../hex.js";
+import { SolveStatus, type SolveStatusValue, type WinningRouteResult } from "../../solver.js";
 import {
   canRescueAttempt,
   createAttemptState,
@@ -18,6 +20,27 @@ export interface CampaignCompletionMetadata {
   level: number;
   clean: boolean;
 }
+
+export interface CampaignHintAssistance {
+  findHint(
+    pieces: readonly BoardPieceInput[],
+    preferredSolution?: readonly (readonly HexCoord[])[],
+  ): WinningRouteResult;
+  confirmReward(required: boolean): Promise<boolean>;
+}
+
+export type CampaignHintRequestResult =
+  | Readonly<{
+      kind: "unavailable";
+      solverStatus: SolveStatusValue;
+    }>
+  | Readonly<{
+      kind: "reward-denied";
+    }>
+  | Readonly<{
+      kind: "revealed";
+      move: readonly HexCoord[];
+    }>;
 
 function clonePieces(pieces: readonly BoardPieceInput[]): BoardPieceInput[] {
   return pieces.map((piece) => ({ q: piece.q, r: piece.r, type: piece.type }));
@@ -64,6 +87,31 @@ export class CampaignBoardSession {
     this.board = new GardenBoard(this.level.pieces);
     this.history = [];
     this.attempt = restartAttempt(this.attempt);
+  }
+
+
+  async requestHint(
+    assistance: CampaignHintAssistance,
+    rewardRequired: boolean,
+    preferredSolution: readonly (readonly HexCoord[])[] = [],
+  ): Promise<CampaignHintRequestResult> {
+    const result = assistance.findHint(this.board.pieces(), preferredSolution);
+    const firstMove = result.route[0];
+    if (result.status !== SolveStatus.SOLVED || !firstMove || firstMove.length === 0) {
+      return Object.freeze({
+        kind: "unavailable" as const,
+        solverStatus: result.status,
+      });
+    }
+
+    const confirmed = await assistance.confirmReward(rewardRequired);
+    if (!confirmed) return Object.freeze({ kind: "reward-denied" as const });
+
+    this.markHintUsed();
+    return Object.freeze({
+      kind: "revealed" as const,
+      move: Object.freeze(firstMove.map(({ q, r }) => Object.freeze({ q, r }))),
+    });
   }
 
   markHintUsed(): void {
