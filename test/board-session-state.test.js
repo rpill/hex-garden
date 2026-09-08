@@ -17,11 +17,11 @@ test("player-facing dead end requires a non-won board with zero legal moves", ()
 
 test("rescue is eligible only for an actual Endless dead end", () => {
   assert.equal(
-    isRescueEligible({ mode: PlayMode.STANDARD, actualDeadEnd: true }),
+    isRescueEligible({ mode: PlayMode.ENDLESS, actualDeadEnd: true }),
     true,
   );
   assert.equal(
-    isRescueEligible({ mode: PlayMode.STANDARD, actualDeadEnd: false }),
+    isRescueEligible({ mode: PlayMode.ENDLESS, actualDeadEnd: false }),
     false,
   );
   assert.equal(

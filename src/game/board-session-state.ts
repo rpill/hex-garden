@@ -21,5 +21,5 @@ export function isRescueEligible({
   mode,
   actualDeadEnd,
 }: RescueEligibilityInput): boolean {
-  return mode === PlayMode.STANDARD && actualDeadEnd;
+  return mode === PlayMode.ENDLESS && actualDeadEnd;
 }

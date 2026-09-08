@@ -5,7 +5,7 @@ import {
   layoutPaperBackground,
   preloadPaperBackground,
 } from "../../scene-background.js";
-import { standardEndlessAccess } from "../../mode-access.js";
+import { endlessAccess } from "../../mode-access.js";
 import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
 import { isCampaignTestMode } from "../campaign-test-mode.js";
 import { getCampaignProgress } from "../campaign-progress.js";
@@ -44,7 +44,7 @@ export class MenuScene extends Phaser.Scene {
   settings!: ReturnType<typeof getSettings>;
   leaderboard!: ReturnType<typeof getLeaderboard>;
   english = false;
-  endlessAccess!: ReturnType<typeof standardEndlessAccess>;
+  endlessAccess!: ReturnType<typeof endlessAccess>;
   background!: ReturnType<typeof makePanel>;
   title!: Phaser.GameObjects.Text;
   subtitle!: Phaser.GameObjects.Text;
@@ -73,7 +73,7 @@ export class MenuScene extends Phaser.Scene {
     this.leaderboard = getLeaderboard(this);
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.english = this.settings.snapshot.language === "en";
-    this.endlessAccess = standardEndlessAccess(this.progress.snapshot, {
+    this.endlessAccess = endlessAccess(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
     });
     this.background = makePanel(this, UI_FRAMES.panelMainLarge);
@@ -103,14 +103,14 @@ export class MenuScene extends Phaser.Scene {
           this.note
             .setText(
               this.english
-                ? `ENDLESS UNLOCKS AFTER LEVEL ${this.endlessAccess.unlockLevel + 1}\nCOMPLETE ${remaining} MORE CAMPAIGN LEVELS`
-                : `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ УРОВНЯ ${this.endlessAccess.unlockLevel + 1}\n` +
+                ? `ENDLESS UNLOCKS AFTER ${this.endlessAccess.requiredCompletedLevels} CAMPAIGN LEVELS\nCOMPLETE ${remaining} MORE CAMPAIGN LEVELS`
+                : `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ ${this.endlessAccess.requiredCompletedLevels} УРОВНЕЙ КАМПАНИИ\n` +
                   `ПРОЙДИТЕ ЕЩЁ ${remaining} ${russianLevelWord(remaining)} КАМПАНИИ`,
             )
             .setColor("#f3c94f");
           return;
         }
-        this.scene.start("board", { mode: PlayMode.STANDARD, level: 0 });
+        this.scene.start("board", { mode: PlayMode.ENDLESS, level: 0 });
       },
     );
     if (!this.endlessAccess.unlocked) this.standardButton.setAlpha(0.55);

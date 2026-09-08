@@ -1,51 +1,57 @@
-import {
-  PROGRESSION_LEVEL_COUNT,
-  getProgressionLevelDefinition,
-} from "./progression.js";
 import { isRecord } from "./persistence.js";
 
-const standardEndlessUnlockLevel = Array.from(
-  { length: PROGRESSION_LEVEL_COUNT },
-  (_value, level) => level,
-).find((level) => getProgressionLevelDefinition(level).mechanics.includes("gold"));
+export const DAILY_REQUIRED_COMPLETIONS = 5;
+export const ENDLESS_REQUIRED_COMPLETIONS = 10;
 
-if (standardEndlessUnlockLevel === undefined) {
-  throw new Error("Campaign never unlocks the complete standard rules");
-}
-
-export const STANDARD_ENDLESS_UNLOCK_LEVEL: number = standardEndlessUnlockLevel;
-export const STANDARD_ENDLESS_REQUIRED_COMPLETIONS = STANDARD_ENDLESS_UNLOCK_LEVEL + 1;
-
-export interface EndlessAccessSnapshot {
+export interface ModeAccessSnapshot {
   unlocked: boolean;
-  unlockLevel: number;
   requiredCompletedLevels: number;
   completedRequiredLevels: number;
   remainingLevels: number;
 }
 
-export function standardEndlessAccess(
-  snapshot: unknown,
-  { unlockAll = false }: { unlockAll?: boolean } = {},
-): Readonly<EndlessAccessSnapshot> {
+function contiguousSolvedPrefix(snapshot: unknown): number {
   const record = isRecord(snapshot) ? snapshot : {};
-  const completedLevels = Array.isArray(record.completedLevels)
-    ? record.completedLevels.filter((level): level is number => Number.isSafeInteger(level))
+  const solvedLevels = Array.isArray(record.solvedLevels)
+    ? record.solvedLevels.filter(
+        (level): level is number =>
+          typeof level === "number" && Number.isSafeInteger(level) && level >= 0,
+      )
     : [];
-  const completed = new Set(completedLevels);
+  const solved = new Set(solvedLevels);
+  let count = 0;
+  while (solved.has(count)) count += 1;
+  return count;
+}
+
+function accessForRequiredCompletions(
+  snapshot: unknown,
+  requiredCompletedLevels: number,
+  { unlockAll = false }: { unlockAll?: boolean } = {},
+): Readonly<ModeAccessSnapshot> {
   const completedRequiredLevels = unlockAll
-    ? STANDARD_ENDLESS_REQUIRED_COMPLETIONS
-    : Array.from(
-        { length: STANDARD_ENDLESS_REQUIRED_COMPLETIONS },
-        (_value, level) => level,
-      ).filter((level) => completed.has(level)).length;
-  const remainingLevels = STANDARD_ENDLESS_REQUIRED_COMPLETIONS - completedRequiredLevels;
+    ? requiredCompletedLevels
+    : Math.min(requiredCompletedLevels, contiguousSolvedPrefix(snapshot));
+  const remainingLevels = requiredCompletedLevels - completedRequiredLevels;
 
   return Object.freeze({
     unlocked: remainingLevels === 0,
-    unlockLevel: STANDARD_ENDLESS_UNLOCK_LEVEL,
-    requiredCompletedLevels: STANDARD_ENDLESS_REQUIRED_COMPLETIONS,
+    requiredCompletedLevels,
     completedRequiredLevels,
     remainingLevels,
   });
+}
+
+export function dailyAccess(
+  snapshot: unknown,
+  options: { unlockAll?: boolean } = {},
+): Readonly<ModeAccessSnapshot> {
+  return accessForRequiredCompletions(snapshot, DAILY_REQUIRED_COMPLETIONS, options);
+}
+
+export function endlessAccess(
+  snapshot: unknown,
+  options: { unlockAll?: boolean } = {},
+): Readonly<ModeAccessSnapshot> {
+  return accessForRequiredCompletions(snapshot, ENDLESS_REQUIRED_COMPLETIONS, options);
 }

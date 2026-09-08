@@ -89,9 +89,11 @@ export type {
   MasteryRankValue,
 } from "./mastery.js";
 export {
-  STANDARD_ENDLESS_REQUIRED_COMPLETIONS,
-  STANDARD_ENDLESS_UNLOCK_LEVEL,
-  standardEndlessAccess,
+  DAILY_REQUIRED_COMPLETIONS,
+  ENDLESS_REQUIRED_COMPLETIONS,
+  dailyAccess,
+  endlessAccess,
+  type ModeAccessSnapshot,
 } from "./mode-access.js";
 export {
   ENDLESS_BOARD_BASE_SCORE,

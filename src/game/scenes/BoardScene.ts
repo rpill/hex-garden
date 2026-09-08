@@ -1,10 +1,14 @@
 import Phaser from "phaser";
 import {
+  ACTIVE_ART_THEME,
   GAMEPLAY_FRAMES,
   GAMEPLAY_UI_FRAMES,
+  PHYSICAL_MATERIAL_FRAMES,
+  THEME_COLORS,
   UI_FRAMES,
   atomGlyphFrame,
   hexFrameForState,
+  physicalPieceFrameForType,
 } from "../../art-assets.js";
 import {
   createPaperBackground,
@@ -32,7 +36,7 @@ import {
 } from "../../endless-score.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
 import { PROGRESSION_LEVEL_COUNT, type ProgressionLevelDefinition } from "../../progression.js";
-import { STANDARD_ENDLESS_UNLOCK_LEVEL } from "../../mode-access.js";
+import { ENDLESS_REQUIRED_COMPLETIONS } from "../../mode-access.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey, type HexCoord } from "../../hex.js";
 import {
   PANEL_METAL_TYPES,
@@ -79,14 +83,17 @@ import {
 } from "../board/BoardInventory.js";
 import { BoardTutorial } from "../board/BoardTutorial.js";
 import {
+  PHYSICAL_BOARD_CANVAS_SCALE,
+  PHYSICAL_PIECE_CANVAS_SCALE,
+  PHYSICAL_PIECE_UI_CANVAS_SCALE,
+} from "../physical-asset-layout.js";
+import {
   BoardIntroAnimator,
   type BoardIntroProfile,
 } from "../board/BoardIntroAnimator.js";
 import {
   makeButton,
   makeCurrencyDisplay,
-  makeCartIconButton,
-  makeIconButton,
   makePanel,
   makeText,
   preloadUiAssets,
@@ -96,21 +103,6 @@ import {
 const CAMPAIGN_SEED = "rules-lab-v1";
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
-const REMOVAL_FEEDBACK_DURATION_MS = 280;
-
-type RemovalFeedbackPoint = Readonly<{ x: number; y: number }>;
-
-function straightRemovalPoint(
-  start: RemovalFeedbackPoint,
-  end: RemovalFeedbackPoint,
-  progress: number,
-): RemovalFeedbackPoint {
-  const t = Math.max(0, Math.min(1, progress));
-  return {
-    x: start.x + (end.x - start.x) * t,
-    y: start.y + (end.y - start.y) * t,
-  };
-}
 
 function formatScore(value: number): string {
   return Math.round(value).toLocaleString("ru-RU");
@@ -167,6 +159,7 @@ const LOCKED_ATOM_NAMES: Readonly<Partial<Record<AtomType, string>>> = Object.fr
 
 type PieceView = {
   piece: BoardPiece;
+  tokenBase: Phaser.GameObjects.Image | undefined;
   glyph: Phaser.GameObjects.Image | undefined;
   label: Phaser.GameObjects.Text | undefined;
   filterGlow: Phaser.GameObjects.Image | undefined;
@@ -263,7 +256,6 @@ export class BoardScene extends Phaser.Scene {
   blockedMoveKey: string | undefined;
   pauseMenuVisible = false;
   hoveredPieceKey: string | undefined;
-  removalFeedbackActive = false;
   busy = false;
   english = false;
   progress!: ReturnType<typeof getCampaignProgress>;
@@ -316,10 +308,10 @@ export class BoardScene extends Phaser.Scene {
   endlessHud!: Phaser.GameObjects.Text;
   campaignHud!: Phaser.GameObjects.Text;
   dustHud!: ReturnType<typeof makeCurrencyDisplay>;
-  menuButton!: ReturnType<typeof makeIconButton>;
-  shopButton!: ReturnType<typeof makeCartIconButton>;
-  settingsButton!: ReturnType<typeof makeIconButton>;
-  restartButton!: ReturnType<typeof makeIconButton>;
+  menuButton!: ReturnType<typeof makeButton>;
+  shopButton!: ReturnType<typeof makeButton>;
+  settingsButton!: ReturnType<typeof makeButton>;
+  restartButton!: ReturnType<typeof makeButton>;
   hintButtons!: Map<HintTypeValue, ReturnType<typeof makeButton>>;
   boardCenterX = 0;
   boardCenterY = 0;
@@ -367,7 +359,6 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
-    this.removalFeedbackActive = false;
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
     this.pendingBoardIntroProfile = undefined;
@@ -386,10 +377,7 @@ export class BoardScene extends Phaser.Scene {
     this.progress = getCampaignProgress(this);
     this.english = getSettings(this).snapshot.language === "en";
     this.mode = init.mode ?? PlayMode.CAMPAIGN;
-    this.variant =
-      this.mode === PlayMode.QUINTESSENCE
-        ? BoardVariant.QUINTESSENCE
-        : BoardVariant.STANDARD;
+    this.variant = BoardVariant.STANDARD;
     const requestedLevel = init.level ?? 0;
     this.level =
       this.mode === PlayMode.CAMPAIGN
@@ -428,7 +416,6 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
-    this.removalFeedbackActive = false;
     this.introAnimator?.stop();
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
@@ -468,12 +455,16 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialGraphics = this.tutorialUi.graphics;
     this.tutorialText = this.tutorialUi.text;
     this.tutorialNeighbourLabels = this.tutorialUi.neighbourLabels;
-    this.hud = new BoardHud(this, {
-      onPause: () => this.openPauseMenu(),
-      onShop: () => this.openUtilityScene("shop"),
-      onSettings: () => this.openUtilityScene("settings"),
-      onRestart: () => this.restartLevel(),
-    });
+    this.hud = new BoardHud(
+      this,
+      {
+        onPause: () => this.openPauseMenu(),
+        onShop: () => this.openUtilityScene("shop"),
+        onSettings: () => this.openUtilityScene("settings"),
+        onRestart: () => this.restartLevel(),
+      },
+      { english: this.english },
+    );
     this.headerPanel = this.hud.headerPanel;
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
     this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
@@ -598,8 +589,8 @@ export class BoardScene extends Phaser.Scene {
 
   async loadLevel(introProfile: BoardIntroProfile = "fresh"): Promise<void> {
     const token = ++this.generationToken;
-    if (this.mode === PlayMode.STANDARD) this.endlessRunOver = false;
-    if (this.mode === PlayMode.STANDARD) {
+    if (this.mode === PlayMode.ENDLESS) this.endlessRunOver = false;
+    if (this.mode === PlayMode.ENDLESS) {
       this.endlessBoardStartScore = this.endlessScoreState.score;
     }
     this.removalHistory = [];
@@ -607,7 +598,6 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
-    this.removalFeedbackActive = false;
     this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
       this.campaignScoreTween?.stop();
@@ -639,14 +629,13 @@ export class BoardScene extends Phaser.Scene {
           ? await this.generator.generateProgression(this.level, {
               campaignSeed: CAMPAIGN_SEED,
             })
-          : this.mode === PlayMode.STANDARD
+          : this.mode === PlayMode.ENDLESS
           ? await this.generator.generateEndlessRun(this.level, {
               campaignSeed: CAMPAIGN_SEED,
             })
-          : await this.generator.generate(this.level, {
-              campaignSeed: CAMPAIGN_SEED,
-              variant: this.mode,
-            });
+          : await Promise.reject<never>(
+              new Error("Daily mode is not implemented yet"),
+            );
       if (token !== this.generationToken) return;
       this.board = record.board;
       this.variant = record.variant;
@@ -693,7 +682,7 @@ export class BoardScene extends Phaser.Scene {
       }
       return;
     }
-    if (this.mode === PlayMode.STANDARD) {
+    if (this.mode === PlayMode.ENDLESS) {
       if (delta <= 0 || !this.board?.won || this.endlessRunOver) return;
       this.level += 1;
       this.loadLevel();
@@ -726,7 +715,6 @@ export class BoardScene extends Phaser.Scene {
   openUtilityScene(key: UtilitySceneKey): void {
     if (
       this.rewardedAdPending ||
-      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.economyModalVisible
     ) return;
@@ -738,7 +726,6 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.pauseMenuVisible ||
       this.rewardedAdPending ||
-      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.economyModalVisible
     ) return;
@@ -795,7 +782,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   submitEndlessResult(): void {
-    if (this.mode !== PlayMode.STANDARD || !this.leaderboard) return;
+    if (this.mode !== PlayMode.ENDLESS || !this.leaderboard) return;
     this.leaderboard.submitEndlessScore(this.endlessScoreState.score, {
       assisted: this.endlessAssisted,
     });
@@ -804,12 +791,11 @@ export class BoardScene extends Phaser.Scene {
   restartLevel(): void {
     if (
       this.busy ||
-      this.removalFeedbackActive ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.initialPieces.length === 0
     ) return;
-    if (this.mode === PlayMode.STANDARD) {
+    if (this.mode === PlayMode.ENDLESS) {
       this.submitEndlessResult();
       this.endlessScoreTween?.stop();
       this.endlessScoreState = createEndlessScoreState();
@@ -872,7 +858,6 @@ export class BoardScene extends Phaser.Scene {
   selectPiece(piece: BoardPiece): void {
     if (
       this.busy ||
-      this.removalFeedbackActive ||
       this.mechanicCardVisible ||
       this.economyModalVisible ||
       this.completionOverlay?.visible ||
@@ -911,13 +896,12 @@ export class BoardScene extends Phaser.Scene {
     } else if (result.kind === "deselected") {
       this.status.setText("");
     } else if (result.kind === "removed") {
-      this.animateRemovalFeedback(result.removed);
       this.blockedMoveKey = undefined;
       this.removalHistory.push(beforeRemoval);
       if (this.removalHistory.length > 64) this.removalHistory.shift();
       this.clearMoveHint(false);
       let message = "";
-      if (this.mode === PlayMode.STANDARD) {
+      if (this.mode === PlayMode.ENDLESS) {
         const scoredRemoval = scoreRemovedAtoms(
           this.endlessScoreState,
           result.removed.length,
@@ -949,11 +933,12 @@ export class BoardScene extends Phaser.Scene {
       ) {
         this.tutorialStep += 1;
       }
+      let completionAfterRebuild: (() => void) | undefined;
       if (this.board.won) {
         message = "BOARD CLEARED";
         if (this.mode === PlayMode.TUTORIAL) {
           this.progress.completeTutorial();
-          this.scheduleWonBoardCompletion(() => this.showTutorialCompletion());
+          completionAfterRebuild = () => this.showTutorialCompletion();
           message = "";
         } else if (this.mode === PlayMode.CAMPAIGN) {
           const progressBefore = this.progress.snapshot;
@@ -993,8 +978,8 @@ export class BoardScene extends Phaser.Scene {
           const unlockedEndless =
             !alreadyCompleted &&
             !this.progress.testMode &&
-            this.level === STANDARD_ENDLESS_UNLOCK_LEVEL;
-          this.scheduleWonBoardCompletion(() =>
+            snapshot.solvedLevels.length === ENDLESS_REQUIRED_COMPLETIONS;
+          completionAfterRebuild = () =>
             this.showCampaignCompletion({
               snapshot,
               progressBefore,
@@ -1002,9 +987,8 @@ export class BoardScene extends Phaser.Scene {
               dustAward: dust.award,
               dustTotal: dust.snapshot.dust,
               unlockedEndless,
-            }),
-          );
-        } else if (this.mode === PlayMode.STANDARD) {
+            });
+        } else if (this.mode === PlayMode.ENDLESS) {
           const clearScore = scoreClearedBoard(
             this.endlessScoreState,
             1 + 3 * this.plateRadius * (this.plateRadius + 1),
@@ -1022,13 +1006,12 @@ export class BoardScene extends Phaser.Scene {
           message =
             `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
             `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
-          this.scheduleWonBoardCompletion(() =>
+          completionAfterRebuild = () =>
             this.showEndlessCompletion({
               clearScore,
               dustAward: dust.award,
               dustTotal: dust.snapshot.dust,
-            }),
-          );
+            });
         }
         this.setBusy(false);
       } else {
@@ -1040,6 +1023,7 @@ export class BoardScene extends Phaser.Scene {
       this.status.setText(message);
       this.rebuildPieceViews();
       this.updateTutorialGuide();
+      completionAfterRebuild?.();
     }
     this.layout();
   }
@@ -1146,158 +1130,9 @@ export class BoardScene extends Phaser.Scene {
     );
   }
 
-  animateRemovalFeedback(removedPieces: readonly BoardPiece[]): void {
-    if (removedPieces.length === 0) return;
-    this.removalFeedbackActive = true;
-
-    const positions = removedPieces.map((piece) => ({
-      piece,
-      position: this.hexToScreen(piece),
-    }));
-    const centroid = positions.reduce(
-      (acc, item) => ({
-        x: acc.x + item.position.x / positions.length,
-        y: acc.y + item.position.y / positions.length,
-      }),
-      { x: 0, y: 0 },
-    );
-    const feedback = this.add.graphics().setDepth(11);
-    const progress = { linkProgress: 0 };
-
-    for (const { piece, position } of positions) {
-      const view = this.pieceViews.get(hexKey(piece));
-      const glyphFrame = atomGlyphFrame(piece.type);
-      const transient = glyphFrame && this.textures.exists(glyphFrame)
-        ? this.add.image(position.x, position.y, glyphFrame)
-            .setDepth(12)
-            .setDisplaySize(
-              view?.glyph?.displayWidth ?? this.hexSize * 1.25,
-              view?.glyph?.displayHeight ?? this.hexSize * 1.25,
-            )
-            .setAlpha(view?.glyph?.alpha ?? 1)
-        : makeText(this, ATOM_LABELS[piece.type], 16, "#eef3f8")
-            .setOrigin(0.5)
-            .setPosition(position.x, position.y)
-            .setDepth(12);
-      const dx = centroid.x - position.x;
-      const dy = centroid.y - position.y;
-      const distance = Math.hypot(dx, dy);
-      const pull = Math.min(12, distance * 0.12);
-      const targetX = distance > 0 ? position.x + (dx / distance) * pull : position.x;
-      const targetY = distance > 0 ? position.y + (dy / distance) * pull : position.y;
-      const targetScaleX = transient.scaleX * 0.76;
-      const targetScaleY = transient.scaleY * 0.76;
-      this.tweens.add({
-        targets: transient,
-        x: targetX,
-        y: targetY,
-        scaleX: targetScaleX,
-        scaleY: targetScaleY,
-        alpha: 0,
-        delay: 50,
-        duration: REMOVAL_FEEDBACK_DURATION_MS - 50,
-        ease: "Cubic.InOut",
-        onComplete: () => transient.destroy(),
-      });
-    }
-
-    this.tweens.add({
-      targets: progress,
-      linkProgress: 1,
-      duration: REMOVAL_FEEDBACK_DURATION_MS,
-      ease: "Sine.InOut",
-      onUpdate: () => {
-        const linkProgress = progress.linkProgress;
-        feedback.clear();
-        const pullProgress = Math.min(1, linkProgress / 0.72);
-        const linkAlpha = linkProgress < 0.42
-          ? (linkProgress / 0.42) * 0.42
-          : Math.max(0, (1 - linkProgress) / 0.58) * 0.42;
-        const pulled = ({ x, y }: { x: number; y: number }) => ({
-          x: x + (centroid.x - x) * 0.1 * pullProgress,
-          y: y + (centroid.y - y) * 0.1 * pullProgress,
-        });
-
-        const lineDrawProgress = Math.min(1, linkProgress / 0.3);
-        const pulseProgress = Math.max(0, Math.min(1, (linkProgress - 0.1) / 0.56));
-        const pulseAlpha =
-          pulseProgress > 0 && pulseProgress < 1
-            ? Math.sin(Math.PI * pulseProgress) * 0.58
-            : 0;
-        const lineWidthScale =
-          linkProgress < 0.66
-            ? 1
-            : 0.35 + 0.65 * Math.max(0, (1 - linkProgress) / 0.34);
-        const drawPulse = (start: RemovalFeedbackPoint, end: RemovalFeedbackPoint): void => {
-          if (pulseAlpha <= 0 || lineDrawProgress <= 0.08) return;
-          const pulseT = Math.min(pulseProgress, lineDrawProgress);
-          const pulse = straightRemovalPoint(start, end, pulseT);
-          feedback.fillStyle(0xf4f8fb, pulseAlpha * 0.18);
-          feedback.fillCircle(pulse.x, pulse.y, Math.max(2, this.hexSize * 0.12));
-          feedback.fillStyle(0xf4f8fb, pulseAlpha);
-          feedback.fillCircle(pulse.x, pulse.y, Math.max(1.2, this.hexSize * 0.042));
-        };
-
-        if (positions.length === 2 && linkAlpha > 0) {
-          const first = pulled(positions[0]!.position);
-          const second = pulled(positions[1]!.position);
-          const drawEnd = straightRemovalPoint(first, second, lineDrawProgress);
-          feedback.lineStyle(
-            Math.max(1, this.hexSize * 0.045 * lineWidthScale),
-            0xdbe7f0,
-            linkAlpha,
-          );
-          feedback.lineBetween(first.x, first.y, drawEnd.x, drawEnd.y);
-          drawPulse(first, second);
-        } else if (positions.length > 2 && linkAlpha > 0) {
-          feedback.lineStyle(
-            Math.max(1, this.hexSize * 0.04 * lineWidthScale),
-            0xdbe7f0,
-            linkAlpha * 0.86,
-          );
-          for (const item of positions) {
-            const point = pulled(item.position);
-            const drawEnd = straightRemovalPoint(point, centroid, lineDrawProgress);
-            feedback.lineBetween(point.x, point.y, drawEnd.x, drawEnd.y);
-            drawPulse(point, centroid);
-          }
-        }
-
-        const ringProgress = Math.max(0, (linkProgress - 0.32) / 0.68);
-        if (ringProgress > 0) {
-          feedback.lineStyle(
-            Math.max(1, this.hexSize * 0.035),
-            0xdbe7f0,
-            (1 - ringProgress) * 0.28,
-          );
-          for (const { position } of positions) {
-            feedback.strokeCircle(
-              position.x,
-              position.y,
-              this.hexSize * (0.48 + ringProgress * 0.3),
-            );
-          }
-        }
-      },
-      onComplete: () => {
-        feedback.destroy();
-        this.removalFeedbackActive = false;
-        this.render();
-      },
-    });
-  }
-
-  scheduleWonBoardCompletion(showCompletion: () => void): void {
-    const completedBoard = this.board;
-    this.time.delayedCall(REMOVAL_FEEDBACK_DURATION_MS, () => {
-      if (!completedBoard?.won || this.board !== completedBoard) return;
-      showCompletion();
-    });
-  }
-
   showScorePopup(removedPieces: readonly BoardPiece[], text: string, color = "#f3c94f"): void {
     if (
-      this.mode !== PlayMode.STANDARD &&
+      this.mode !== PlayMode.ENDLESS &&
       this.mode !== PlayMode.CAMPAIGN
     ) {
       return;
@@ -1330,7 +1165,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   animateEndlessScore(targetScore: number): void {
-    if (this.mode !== PlayMode.STANDARD) return;
+    if (this.mode !== PlayMode.ENDLESS) return;
     this.endlessScoreTween?.stop();
     const counter = { value: this.displayedEndlessScore };
     const distance = Math.max(1, targetScore - this.displayedEndlessScore);
@@ -1374,7 +1209,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   updateEndlessHud(): void {
-    const visible = this.mode === PlayMode.STANDARD;
+    const visible = this.mode === PlayMode.ENDLESS;
     this.endlessHud?.setVisible(visible);
     if (!visible || !this.endlessHud) return;
     const streak = this.endlessScoreState.streak;
@@ -1405,7 +1240,7 @@ export class BoardScene extends Phaser.Scene {
     if (!this.economy || !this.hintButtons) return;
     const snapshot = this.economy.snapshot;
     const visible =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.STANDARD;
+      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.ENDLESS;
     this.dustHud?.setValue(snapshot.dust).setVisible(visible);
     this.hud.setRestartEmphasis(this.actualDeadEnd);
 
@@ -1416,7 +1251,7 @@ export class BoardScene extends Phaser.Scene {
     };
     for (const [type, button] of this.hintButtons) {
       const typeVisible = visible &&
-        (type !== HintType.RESCUE || this.mode === PlayMode.STANDARD);
+        (type !== HintType.RESCUE || this.mode === PlayMode.ENDLESS);
       const count = snapshot.hints[type];
       const rescueEligible = isRescueEligible({
         mode: this.mode,
@@ -1462,7 +1297,7 @@ export class BoardScene extends Phaser.Scene {
     if (this.actualDeadEnd) {
       this.positionSolveStatus = SolveStatus.DEAD_END;
       this.knownWinningRoute = [];
-      if (this.mode === PlayMode.STANDARD) this.endlessRunOver = true;
+      if (this.mode === PlayMode.ENDLESS) this.endlessRunOver = true;
       return { status: SolveStatus.DEAD_END, route: [] };
     }
 
@@ -1612,7 +1447,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   markEndlessAssisted(): void {
-    if (this.mode === PlayMode.STANDARD) this.endlessAssisted = true;
+    if (this.mode === PlayMode.ENDLESS) this.endlessAssisted = true;
   }
 
   restoreLastRemoval(message: string): void {
@@ -1805,19 +1640,39 @@ export class BoardScene extends Phaser.Scene {
     if (!this.board) return;
     for (const piece of this.board.pieces()) {
       const glyphFrame = atomGlyphFrame(piece.type);
-      const glyph = glyphFrame && this.textures.exists(glyphFrame)
-        ? this.add.image(0, 0, glyphFrame).setDepth(2).setVisible(false)
+      const premiumPieceFrame = physicalPieceFrameForType(piece.type);
+      const premiumFallbackBall =
+        ACTIVE_ART_THEME === "premium" && this.textures.exists(PHYSICAL_MATERIAL_FRAMES.pieceBall);
+      const tokenFrame = premiumPieceFrame && this.textures.exists(premiumPieceFrame)
+        ? premiumPieceFrame
+        : premiumFallbackBall
+        ? PHYSICAL_MATERIAL_FRAMES.pieceBall
         : undefined;
-      const filterGlow = glyphFrame && this.textures.exists(glyphFrame)
-        ? this.add.image(0, 0, glyphFrame).setDepth(1.5).setAlpha(0).setVisible(false)
+      const tokenBase = tokenFrame
+        ? this.add
+            .image(0, 0, tokenFrame)
+            .setDepth(1.25)
+            .setVisible(false)
         : undefined;
-      const label = glyph
+      const activeGlyphFrame = ACTIVE_ART_THEME === "premium" ? undefined : glyphFrame;
+      const glyph = activeGlyphFrame && this.textures.exists(activeGlyphFrame)
+        ? this.add.image(0, 0, activeGlyphFrame).setDepth(2).setVisible(false)
+        : undefined;
+      const filterGlow = activeGlyphFrame && this.textures.exists(activeGlyphFrame)
+        ? this.add.image(0, 0, activeGlyphFrame).setDepth(1.5).setAlpha(0).setVisible(false)
+        : undefined;
+      const label = premiumPieceFrame || glyph
         ? undefined
-        : makeText(this, ATOM_LABELS[piece.type], 16, "#eef3f8")
-        .setOrigin(0.5)
-        .setFontStyle("bold")
-        .setDepth(2)
-        .setVisible(false);
+        : makeText(
+            this,
+            ATOM_LABELS[piece.type],
+            16,
+            ACTIVE_ART_THEME === "premium" ? THEME_COLORS.ink : "#eef3f8",
+          )
+            .setOrigin(0.5)
+            .setFontStyle("bold")
+            .setDepth(2)
+            .setVisible(false);
       const hitZone = this.add.zone(0, 0, 56, 56).setDepth(3).setVisible(false);
       hitZone.setInteractive(
         new Phaser.Geom.Circle(28, 28, 28),
@@ -1838,12 +1693,13 @@ export class BoardScene extends Phaser.Scene {
         this.hoveredPieceKey = undefined;
         this.render();
       });
-      this.pieceViews.set(hexKey(piece), { piece, glyph, label, filterGlow, hitZone });
+      this.pieceViews.set(hexKey(piece), { piece, tokenBase, glyph, label, filterGlow, hitZone });
     }
   }
 
   clearPieceViews(): void {
     for (const view of this.pieceViews.values()) {
+      view.tokenBase?.destroy();
       view.glyph?.destroy();
       view.filterGlow?.destroy();
       view.label?.destroy();
@@ -2002,11 +1858,17 @@ export class BoardScene extends Phaser.Scene {
   setMechanicCardGlyphTypes(types: readonly AtomType[]): void {
     this.clearMechanicCardGlyphs();
     for (const type of types) {
-      const frame = atomGlyphFrame(type);
+      const premiumPieceFrame = physicalPieceFrameForType(type);
+      const premiumBallFrame = PHYSICAL_MATERIAL_FRAMES.pieceBall;
+      const frame =
+        premiumPieceFrame && this.textures.exists(premiumPieceFrame)
+          ? premiumPieceFrame
+          : ACTIVE_ART_THEME === "premium" && this.textures.exists(premiumBallFrame)
+          ? premiumBallFrame
+          : atomGlyphFrame(type);
       if (!this.textures.exists(frame)) continue;
-      this.mechanicCardGlyphs.push(
-        this.add.image(0, 0, frame).setDepth(21).setVisible(true),
-      );
+      const image = this.add.image(0, 0, frame).setDepth(21).setVisible(true);
+      this.mechanicCardGlyphs.push(image);
     }
   }
 
@@ -2074,23 +1936,33 @@ export class BoardScene extends Phaser.Scene {
 
     layoutPaperBackground(this.backgroundImage, width, height, { bands: false });
     const utilitySize = compact ? 42 : 46;
-    const utilityGap = 8;
-    const settingsX = width - margin - utilitySize / 2;
-    const shopX = settingsX - utilitySize - utilityGap;
-    const systemRestartSize = compact ? 40 : 42;
-    const systemRestartX =
-      margin + utilitySize + utilityGap + systemRestartSize / 2;
+    const utilityGap = compact ? 7 : 10;
+    const compactSystem = compact || portrait || sideDock;
+    const systemButtonWidth = compactSystem ? utilitySize : 96;
+    const restartButtonWidth = compactSystem ? Math.min(42, utilitySize) : 100;
+    const utilityButtonWidth = compactSystem ? utilitySize : 104;
+    const systemButtonHeight = compactSystem ? utilitySize : 40;
+    const menuX = margin + systemButtonWidth / 2;
+    const restartX = menuX + systemButtonWidth / 2 + utilityGap + restartButtonWidth / 2;
+    const systemRestartX = restartX;
+    const settingsX = width - margin - utilityButtonWidth / 2;
+    const shopX = settingsX - utilityButtonWidth / 2 - utilityGap - utilityButtonWidth / 2;
+
     this.menuButton
-      .setFixedSize(utilitySize, utilitySize)
-      .setPosition(margin + utilitySize / 2, 28);
+      .setIconOnlyMode(compact || portrait || sideDock)
+      .setFixedSize(systemButtonWidth, systemButtonHeight)
+      .setPosition(menuX, 28);
     this.restartButton
-      .setFixedSize(systemRestartSize, systemRestartSize)
+      .setIconOnlyMode(compact || portrait || sideDock)
+      .setFixedSize(restartButtonWidth, systemButtonHeight)
       .setPosition(systemRestartX, 28);
     this.settingsButton
-      .setFixedSize(utilitySize, utilitySize)
+      .setIconOnlyMode(compact || portrait || sideDock)
+      .setFixedSize(utilityButtonWidth, systemButtonHeight)
       .setPosition(settingsX, 28);
     this.shopButton
-      .setFixedSize(utilitySize, utilitySize)
+      .setIconOnlyMode(compact || portrait || sideDock)
+      .setFixedSize(utilityButtonWidth, systemButtonHeight)
       .setPosition(shopX, 28);
     this.header
       .setFontSize(compact ? 12 : 15)
@@ -2113,7 +1985,7 @@ export class BoardScene extends Phaser.Scene {
     this.dustHud
       .setFontSize(compact ? 10 : 12)
       .setPosition(
-        shopX - utilitySize / 2 - (compact ? 38 : 48),
+        shopX - utilityButtonWidth / 2 - (compactSystem ? 38 : 54),
         28,
       );
     this.updateEndlessHud();
@@ -2125,7 +1997,7 @@ export class BoardScene extends Phaser.Scene {
     const hintEntries = [...this.hintButtons.entries()].filter(
       ([type]) =>
         (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
-        this.mode === PlayMode.STANDARD,
+        this.mode === PlayMode.ENDLESS,
     );
 
     let boardBottom;
@@ -2281,7 +2153,7 @@ export class BoardScene extends Phaser.Scene {
       .setPosition(width / 2, y + 38);
     this.pauseResumeButton.setText(this.uiText("ПРОДОЛЖИТЬ", "RESUME")).setBackgroundColor("#526d5a");
     this.pauseRestartButton.setText(
-      this.mode === PlayMode.STANDARD
+      this.mode === PlayMode.ENDLESS
         ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN")
         : this.uiText("ЗАНОВО", "RESTART"),
     );
@@ -2381,7 +2253,10 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardGlyphs.forEach((glyph, index) => {
       glyph
         .setPosition(startX + index * step, y)
-        .setDisplaySize(size, size)
+        .setDisplaySize(
+          size * (ACTIVE_ART_THEME === "premium" ? PHYSICAL_PIECE_UI_CANVAS_SCALE : 1),
+          size * (ACTIVE_ART_THEME === "premium" ? PHYSICAL_PIECE_UI_CANVAS_SCALE : 1),
+        )
         .setVisible(true);
     });
   }
@@ -2413,6 +2288,40 @@ export class BoardScene extends Phaser.Scene {
   clearCellViews(): void {
     for (const image of this.cellViews.values()) image.destroy();
     this.cellViews.clear();
+  }
+
+  renderPhysicalCells(): boolean {
+    const frame = PHYSICAL_MATERIAL_FRAMES.boardCell;
+    if (!this.textures.exists(frame)) {
+      this.clearCellViews();
+      return false;
+    }
+
+    const wanted = new Set(this.plateCells.map(hexKey));
+    for (const [key, image] of this.cellViews) {
+      if (wanted.has(key)) continue;
+      image.destroy();
+      this.cellViews.delete(key);
+    }
+
+    for (const cell of this.plateCells) {
+      const key = hexKey(cell);
+      let image = this.cellViews.get(key);
+      if (!image) {
+        image = this.add.image(0, 0, frame).setDepth(0);
+        this.cellViews.set(key, image);
+      }
+      const position = this.hexToScreen(cell);
+      image
+        .setPosition(position.x, position.y)
+        .setTexture(frame)
+        .setDisplaySize(
+          this.hexSize * PHYSICAL_BOARD_CANVAS_SCALE,
+          this.hexSize * PHYSICAL_BOARD_CANVAS_SCALE,
+        )
+        .setVisible(true);
+    }
+    return true;
   }
 
   renderAtlasCells(): boolean {
@@ -2464,6 +2373,12 @@ export class BoardScene extends Phaser.Scene {
         ),
       );
     }
+    if (ACTIVE_ART_THEME === "premium") {
+      graphics.fillStyle(fillColor, 0.72).fillPoints(points, true);
+      graphics.lineStyle(Math.max(1, lineWidth * 1.65), 0x0b1d17, 0.72).strokePoints(points, true);
+      graphics.lineStyle(Math.max(0.8, lineWidth * 0.72), lineColor, 0.82).strokePoints(points, true);
+      return;
+    }
     graphics.fillStyle(fillColor, 1).fillPoints(points, true);
     graphics.lineStyle(lineWidth, lineColor, 1).strokePoints(points, true);
   }
@@ -2492,25 +2407,30 @@ export class BoardScene extends Phaser.Scene {
     const introActive = this.introAnimator?.active === true;
     const inventoryVisible =
       this.board !== undefined && !this.mechanicCardVisible;
-    const boardActionsEnabled =
-      inventoryVisible && !introActive && !this.removalFeedbackActive;
+    const boardActionsEnabled = inventoryVisible && !introActive;
     this.renderPanel(introActive);
     this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
-    if (this.cellViews.size > 0) this.clearCellViews();
     this.cellGraphics.clear();
     if (this.levelGeometryReady) {
-      for (const cell of this.plateCells) {
-        const position = this.hexToScreen(cell);
-        this.drawHex(
-          this.cellGraphics,
-          position.x,
-          position.y,
-          this.hexSize * 0.95,
-          0x141a22,
-          0x2a3440,
-          Math.max(1, this.hexSize * 0.025),
-        );
+      const physicalCellsRendered =
+        ACTIVE_ART_THEME === "premium" && this.renderPhysicalCells();
+      if (!physicalCellsRendered) {
+        if (this.cellViews.size > 0) this.clearCellViews();
+        for (const cell of this.plateCells) {
+          const position = this.hexToScreen(cell);
+          this.drawHex(
+            this.cellGraphics,
+            position.x,
+            position.y,
+            this.hexSize * 0.95,
+            THEME_COLORS.cellFillNumber,
+            THEME_COLORS.cellLineNumber,
+            Math.max(1, this.hexSize * 0.025),
+          );
+        }
       }
+    } else if (this.cellViews.size > 0) {
+      this.clearCellViews();
     }
 
     this.atomGraphics.clear();
@@ -2527,6 +2447,7 @@ export class BoardScene extends Phaser.Scene {
       const key = hexKey(view.piece);
       if (this.mechanicCardVisible) {
         view.hitZone.setVisible(false).disableInteractive();
+        view.tokenBase?.setVisible(false);
         view.glyph?.setVisible(false);
         view.label?.setVisible(false);
         view.filterGlow?.setVisible(false);
@@ -2534,6 +2455,7 @@ export class BoardScene extends Phaser.Scene {
       }
       const revealed = !introActive || this.introRevealedKeys.has(key);
       view.hitZone.setVisible(revealed);
+      view.tokenBase?.setVisible(revealed);
       view.glyph?.setVisible(revealed);
       view.label?.setVisible(revealed);
       view.filterGlow?.setVisible(revealed);
@@ -2541,7 +2463,7 @@ export class BoardScene extends Phaser.Scene {
         view.hitZone.disableInteractive();
         continue;
       }
-      if (introActive || this.removalFeedbackActive) {
+      if (introActive) {
         view.hitZone.disableInteractive();
       } else if (!view.hitZone.input?.enabled) {
         const hitDiameter = Math.max(42, this.hexSize * 1.56);
@@ -2579,11 +2501,12 @@ export class BoardScene extends Phaser.Scene {
       });
       const alpha = visualState.alpha * filter.alphaMultiplier * introProgress;
 
-      if (!view.glyph) {
-        if (filter.positiveMatch) {
-          this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], 0.14 * introProgress);
-          this.atomGraphics.fillCircle(position.x, position.y, radius * 1.12 * introScale);
-        }
+      if (filter.positiveMatch) {
+        this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], 0.14 * introProgress);
+        this.atomGraphics.fillCircle(position.x, position.y, radius * 1.12 * introScale);
+      }
+
+      if (!view.glyph && !view.tokenBase) {
         this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
         this.atomGraphics.fillCircle(
           position.x,
@@ -2632,20 +2555,39 @@ export class BoardScene extends Phaser.Scene {
         );
       }
 
+      view.tokenBase
+        ?.setPosition(position.x, position.y)
+        .setDisplaySize(
+          this.hexSize * PHYSICAL_PIECE_CANVAS_SCALE * visualState.scale * introScale,
+          this.hexSize * PHYSICAL_PIECE_CANVAS_SCALE * visualState.scale * introScale,
+        )
+        .setAlpha(alpha * 0.98);
       view.filterGlow
         ?.setPosition(position.x, position.y)
         .setDisplaySize(radius * 1.92 * introScale, radius * 1.92 * introScale)
         .setAlpha(filter.positiveMatch ? 0.16 * introProgress : 0);
+      const glyphScale = view.tokenBase ? 1.28 : 1.78;
       view.glyph
-        ?.setPosition(position.x, position.y)
+        ?.setPosition(position.x, position.y - (view.tokenBase ? radius * 0.035 : 0))
         .setDisplaySize(
-          radius * 1.78 * visualState.scale * introScale,
-          radius * 1.78 * visualState.scale * introScale,
+          radius * glyphScale * visualState.scale * introScale,
+          radius * glyphScale * visualState.scale * introScale,
         )
         .setAlpha(alpha);
       view.label
-        ?.setColor(free ? "#eef3f8" : "#9aa7b5")
-        .setAlpha((free ? 1 : 0.5) * introProgress);
+        ?.setPosition(position.x, position.y)
+        .setFontSize(Math.max(10, Math.floor(radius * 0.5)))
+        .setColor(
+          ACTIVE_ART_THEME === "premium"
+            ? free
+              ? THEME_COLORS.ink
+              : "#686868"
+            : free
+            ? "#eef3f8"
+            : "#9aa7b5",
+        )
+        .setScale(visualState.scale * introScale)
+        .setAlpha((free ? 0.92 : 0.5) * introProgress);
     }
     this.renderTutorialGuide();
   }
