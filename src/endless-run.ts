@@ -1,5 +1,10 @@
-import { DEFAULT_CAMPAIGN_SEED, generateCampaignLevel } from "./campaign.js";
-import { BoardVariant, type Solution } from "./generator.js";
+import { DEFAULT_CAMPAIGN_SEED } from "./campaign.js";
+import {
+  BoardVariant,
+  createSeededRandom,
+  generateSolvableBoard,
+  type Solution,
+} from "./generator.js";
 import { GardenBoard, type BoardPiece } from "./board.js";
 import { enumerateHexPlate, type HexCoord } from "./hex.js";
 import { generateProgressionLevel } from "./progression.js";
@@ -76,9 +81,16 @@ export function generateEndlessRunLevel(
     return asRunRecord(level, phase, generated, 4);
   }
 
-  const generated = generateCampaignLevel(level - ENDLESS_LARGE_START_LEVEL, {
-    campaignSeed: `${campaignSeed}:endless-run:large`,
-    variant: BoardVariant.STANDARD,
-  });
+  // Keep the legacy Endless large-board pipeline independent from the frozen
+  // Campaign dataset until Endless is redesigned in its own rollout phase.
+  const legacyLevel = level - ENDLESS_LARGE_START_LEVEL;
+  const seed = `${campaignSeed}:endless-run:large:${BoardVariant.STANDARD}:${legacyLevel}`;
+  const generated = {
+    seed,
+    ...generateSolvableBoard({
+      random: createSeededRandom(seed),
+      variant: BoardVariant.STANDARD,
+    }),
+  };
   return asRunRecord(level, phase, generated, 5);
 }

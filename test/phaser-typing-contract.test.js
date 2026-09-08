@@ -17,8 +17,8 @@ test("BoardScene respects nullable Phaser input and exact optional view fields",
 test("AtlasButton icon and padding wrappers satisfy real Phaser contracts", async () => {
   const source = await readFile(uiSourceUrl, "utf8");
   assert.match(source, /type PositionableIcon\s*=\s*Phaser\.GameObjects\.Image\s*\|\s*Phaser\.GameObjects\.Graphics/);
-  assert.match(source, /icon:PositionableIcon\|undefined/);
-  assert.match(source, /setCustomIcon\(icon:PositionableIcon\|undefined/);
+  assert.match(source, /icon:\s*PositionableIcon\s*\|\s*undefined/);
+  assert.match(source, /setCustomIcon\(icon:\s*PositionableIcon\s*\|\s*undefined/);
   assert.doesNotMatch(source, /this\.label\.setPadding\(left,top,right,bottom\)/);
 });
 

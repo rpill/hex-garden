@@ -3,100 +3,76 @@ import assert from "node:assert/strict";
 import {
   Atom,
   BoardVariant,
+  CAMPAIGN_LEVEL_COUNT,
+  campaignPlateSize,
   generateCampaignLevel,
   hexKey,
+  plateSpec,
   replaySolution,
 } from "../src/index.js";
 
-function countsByType(pieces) {
-  const counts = new Map();
-  for (const piece of pieces) counts.set(piece.type, (counts.get(piece.type) ?? 0) + 1);
-  return counts;
-}
+const METAL_ORDER = [
+  Atom.LEAD,
+  Atom.TIN,
+  Atom.IRON,
+  Atom.COPPER,
+  Atom.SILVER,
+  Atom.GOLD,
+];
 
-function assertCommonComposition(counts) {
-  assert.equal(counts.get(Atom.AIR), 8);
-  assert.equal(counts.get(Atom.FIRE), 8);
-  assert.equal(counts.get(Atom.WATER), 8);
-  assert.equal(counts.get(Atom.EARTH), 8);
-  assert.equal(counts.get(Atom.SALT), 4);
-  assert.equal(counts.get(Atom.QUICKSILVER), 5);
-  for (const metal of [
-    Atom.GOLD,
-    Atom.SILVER,
-    Atom.COPPER,
-    Atom.IRON,
-    Atom.TIN,
-    Atom.LEAD,
-  ]) {
-    assert.equal(counts.get(metal), 1);
+test("frozen campaign occupancy stays inside each canonical plate contract", () => {
+  for (let level = 0; level < CAMPAIGN_LEVEL_COUNT; level += 1) {
+    const record = generateCampaignLevel(level);
+    const spec = plateSpec(campaignPlateSize(level));
+    assert.ok(record.pieces.length >= spec.minPieces, `level ${level + 1} minimum occupancy`);
+    assert.ok(record.pieces.length <= spec.maxPieces, `level ${level + 1} maximum occupancy`);
+    assert.equal(new Set(record.pieces.map(hexKey)).size, record.pieces.length);
+    assert.equal(record.pieces.some((piece) => piece.type === Atom.QUINTESSENCE), false);
+    assert.equal(replaySolution(record.pieces, record.solution), true);
   }
-}
-
-test("standard levels have the exact 55-piece contract", () => {
-  const record = generateCampaignLevel(7, {
-    campaignSeed: "composition",
-    variant: BoardVariant.STANDARD,
-  });
-  const counts = countsByType(record.pieces);
-  assert.equal(record.pieces.length, 55);
-  assert.equal(new Set(record.pieces.map(hexKey)).size, 55);
-  assertCommonComposition(counts);
-  assert.equal(counts.get(Atom.VITAE), 4);
-  assert.equal(counts.get(Atom.MORS), 4);
-  assert.equal(counts.get(Atom.QUINTESSENCE) ?? 0, 0);
-  assert.equal(record.solution.length, 28);
 });
 
-test("quintessence levels have the exact 55-piece contract", () => {
-  const record = generateCampaignLevel(7, {
-    campaignSeed: "composition",
+test("legacy campaign seed and variant options no longer change frozen content", () => {
+  const baseline = generateCampaignLevel(7);
+  const legacyStandard = generateCampaignLevel(7, {
+    campaignSeed: "composition-a",
+    variant: BoardVariant.STANDARD,
+  });
+  const legacyQuintessence = generateCampaignLevel(7, {
+    campaignSeed: "composition-b",
     variant: BoardVariant.QUINTESSENCE,
   });
-  const counts = countsByType(record.pieces);
-  assert.equal(record.pieces.length, 55);
-  assert.equal(new Set(record.pieces.map(hexKey)).size, 55);
-  assertCommonComposition(counts);
-  assert.equal(counts.get(Atom.VITAE), 3);
-  assert.equal(counts.get(Atom.MORS), 3);
-  assert.equal(counts.get(Atom.QUINTESSENCE), 2);
-  assert.equal(record.solution.length, 25);
-  assert.equal(record.solution.filter((move) => move.length === 5).length, 2);
+
+  assert.deepEqual(legacyStandard.pieces, baseline.pieces);
+  assert.deepEqual(legacyStandard.solution, baseline.solution);
+  assert.deepEqual(legacyQuintessence.pieces, baseline.pieces);
+  assert.deepEqual(legacyQuintessence.solution, baseline.solution);
+  assert.equal(legacyQuintessence.variant, BoardVariant.STANDARD);
 });
 
-test("a long sequence in both variants replays to an empty board", () => {
-  for (const variant of Object.values(BoardVariant)) {
-    for (let level = 0; level < 40; level += 1) {
-      const record = generateCampaignLevel(level, {
-        campaignSeed: "rules-lab-v1",
-        variant,
-      });
-      assert.equal(replaySolution(record.pieces, record.solution), true);
+test("campaign certificates that contain metals remove them in progression order", () => {
+  let checked = 0;
+  for (let level = 0; level < CAMPAIGN_LEVEL_COUNT; level += 1) {
+    const record = generateCampaignLevel(level);
+    const typesAt = new Map(record.pieces.map((piece) => [hexKey(piece), piece.type]));
+    const metalMoves = record.solution
+      .map((move) => move.map((position) => typesAt.get(hexKey(position))))
+      .filter((types) => types.some((type) => METAL_ORDER.includes(type)));
+    if (metalMoves.length === 0) continue;
+
+    const removedMetals = metalMoves.map((types) =>
+      types.find((type) => type !== Atom.QUICKSILVER),
+    );
+    assert.deepEqual(
+      removedMetals,
+      METAL_ORDER.slice(0, removedMetals.length),
+      `level ${level + 1} metal order`,
+    );
+    if (removedMetals.at(-1) === Atom.GOLD) {
+      assert.deepEqual(metalMoves.at(-2).sort((a, b) => a - b), [Atom.QUICKSILVER, Atom.SILVER]);
+      assert.deepEqual(metalMoves.at(-1), [Atom.GOLD]);
     }
+    checked += 1;
   }
-});
-
-test("certified levels remove metals in order and leave gold for the final move", () => {
-  const record = generateCampaignLevel(19, {
-    campaignSeed: "metal-order",
-    variant: BoardVariant.STANDARD,
-  });
-  const typesAt = new Map(record.pieces.map((piece) => [hexKey(piece), piece.type]));
-  const metalMoves = record.solution
-    .map((move) => move.map((position) => typesAt.get(hexKey(position))))
-    .filter((types) => types.some((type) => [
-      Atom.LEAD,
-      Atom.TIN,
-      Atom.IRON,
-      Atom.COPPER,
-      Atom.SILVER,
-      Atom.GOLD,
-    ].includes(type)));
-
-  assert.deepEqual(
-    metalMoves.map((types) => types.find((type) => type !== Atom.QUICKSILVER)),
-    [Atom.LEAD, Atom.TIN, Atom.IRON, Atom.COPPER, Atom.SILVER, Atom.GOLD],
-  );
-  assert.deepEqual(metalMoves.at(-2).sort((a, b) => a - b), [Atom.QUICKSILVER, Atom.SILVER]);
-  assert.deepEqual(metalMoves.at(-1), [Atom.GOLD]);
+  assert.ok(checked > 0, "expected frozen campaign to contain metal-chain levels");
 });
