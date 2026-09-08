@@ -34,6 +34,8 @@ export {
   plateSpec,
 } from "./plates.js";
 export type { PlateSizeValue, PlateSpec } from "./plates.js";
+export { CAMPAIGN_LEVELS, getCampaignLevel } from "./campaign-levels.js";
+export type { CampaignLevelRecord } from "./campaign-levels.js";
 export { generatePuzzleCandidate } from "./puzzle-generation.js";
 export type {
   GeneratedPuzzleCandidate,
@@ -71,6 +73,10 @@ export {
   CAMPAIGN_PROGRESS_STORAGE_KEY,
   CampaignProgressStore,
   normalizeCampaignProgress,
+  type CampaignProgressRuntimeSnapshot,
+  type CampaignProgressSnapshot,
+  type CampaignProgressSnapshotV3,
+  type CampaignProgressStoreOptions,
 } from "./campaign-progress.js";
 export {
   STANDARD_ENDLESS_REQUIRED_COMPLETIONS,

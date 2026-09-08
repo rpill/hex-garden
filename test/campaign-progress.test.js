@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {
   CAMPAIGN_PROGRESS_STORAGE_KEY,
   CampaignProgressStore,
-  PROGRESSION_LEVEL_COUNT,
   normalizeCampaignProgress,
-} from "../src/index.js";
+} from "../src/campaign-progress.js";
+import { CAMPAIGN_LEVEL_COUNT } from "../src/plates.js";
 import { isCampaignTestMode } from "../src/game/campaign-test-mode.js";
 
 class MemoryStorage {
@@ -24,140 +24,140 @@ class MemoryStorage {
   }
 }
 
-test("only the first campaign level is unlocked initially", () => {
-  const store = new CampaignProgressStore({ storage: new MemoryStorage() });
-  assert.equal(store.snapshot.tutorialCompleted, false);
-  assert.equal(store.isUnlocked(0), true);
-  assert.equal(store.isUnlocked(1), false);
-  assert.equal(store.snapshot.highestUnlocked, 0);
-  assert.deepEqual(store.snapshot.completedLevels, []);
-  assert.equal(store.snapshot.campaignScore, 0);
-});
+test("new campaign progress starts empty and uses a new save key", () => {
+  assert.equal(CAMPAIGN_PROGRESS_STORAGE_KEY, "garden-js.campaign-progress.v3");
 
-test("completing a level persists and unlocks exactly the next level", () => {
   const storage = new MemoryStorage();
-  const firstSession = new CampaignProgressStore({ storage });
+  storage.setItem("garden-js.campaign-progress.v1", JSON.stringify({ completedLevels: [0, 1, 2] }));
+  storage.setItem("garden-js.campaign-progress.v2", JSON.stringify({ solvedLevels: [0, 1, 2] }));
 
-  assert.throws(() => firstSession.complete(1), /locked/);
-  firstSession.complete(0, { score: 1234 });
-  assert.equal(firstSession.isCompleted(0), true);
-  assert.equal(firstSession.isUnlocked(1), true);
-  assert.equal(firstSession.isUnlocked(2), false);
-  assert.equal(firstSession.snapshot.tutorialCompleted, true);
-  assert.equal(firstSession.snapshot.campaignScore, 1234);
-  assert.equal(firstSession.snapshot.levelScores[0], 1234);
-  firstSession.complete(0, { score: 999999 });
-  assert.equal(firstSession.snapshot.campaignScore, 1234);
-  assert.equal(firstSession.snapshot.levelScores[0], 1234);
-
-  const secondSession = new CampaignProgressStore({ storage });
-  assert.equal(secondSession.isCompleted(0), true);
-  assert.equal(secondSession.isUnlocked(1), true);
-  assert.equal(secondSession.snapshot.campaignScore, 1234);
-  assert.equal(
-    JSON.parse(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY)).version,
-    2,
-  );
+  const store = new CampaignProgressStore({ storage });
+  assert.equal(store.snapshot.version, 3);
+  assert.deepEqual(store.snapshot.solvedLevels, []);
+  assert.deepEqual(store.snapshot.cleanLevels, []);
+  assert.equal(store.snapshot.highestUnlocked, 0);
+  assert.equal(store.snapshot.campaignCompleted, false);
 });
 
-test("normalization keeps only a contiguous valid completion prefix", () => {
+test("solved and clean upgrade independently", () => {
+  const storage = new MemoryStorage();
+  const store = new CampaignProgressStore({ storage });
+
+  store.complete(0, { clean: false });
+  assert.equal(store.isSolved(0), true);
+  assert.equal(store.isClean(0), false);
+  assert.equal(store.snapshot.highestUnlocked, 1);
+  assert.equal(store.solvedCount, 1);
+  assert.equal(store.cleanCount, 0);
+
+  store.complete(0, { clean: true });
+  assert.equal(store.isSolved(0), true);
+  assert.equal(store.isClean(0), true);
+  assert.equal(store.snapshot.solvedLevels.length, 1);
+  assert.equal(store.solvedCount, 1);
+  assert.equal(store.cleanCount, 1);
+
+  const reloaded = new CampaignProgressStore({ storage });
+  assert.equal(reloaded.isClean(0), true);
+  assert.equal(reloaded.solvedCount, 1);
+  assert.equal(reloaded.cleanCount, 1);
+});
+
+test("normalization keeps sorted unique valid levels and clean is always a solved subset", () => {
   assert.deepEqual(
     normalizeCampaignProgress({
-      completedLevels: [0, 1, 3, 99, -1, 1, "2"],
+      version: 3,
+      tutorialCompleted: false,
+      solvedLevels: [3, 0, 3, 49, -1, 50, "1"],
+      cleanLevels: [49, 3, 2, 3, -1],
     }),
     {
-      version: 2,
+      version: 3,
       tutorialCompleted: true,
-      completedLevels: [0, 1],
-      levelScores: Array(PROGRESSION_LEVEL_COUNT).fill(0),
-      campaignScore: 0,
-      highestUnlocked: 2,
+      solvedLevels: [0, 3, 49],
+      cleanLevels: [3, 49],
+      highestUnlocked: 1,
       campaignCompleted: false,
     },
   );
 });
 
-test("normalization migrates old progress and keeps only valid completed scores", () => {
-  const normalized = normalizeCampaignProgress({
-    version: 1,
-    completedLevels: [0, 1],
-    levelScores: [1200, 1400, 9999],
-  });
-  assert.deepEqual(normalized.levelScores.slice(0, 3), [1200, 1400, 0]);
-  assert.equal(normalized.campaignScore, 2600);
-  assert.equal(normalized.version, 2);
-});
-
-test("a migrated completed level can record its missing score exactly once", () => {
+test("only the contiguous solved prefix unlocks normal campaign progression", () => {
   const storage = new MemoryStorage();
   storage.setItem(
     CAMPAIGN_PROGRESS_STORAGE_KEY,
-    JSON.stringify({ version: 1, completedLevels: [0] }),
+    JSON.stringify({ version: 3, solvedLevels: [0, 2], cleanLevels: [2] }),
   );
   const store = new CampaignProgressStore({ storage });
-  assert.equal(store.snapshot.campaignScore, 0);
 
-  store.complete(0, { score: 1250 });
-  assert.equal(store.snapshot.campaignScore, 1250);
-  store.complete(0, { score: 9999 });
-  assert.equal(store.snapshot.campaignScore, 1250);
+  assert.equal(store.isSolved(0), true);
+  assert.equal(store.isSolved(2), true);
+  assert.equal(store.isClean(2), true);
+  assert.equal(store.snapshot.highestUnlocked, 1);
+  assert.equal(store.isUnlocked(1), true);
+  assert.equal(store.isUnlocked(2), false);
+  assert.throws(() => store.complete(2), /locked/);
 });
 
-test("tutorial completion persists without completing campaign level 1", () => {
+test("tutorial completion persists without solving campaign level 1", () => {
   const storage = new MemoryStorage();
-  const firstSession = new CampaignProgressStore({ storage });
+  const first = new CampaignProgressStore({ storage });
+  first.completeTutorial();
 
-  firstSession.completeTutorial();
-  assert.equal(firstSession.snapshot.tutorialCompleted, true);
-  assert.deepEqual(firstSession.snapshot.completedLevels, []);
-  assert.equal(firstSession.snapshot.campaignScore, 0);
+  assert.equal(first.snapshot.tutorialCompleted, true);
+  assert.deepEqual(first.snapshot.solvedLevels, []);
+  assert.deepEqual(first.snapshot.cleanLevels, []);
 
-  const secondSession = new CampaignProgressStore({ storage });
-  assert.equal(secondSession.snapshot.tutorialCompleted, true);
-  assert.equal(secondSession.isUnlocked(0), true);
-  assert.equal(secondSession.isUnlocked(1), false);
+  const second = new CampaignProgressStore({ storage });
+  assert.equal(second.snapshot.tutorialCompleted, true);
+  assert.equal(second.isUnlocked(0), true);
+  assert.equal(second.isUnlocked(1), false);
 });
 
-test("finishing the final level marks the campaign complete without padding", () => {
-  const storage = new MemoryStorage();
-  const store = new CampaignProgressStore({ storage });
-  for (let level = 0; level < PROGRESSION_LEVEL_COUNT; level += 1) {
+test("all 50 solved levels complete the campaign while clean remains optional", () => {
+  const store = new CampaignProgressStore({ storage: new MemoryStorage() });
+
+  for (let level = 0; level < CAMPAIGN_LEVEL_COUNT; level += 1) {
     assert.equal(store.isUnlocked(level), true);
-    store.complete(level);
+    store.complete(level, { clean: level % 2 === 0 });
   }
 
-  assert.equal(store.snapshot.highestUnlocked, PROGRESSION_LEVEL_COUNT - 1);
   assert.equal(store.snapshot.campaignCompleted, true);
-  assert.equal(store.snapshot.completedLevels.length, PROGRESSION_LEVEL_COUNT);
-  assert.throws(() => store.isUnlocked(PROGRESSION_LEVEL_COUNT), RangeError);
+  assert.equal(store.snapshot.solvedLevels.length, CAMPAIGN_LEVEL_COUNT);
+  assert.equal(store.snapshot.cleanLevels.length, CAMPAIGN_LEVEL_COUNT / 2);
+  assert.equal(store.snapshot.highestUnlocked, CAMPAIGN_LEVEL_COUNT - 1);
+  assert.throws(() => store.isUnlocked(CAMPAIGN_LEVEL_COUNT), RangeError);
 });
 
-test("invalid browser data falls back to a playable first level", () => {
+test("invalid v3 browser data falls back to a playable first level", () => {
   const storage = new MemoryStorage();
   storage.setItem(CAMPAIGN_PROGRESS_STORAGE_KEY, "{not json");
   const store = new CampaignProgressStore({ storage });
+
   assert.equal(store.isUnlocked(0), true);
   assert.equal(store.isUnlocked(1), false);
+  assert.deepEqual(store.snapshot.solvedLevels, []);
 });
 
-test("test URL unlocks every level without touching persistent progress", () => {
+test("test URL unlocks all 50 levels without fabricating mastery or persisting progress", () => {
   assert.equal(isCampaignTestMode("?test=all"), true);
   assert.equal(isCampaignTestMode("?test=campaign"), false);
   assert.equal(isCampaignTestMode(""), false);
 
   const storage = new MemoryStorage();
-  const store = new CampaignProgressStore({
-    storage,
-    unlockAll: true,
-  });
+  const store = new CampaignProgressStore({ storage, unlockAll: true });
+
   assert.equal(store.testMode, true);
   assert.equal(store.isUnlocked(0), true);
-  assert.equal(store.isUnlocked(PROGRESSION_LEVEL_COUNT - 1), true);
-  assert.equal(store.snapshot.highestUnlocked, PROGRESSION_LEVEL_COUNT - 1);
+  assert.equal(store.isUnlocked(CAMPAIGN_LEVEL_COUNT - 1), true);
+  assert.deepEqual(store.snapshot.solvedLevels, []);
+  assert.deepEqual(store.snapshot.cleanLevels, []);
+  assert.equal(store.snapshot.highestUnlocked, 0);
 
-  const testLevel = Math.min(12, PROGRESSION_LEVEL_COUNT - 1);
-  store.complete(testLevel, { score: 777 });
-  assert.equal(store.isCompleted(testLevel), true);
-  assert.equal(store.snapshot.campaignScore, 777);
+  const testLevel = 12;
+  store.complete(testLevel, { clean: true });
+  assert.equal(store.isSolved(testLevel), true);
+  assert.equal(store.isClean(testLevel), true);
+  assert.equal(store.snapshot.highestUnlocked, 0);
   assert.equal(storage.getItem(CAMPAIGN_PROGRESS_STORAGE_KEY), null);
 });

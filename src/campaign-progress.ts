@@ -1,57 +1,46 @@
-import { PROGRESSION_LEVEL_COUNT } from "./progression.js";
+import { CAMPAIGN_LEVEL_COUNT } from "./plates.js";
 import { isRecord, type StorageLike } from "./persistence.js";
 
-export const CAMPAIGN_PROGRESS_STORAGE_KEY = "garden-js.campaign-progress.v1";
+export const CAMPAIGN_PROGRESS_STORAGE_KEY = "garden-js.campaign-progress.v3";
 
-export interface CampaignProgressSnapshot {
-  version: 2;
+export interface CampaignProgressSnapshotV3 {
+  version: 3;
   tutorialCompleted: boolean;
-  completedLevels: number[];
-  levelScores: number[];
-  campaignScore: number;
+  solvedLevels: number[];
+  cleanLevels: number[];
   highestUnlocked: number;
   campaignCompleted: boolean;
 }
 
+/**
+ * Temporary runtime shape for legacy scenes that are removed later in the redesign.
+ * The deprecated fields are projections only and are never persisted in the v3 save format.
+ */
+export interface CampaignProgressSnapshot extends CampaignProgressSnapshotV3 {
+  /** @deprecated Use solvedLevels. */
+  completedLevels: number[];
+  /** @deprecated Campaign score is removed; this is always zero during migration. */
+  levelScores: number[];
+  /** @deprecated Campaign score is removed; this is always zero during migration. */
+  campaignScore: number;
+}
+
+export type CampaignProgressRuntimeSnapshot = CampaignProgressSnapshot;
+
 function assertLevel(level: number): void {
-  if (!Number.isSafeInteger(level) || level < 0 || level >= PROGRESSION_LEVEL_COUNT) {
-    throw new RangeError(`level must be an integer from 0 to ${PROGRESSION_LEVEL_COUNT - 1}`);
+  if (!Number.isSafeInteger(level) || level < 0 || level >= CAMPAIGN_LEVEL_COUNT) {
+    throw new RangeError(`level must be an integer from 0 to ${CAMPAIGN_LEVEL_COUNT - 1}`);
   }
 }
 
-function initialSnapshot(): CampaignProgressSnapshot {
+function initialSnapshot(): CampaignProgressSnapshotV3 {
   return {
-    version: 2,
+    version: 3,
     tutorialCompleted: false,
-    completedLevels: [],
-    levelScores: Array<number>(PROGRESSION_LEVEL_COUNT).fill(0),
-    campaignScore: 0,
+    solvedLevels: [],
+    cleanLevels: [],
     highestUnlocked: 0,
     campaignCompleted: false,
-  };
-}
-
-function allUnlockedSnapshot(
-  completedLevels: readonly number[] = [],
-  levelScores: readonly number[] = Array<number>(PROGRESSION_LEVEL_COUNT).fill(0),
-): CampaignProgressSnapshot {
-  const normalizedScores = Array.from(
-    { length: PROGRESSION_LEVEL_COUNT },
-    (_value, level) => {
-      const score = levelScores[level];
-      return completedLevels.includes(level) && Number.isSafeInteger(score) && (score ?? -1) >= 0
-        ? (score as number)
-        : 0;
-    },
-  );
-  return {
-    version: 2,
-    tutorialCompleted: true,
-    completedLevels: [...completedLevels].sort((left, right) => left - right),
-    levelScores: normalizedScores,
-    campaignScore: normalizedScores.reduce((sum, score) => sum + score, 0),
-    highestUnlocked: PROGRESSION_LEVEL_COUNT - 1,
-    campaignCompleted: completedLevels.length === PROGRESSION_LEVEL_COUNT,
   };
 }
 
@@ -63,43 +52,38 @@ function defaultStorage(): StorageLike | undefined {
   }
 }
 
-function safeIntegerArray(value: unknown): number[] {
+function safeLevelArray(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is number => Number.isSafeInteger(item));
+  return [...new Set(
+    value.filter(
+      (item): item is number =>
+        Number.isSafeInteger(item) && item >= 0 && item < CAMPAIGN_LEVEL_COUNT,
+    ),
+  )].sort((left, right) => left - right);
 }
 
-export function normalizeCampaignProgress(value: unknown): CampaignProgressSnapshot {
+function contiguousSolvedCount(solvedLevels: readonly number[]): number {
+  const solved = new Set(solvedLevels);
+  let count = 0;
+  while (count < CAMPAIGN_LEVEL_COUNT && solved.has(count)) count += 1;
+  return count;
+}
+
+export function normalizeCampaignProgress(value: unknown): CampaignProgressSnapshotV3 {
   if (!isRecord(value)) return initialSnapshot();
 
-  const supplied = new Set(
-    safeIntegerArray(value.completedLevels).filter(
-      (level) => level >= 0 && level < PROGRESSION_LEVEL_COUNT,
-    ),
-  );
-  const completedLevels: number[] = [];
-  for (let level = 0; level < PROGRESSION_LEVEL_COUNT; level += 1) {
-    if (!supplied.has(level)) break;
-    completedLevels.push(level);
-  }
-  const suppliedScores = Array.isArray(value.levelScores) ? value.levelScores : [];
-  const levelScores = Array.from(
-    { length: PROGRESSION_LEVEL_COUNT },
-    (_value, level) => {
-      const score = suppliedScores[level];
-      return completedLevels.includes(level) && Number.isSafeInteger(score) && (score as number) >= 0
-        ? (score as number)
-        : 0;
-    },
-  );
+  const solvedLevels = safeLevelArray(value.solvedLevels);
+  const solved = new Set(solvedLevels);
+  const cleanLevels = safeLevelArray(value.cleanLevels).filter((level) => solved.has(level));
+  const contiguous = contiguousSolvedCount(solvedLevels);
 
   return {
-    version: 2,
-    tutorialCompleted: value.tutorialCompleted === true || completedLevels.length > 0,
-    completedLevels,
-    levelScores,
-    campaignScore: levelScores.reduce((sum, score) => sum + score, 0),
-    highestUnlocked: Math.min(completedLevels.length, PROGRESSION_LEVEL_COUNT - 1),
-    campaignCompleted: completedLevels.length === PROGRESSION_LEVEL_COUNT,
+    version: 3,
+    tutorialCompleted: value.tutorialCompleted === true || solvedLevels.length > 0,
+    solvedLevels,
+    cleanLevels,
+    highestUnlocked: Math.min(contiguous, CAMPAIGN_LEVEL_COUNT - 1),
+    campaignCompleted: solvedLevels.length === CAMPAIGN_LEVEL_COUNT,
   };
 }
 
@@ -109,8 +93,25 @@ export interface CampaignProgressStoreOptions {
   unlockAll?: boolean;
 }
 
+function cloneSnapshot(snapshot: CampaignProgressSnapshotV3): CampaignProgressSnapshotV3 {
+  return {
+    ...snapshot,
+    solvedLevels: [...snapshot.solvedLevels],
+    cleanLevels: [...snapshot.cleanLevels],
+  };
+}
+
+function runtimeSnapshot(snapshot: CampaignProgressSnapshotV3): CampaignProgressRuntimeSnapshot {
+  return {
+    ...cloneSnapshot(snapshot),
+    completedLevels: [...snapshot.solvedLevels],
+    levelScores: Array<number>(CAMPAIGN_LEVEL_COUNT).fill(0),
+    campaignScore: 0,
+  };
+}
+
 export class CampaignProgressStore {
-  #snapshot: CampaignProgressSnapshot;
+  #snapshot: CampaignProgressSnapshotV3;
   #storage: StorageLike | undefined;
   #storageKey: string;
   #unlockAll: boolean;
@@ -123,15 +124,19 @@ export class CampaignProgressStore {
     this.#unlockAll = unlockAll === true;
     this.#storage = this.#unlockAll ? undefined : storage;
     this.#storageKey = storageKey;
-    this.#snapshot = this.#unlockAll ? allUnlockedSnapshot() : this.#load();
+    this.#snapshot = this.#load();
   }
 
-  get snapshot(): CampaignProgressSnapshot {
-    return {
-      ...this.#snapshot,
-      completedLevels: [...this.#snapshot.completedLevels],
-      levelScores: [...this.#snapshot.levelScores],
-    };
+  get snapshot(): CampaignProgressRuntimeSnapshot {
+    return runtimeSnapshot(this.#snapshot);
+  }
+
+  get solvedCount(): number {
+    return this.#snapshot.solvedLevels.length;
+  }
+
+  get cleanCount(): number {
+    return this.#snapshot.cleanLevels.length;
   }
 
   get testMode(): boolean {
@@ -143,64 +148,59 @@ export class CampaignProgressStore {
     return this.#unlockAll || level <= this.#snapshot.highestUnlocked;
   }
 
-  isCompleted(level: number): boolean {
+  isSolved(level: number): boolean {
     assertLevel(level);
-    return this.#snapshot.completedLevels.includes(level);
+    return this.#snapshot.solvedLevels.includes(level);
   }
 
-  complete(level: number, { score = 0 }: { score?: number } = {}): CampaignProgressSnapshot {
+  isClean(level: number): boolean {
     assertLevel(level);
-    if (!Number.isSafeInteger(score) || score < 0) {
-      throw new RangeError("score must be a non-negative safe integer");
-    }
+    return this.#snapshot.cleanLevels.includes(level);
+  }
+
+  /** @deprecated Use isSolved. */
+  isCompleted(level: number): boolean {
+    return this.isSolved(level);
+  }
+
+  complete(
+    level: number,
+    { clean = false }: { clean?: boolean; score?: number } = {},
+  ): CampaignProgressRuntimeSnapshot {
+    assertLevel(level);
     if (!this.isUnlocked(level)) {
       throw new Error(`Campaign level ${level + 1} is locked`);
     }
-    if (this.isCompleted(level)) {
-      if (score === 0 || (this.#snapshot.levelScores[level] ?? 0) > 0) {
-        return this.snapshot;
-      }
-      const levelScores = [...this.#snapshot.levelScores];
-      levelScores[level] = score;
-      if (this.#unlockAll) {
-        this.#snapshot = allUnlockedSnapshot(this.#snapshot.completedLevels, levelScores);
-      } else {
-        this.#snapshot = normalizeCampaignProgress({
-          tutorialCompleted: this.#snapshot.tutorialCompleted,
-          completedLevels: this.#snapshot.completedLevels,
-          levelScores,
-        });
-        this.#persist();
-      }
-      return this.snapshot;
-    }
 
-    if (this.#unlockAll) {
-      const levelScores = [...this.#snapshot.levelScores];
-      levelScores[level] = score;
-      this.#snapshot = allUnlockedSnapshot([...this.#snapshot.completedLevels, level], levelScores);
-      return this.snapshot;
-    }
+    const solved = new Set(this.#snapshot.solvedLevels);
+    const cleanLevels = new Set(this.#snapshot.cleanLevels);
+    const wasSolved = solved.has(level);
+    const wasClean = cleanLevels.has(level);
 
-    const levelScores = [...this.#snapshot.levelScores];
-    levelScores[level] = score;
+    solved.add(level);
+    if (clean) cleanLevels.add(level);
+
+    if (wasSolved && (wasClean || !clean)) return this.snapshot;
+
     this.#snapshot = normalizeCampaignProgress({
-      completedLevels: [...this.#snapshot.completedLevels, level],
-      levelScores,
+      version: 3,
+      tutorialCompleted: true,
+      solvedLevels: [...solved],
+      cleanLevels: [...cleanLevels],
     });
     this.#persist();
     return this.snapshot;
   }
 
-  completeTutorial(): CampaignProgressSnapshot {
+  completeTutorial(): CampaignProgressRuntimeSnapshot {
     if (this.#snapshot.tutorialCompleted) return this.snapshot;
     this.#snapshot = { ...this.#snapshot, tutorialCompleted: true };
     this.#persist();
     return this.snapshot;
   }
 
-  reset(): CampaignProgressSnapshot {
-    this.#snapshot = this.#unlockAll ? allUnlockedSnapshot() : initialSnapshot();
+  reset(): CampaignProgressRuntimeSnapshot {
+    this.#snapshot = initialSnapshot();
     try {
       this.#storage?.removeItem(this.#storageKey);
     } catch {
@@ -209,7 +209,7 @@ export class CampaignProgressStore {
     return this.snapshot;
   }
 
-  #load(): CampaignProgressSnapshot {
+  #load(): CampaignProgressSnapshotV3 {
     try {
       const serialized = this.#storage?.getItem(this.#storageKey);
       return serialized ? normalizeCampaignProgress(JSON.parse(serialized) as unknown) : initialSnapshot();
@@ -219,6 +219,7 @@ export class CampaignProgressStore {
   }
 
   #persist(): void {
+    if (this.#unlockAll) return;
     try {
       this.#storage?.setItem(this.#storageKey, JSON.stringify(this.#snapshot));
     } catch {
