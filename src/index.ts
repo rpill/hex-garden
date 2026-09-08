@@ -125,11 +125,11 @@ export {
   streakMultiplier,
 } from "./endless-score.js";
 export {
-  ENDLESS_COMPACT_LEVEL_COUNT,
-  ENDLESS_LARGE_START_LEVEL,
-  ENDLESS_MEDIUM_LEVEL_COUNT,
-  endlessRunPhase,
+  endlessDifficultyBand,
+  endlessPlateSize,
   generateEndlessRunLevel,
+  type EndlessDifficultyBand,
+  type EndlessRunLevel,
 } from "./endless-run.js";
 export {
   ECONOMY_STORAGE_KEY,

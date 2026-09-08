@@ -16,17 +16,25 @@ function asWorkerPort(value: unknown): WorkerPort {
   return value as unknown as WorkerPort;
 }
 
-interface WorkerRequestBase {
+interface ProgressionWorkerRequest {
   requestId: number;
+  kind: "progression";
   level: number;
   campaignSeed?: string;
+}
+
+interface EndlessWorkerRequest {
+  requestId: number;
+  kind: "endless-run";
+  level: number;
+  runSeed: string;
 }
 
 type GeneratorWorkerRequest =
   | { requestId: number; kind: "daily"; dateKey: string }
   | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
-  | (WorkerRequestBase & { kind: "progression" })
-  | (WorkerRequestBase & { kind: "endless-run" });
+  | ProgressionWorkerRequest
+  | EndlessWorkerRequest;
 
 function parseRequest(value: unknown): GeneratorWorkerRequest {
   if (!isRecord(value) || !Number.isSafeInteger(value.requestId)) {
@@ -52,10 +60,18 @@ function parseRequest(value: unknown): GeneratorWorkerRequest {
     throw new TypeError("Invalid generator worker request");
   }
   const level = value.level as number;
-  const campaignSeed = typeof value.campaignSeed === "string" ? value.campaignSeed : undefined;
-  const base = campaignSeed === undefined ? { requestId, level } : { requestId, level, campaignSeed };
-  if (value.kind === "progression") return { ...base, kind: "progression" };
-  if (value.kind === "endless-run") return { ...base, kind: "endless-run" };
+  if (value.kind === "progression") {
+    const campaignSeed = typeof value.campaignSeed === "string" ? value.campaignSeed : undefined;
+    return campaignSeed === undefined
+      ? { requestId, kind: "progression", level }
+      : { requestId, kind: "progression", level, campaignSeed };
+  }
+  if (value.kind === "endless-run") {
+    if (typeof value.runSeed !== "string" || value.runSeed.length === 0) {
+      throw new TypeError("Invalid Endless worker request");
+    }
+    return { requestId, kind: "endless-run", level, runSeed: value.runSeed };
+  }
   throw new TypeError("Invalid generator worker request kind");
 }
 
@@ -73,11 +89,11 @@ port.addEventListener("message", (event) => {
       if (request.kind === "puzzle-candidate") {
         return generatePuzzleCandidate(request.options);
       }
-      const campaignSeedOptions = request.campaignSeed === undefined ? {} : { campaignSeed: request.campaignSeed };
       if (request.kind === "progression") {
+        const campaignSeedOptions = request.campaignSeed === undefined ? {} : { campaignSeed: request.campaignSeed };
         return generateProgressionLevel(request.level, campaignSeedOptions);
       }
-      return generateEndlessRunLevel(request.level, campaignSeedOptions);
+      return generateEndlessRunLevel(request.level, { runSeed: request.runSeed });
     })();
     const { board: _board, ...result } = generated;
     port.postMessage({ requestId: request.requestId, result });

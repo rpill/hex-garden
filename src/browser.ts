@@ -123,9 +123,16 @@ export class BrowserLevelGenerator {
 
   generateEndlessRun(
     level: number,
-    { campaignSeed = DEFAULT_CAMPAIGN_SEED }: { campaignSeed?: string } = {},
+    options: { runSeed: string } | { campaignSeed?: string },
   ): Promise<BrowserResult<EndlessRunLevel>> {
-    return this.#request({ kind: "endless-run", level, campaignSeed });
+    // Task 4 will move BoardScene to a unique session runSeed. Until then,
+    // accept its legacy campaignSeed-shaped call only at this browser boundary
+    // and translate it into the new worker protocol. Core Endless generation
+    // no longer depends on Campaign progression or Campaign generation.
+    const runSeed = "runSeed" in options
+      ? options.runSeed
+      : options.campaignSeed ?? DEFAULT_CAMPAIGN_SEED;
+    return this.#request({ kind: "endless-run", level, runSeed });
   }
 
   generateDaily(dateKey: string): Promise<BrowserResult<DailyPuzzle>> {
