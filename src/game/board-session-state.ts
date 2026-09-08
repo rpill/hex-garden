@@ -1,25 +1,23 @@
-import { PlayMode, type PlayModeValue } from "./modes.js";
+import type { PlayModeValue } from "./modes.js";
 
-export interface BoardAvailabilityInput {
-  won: boolean;
-  legalMoveCount: number;
-}
+export {
+  isActualDeadEnd,
+  type BoardAvailabilityInput,
+} from "./board/attempt-state.js";
 
-export function isActualDeadEnd({
-  won,
-  legalMoveCount,
-}: BoardAvailabilityInput): boolean {
-  return !won && legalMoveCount === 0;
-}
-
+/**
+ * Transitional compatibility input for the legacy BoardScene.
+ * Rescue eligibility is no longer tied to a play mode; attempt-level one-use
+ * policy lives in board/attempt-state.ts.
+ */
 export interface RescueEligibilityInput {
   mode: PlayModeValue;
   actualDeadEnd: boolean;
 }
 
+/** @deprecated Use canRescueAttempt with AttemptState. */
 export function isRescueEligible({
-  mode,
   actualDeadEnd,
 }: RescueEligibilityInput): boolean {
-  return mode === PlayMode.ENDLESS && actualDeadEnd;
+  return actualDeadEnd;
 }
