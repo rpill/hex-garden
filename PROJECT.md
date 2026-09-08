@@ -2,69 +2,100 @@
 
 ## Purpose
 
-Hex-board clearing puzzle for Yandex Games built on the audited Garden rules.
+Hex-board clearing puzzle for Yandex Games built on the audited Garden rules. The current product is a functional, asset-independent implementation used to validate the complete progression loop before final visual production resumes.
 
 ## Authority
 
-- Code/tests = factual current implementation.
-- `RULES_AUDIT.md` = audited low-level rule reference.
-- `CURRENT_STATE.md` = implementation snapshot.
-- `ART_DIRECTION.md` = current visual decisions.
+- Code and tests are the factual current implementation.
+- `PROJECT.md` defines stable product intent.
+- `CURRENT_STATE.md` is the implementation snapshot.
+- `RULES_AUDIT.md` is the audited low-level rules reference.
+- `ART_DIRECTION.md` is the visual-status reference.
+- `VALIDATION.md` defines the current validation gates.
+- `docs/archive/**` is historical only unless the user explicitly revives it.
 
-If active prose conflicts with code/tests, do not silently change the implementation to match prose. Treat code/tests as the factual current state and surface the mismatch.
+If prose conflicts with code/tests, surface the mismatch. Do not silently reintroduce superseded product behavior to match stale documentation.
 
-## Stable gameplay contract
+## Stable rules and board contract
 
-- Preserve internal atom IDs from `src/atom-types.ts`.
-- Preserve free-atom geometry and pairing/unlock rules audited in `RULES_AUDIT.md`.
-- Campaign and standard Endless are the public product modes; Quintessence stays internal unless explicitly re-approved.
-- Solver-backed Move/Undo/Rescue behavior and assisted-run policy remain renderer-independent contracts.
-- Runtime presentation may be fully reskinned without changing the underlying mechanics.
+- Preserve internal atom IDs from `src/atom-types.ts` and the audited selection/pairing/metal rules in `RULES_AUDIT.md`.
+- Public gameplay uses the standard Garden ruleset. Campaign levels may use different compositions, but there are no mechanic-introduction rule variants or per-level rule overrides.
+- Public plates are complete regular hexes only: radius 3 / 4 / 5 = 37 / 61 / 91 cells.
+- Geometry, matching, solver behavior, Solved/Clean state, and assistance policy are renderer-independent contracts.
+- Quintessence may remain in low-level rules/internal tooling, but it is not a public product mode.
 
 ## Campaign contract
 
-- The public campaign currently contains 24 curated progression levels plus the interactive tutorial flow.
-- Progress is sequential: completing a level unlocks the next one; saved progress is normalized to a contiguous completion prefix.
-- Campaign score uses 10 base points per removed atom plus the size-based board-clear bonus; there is no streak multiplier.
-- A level contributes persistent campaign score only on its first scored completion.
-- Campaign completion, level scores, tutorial completion, and unlock state persist locally.
-- Campaign generation and puzzle-quality filtering remain separate from the public Endless run.
+- The campaign is the tutorial plus exactly 50 fixed levels in five chapters of ten:
+  1. Basics / Основы
+  2. Planning / Планирование
+  3. Order / Порядок
+  4. False Moves / Ложные ходы
+  5. Mastery / Мастерство
+- Runtime Campaign content comes from frozen `src/data/campaign-levels.json`; normal play does not procedurally regenerate campaign levels.
+- Progress is sequential. Solving an unlocked level unlocks exactly the next level; saved progress is normalized around the contiguous solved prefix.
+- `Solved` means the board was cleared. `Clean` means it was cleared without Hint or Rescue on that attempt.
+- Undo and Restart do not invalidate Clean. Hint and Rescue invalidate only the current attempt; a later clean replay can upgrade a Solved level to Clean.
+- Mastery rank depends only on Clean count: 0 Novice, 5 Apprentice, 15 Adept, 30 Strategist, 40 Expert, 50 Master.
+- After all 50 levels are Solved, Continue targets the first non-Clean level until all 50 are Clean.
+- Daily unlocks after the first 5 campaign levels are Solved. Endless unlocks after the first 10 are Solved.
+
+## Daily contract
+
+- Daily is one deterministic puzzle for the current Moscow calendar date.
+- Day boundary is 00:00 `Europe/Moscow`; weeks are Monday–Sunday in the same timezone.
+- Runtime date authority comes from the trusted platform clock when available; a Daily attempt that crosses into a new Moscow date is expired rather than recorded for the old date.
+- Daily stores Solved/Clean state per date, keeps the latest 90 daily entries, and preserves aggregate best solved/clean week counts.
+- Home shows the current seven-day week summary. Old days are history, not a selectable archive.
+- Undo and Restart are free and preserve Clean. Hint/Rescue invalidate Clean for the attempt.
+- Daily Hint and Rescue require a confirmed rewarded-ad callback. Rescue is available only at a true zero-legal-moves dead end and only once per attempt.
 
 ## Endless contract
 
-- Standard Endless is the only public endless/competitive ruleset.
-- It unlocks after the standard mechanics have been introduced in campaign (currently after the first 9 campaign levels).
-- A run starts with two 37-cell fields, then three 61-cell fields, then uses 91-cell / 55-piece fields from the sixth board onward.
-- Every removed atom awards 10 base points. Board clears award 1000 / 1500 / 2000 base points for 37 / 61 / 91-cell plates.
-- Cleared-board streak multipliers are ×1.0 from 0, ×1.25 from 3, ×1.5 from 5, ×2.0 from 8, and ×2.5 from 12; ×2.5 is the cap.
-- Solver-proven unsolvability does not end or visibly interrupt play while legal moves remain. A player-facing dead end exists only when a non-cleared field has zero legal moves; in Endless, Rescue may then restore a proven solvable history state.
-- Using Move, Undo, or Rescue permanently marks that Endless run `ASSISTED`; assisted runs must not be submitted as ranked results.
-- Quintessence generation remains available for internal experiments/tests but is not a public mode.
+- Endless is one session-scoped run of consecutive canonical standard boards. A new run gets a unique run seed and is not persisted across page reloads.
+- Board sizes are staged: boards 0–1 use 37 cells, boards 2–4 use 61 cells, and board 5 onward uses 91 cells. Difficulty continues through difficulty-band/profile selection after size reaches 91.
+- The result is **boards cleared**. There is no point score, per-piece score, streak multiplier, combo, or score-farming system.
+- Clearing a board automatically advances to the next board in the same run.
+- Undo is free before a visible dead end and does not mark the run assisted. Once a true dead end is entered, ordinary Undo is unavailable.
+- Hint must come from a solver-verified route to a full clear and permanently marks the run assisted after the rewarded callback is confirmed.
+- Rescue is offered only at a true zero-legal-moves dead end, restores a solver-verified recoverable history position, may be used once for the entire run, and marks the run assisted. A second true dead end after Rescue ends the run.
+- Persistent Endless records store best unassisted boards cleared and best assisted boards cleared separately. Assisted results never replace the canonical clean/unassisted best shown on Home.
 
-## Economy and assistance contract
+## Assistance contract
 
-- A normal profile starts with 30 dust.
-- First campaign clears award 8 / 12 / 18 dust for 37 / 61 / 91-cell plates; claims are idempotent.
-- Endless clears award 2 / 4 / 6 dust for 37 / 61 / 91-cell plates.
-- Shop bundles are: 3 Move for 30 dust, 2 Undo for 50 dust, 1 Rescue for 60 dust.
-- Rewarded ads grant one explicit booster without spending dust and share a persistent 60-second cooldown.
-- A reward is granted only after the platform adapter reports a confirmed rewarded callback.
-- Move must come from a solver-verified route to a full clear; an unverified merely legal move is insufficient. If no verified route can be produced, the booster is not consumed and player-facing copy stays neutral rather than revealing solver unsolvability.
-- Undo restores the board and score to immediately before the latest removal.
-- Rescue is Endless-only and becomes eligible only when the non-cleared board has zero legal moves. It restores the most recent proven solvable history state while identifying/blocking the losing move; solver-proven unsolvability with legal moves does not enable Rescue.
-- Solver budget exhaustion returns an unknown result rather than a false dead-end proof.
+- Undo and Restart are free actions; there is no booster inventory.
+- Hint and Rescue are direct solver-backed assistance actions, not purchasable items.
+- Tutorial assistance is free. Campaign levels 1–5 use free onboarding assistance; later Campaign levels plus all Daily/Endless assistance require a confirmed rewarded callback.
+- The solver is queried before showing a rewarded ad. If no verified Hint route or Rescue restore point can be produced, no ad is requested.
+- Solver budget exhaustion is `unknown`, never a false dead-end proof.
+- A player-facing dead end exists only when a non-cleared board has zero legal moves. Solver-proven unsolvability is not exposed while legal moves remain.
+- Rescue is limited to one use per Campaign/Daily attempt or one use per Endless run.
 
-## Platform and product UI contract
+## Removed product surfaces
 
-- The game is a Phaser browser project intended for Yandex Games and responsive desktop/phone layouts.
-- On-screen navigation must remain sufficient; keyboard shortcuts may be accelerators but cannot be the only way to leave or control a scene.
-- Board onboarding teaches matching first, then the three-empty-neighbour freedom rule, then the remaining-piece count panel. Tutorial completion has one primary `LEVEL 1` action that enters campaign level index 0.
-- Pause + Restart are system/session controls and are visually distinct from the consumable Move/Undo/Rescue group. Fresh fields use a skippable centre-out intro with a size-dependent multi-second profile; restart uses a faster roughly one-second profile.
-- Russian/English language choice and global sound on/off persist locally.
-- Rewarded ads use a deterministic simulation on localhost and `?test=all`; the Yandex adapter uses the SDK when available.
-- The current leaderboard is local/simulated UI backed by local persistence and fake comparison entries. Do not describe it as a live Yandex leaderboard until that integration exists.
-- Forced/interstitial ads, real-money purchases, selectable difficulty modes, and a second public Quintessence mode are outside the current product contract unless explicitly approved later.
+The following are not part of the current product and must not be reintroduced without an explicit new product decision:
 
-## Visual independence
+- Dust or any other spendable currency;
+- Shop;
+- booster inventory or consumable Hint/Undo/Rescue counts;
+- campaign or Endless point scoring;
+- score multipliers/streak scoring;
+- public leaderboard navigation or ranked score submission;
+- mechanic-introduction cards/progression gates;
+- public shape-family progression contracts.
 
-Gameplay and progression contracts above are intentionally independent of presentation. See `ART_DIRECTION.md` for the only active visual sourcing/direction decisions.
+## Platform and persistence contract
+
+- Phaser browser project targeting Yandex Games with responsive desktop, phone portrait, and phone landscape layouts.
+- On-screen controls must be sufficient; keyboard shortcuts can be accelerators but never the only navigation path.
+- Campaign progress, Daily progress, Endless records, and settings use the shared player-data storage boundary. It hydrates from Yandex Player Data when available and falls back to browser/in-memory storage for local/dev use.
+- Russian/English language and global sound on/off persist through the same product storage path.
+- Rewarded ads use the Yandex adapter; only a confirmed rewarded callback authorizes assisted Hint/Rescue.
+- Forced/interstitial ads, real-money purchases, selectable difficulty modes, and public Quintessence remain outside the product contract.
+
+## Presentation contract
+
+- The live product target is an asset-free functional presentation built from Phaser primitives until playtest acceptance.
+- Functional acceptance is based on readable board state, controls, responsive layout, progression, Daily/Endless flow, and assistance behavior — not on premium texture/frame names.
+- Physical Premium / Club Table and the Physical UI Factory are frozen experiments. Their tooling/assets may remain isolated in the repository but are not runtime dependencies or acceptance requirements.
+- Final art direction is intentionally unresolved and may be revisited only after functional playtest acceptance.

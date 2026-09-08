@@ -1,163 +1,157 @@
-# Garden progression lab — project instructions
+# Hex Garden — project instructions
 
-## Current phase
+## Current product
 
-This project is a mechanics, progression, level-generation, economy, and product-UI test bench. The current product goal is a short main campaign containing only levels that pass the puzzle-quality gate. The standard generator is the single public endless and future competitive ruleset. Keep the `quintessence` generator for internal experiments and contract tests, but do not expose it as a second product mode or leaderboard. Campaign length is not a target: add levels only when a new mechanic, interaction, or genuinely different decision pattern supports them. A product-shaped mode menu, campaign level-select screen, persistent dust wallet, hint inventory, shop, rewarded-ad booster choice, completion reward presentation, language setting, and global sound preference are required. Do not add timers, online leaderboards, forced/interstitial advertisements, real payments, sound assets before the sound design exists, unrelated particles, selectable difficulty modes, or renamed atoms. The interactive rules tutorial, mechanic-introduction cards, score HUDs, score-counting tweens, purchased hint controls, optional rewarded ads, victory reward screen, responsive navigation, and saved settings are part of the current progression contract.
+Hex Garden is a Yandex Games hex-board clearing puzzle. The current goal is to finish and validate the **functional product redesign** before final art production resumes.
 
-### Documentation authority
+The public product consists of:
 
-- Code and tests are the factual current implementation.
-- `PROJECT.md` holds stable product/rules intent.
-- `CURRENT_STATE.md` holds the implementation snapshot.
-- `ART_DIRECTION.md` is the only active visual-direction document.
-- `docs/archive/**` is historical only and must not drive implementation unless explicitly revived by the user.
-- If prose conflicts with code/tests, surface the mismatch instead of silently changing runtime behavior to match old documentation.
+- separate interactive Tutorial;
+- Campaign with exactly 50 fixed levels in five chapters of ten;
+- Daily unlocked after the first 5 campaign levels are Solved;
+- Endless unlocked after the first 10 campaign levels are Solved.
 
-### Visual asset policy
+Do not restore the removed Dust/Shop/score/leaderboard/mechanic-progression product unless the user explicitly makes a new product decision.
 
-- A full visual replacement is allowed without changing gameplay rules.
-- Third-party asset packs are allowed when commercial-use rights are suitable and recorded in `THIRD_PARTY_ASSETS.md` when bundled.
-- Do not assume paper, garden, alchemy, elements/metals, cozy, casual, or Mechanized Magic is the final presentation.
-- The runtime currently uses a Chequered Ink tactile-gems/dark-board candidate for live visual evaluation; it is experimental, not approved final art.
-- Mechanized Magic remains bundled legacy art only and must not be treated as the active target.
-- Keep dynamic labels/counts/prices/scores/localized strings in Phaser rather than baking them into raster UI.
-- Local decoration must not resemble an occupied atom, obscure hex boundaries, communicate false state, or interfere with input.
-- See `ART_DIRECTION.md` for current sourcing constraints and rejected directions.
+## Documentation authority
 
-The runtime should expose only what is needed to inspect the board and progression:
+- Code and tests = factual current implementation.
+- `PROJECT.md` = stable product contract.
+- `CURRENT_STATE.md` = implementation snapshot.
+- `RULES_AUDIT.md` = audited low-level rules.
+- `ART_DIRECTION.md` = current visual status.
+- `VALIDATION.md` = required validation commands/checks.
+- `docs/archive/**` = historical only.
 
-- campaign plates of 37, 61, or 91 cells, plus staged endless plates of 37, 61, and 91 cells;
-- the current variable-size campaign layout or staged endless layout, reaching the full 55-piece composition on the 91-cell phase;
-- clear piece visuals and enough state contrast to distinguish free, locked, and selected atoms;
-- a minimal start menu for `CAMPAIGN` and the unlockable standard `ENDLESS`;
-- a responsive grid showing every current campaign level as `DONE`, `PLAY`, or `LOCK`;
-- previous unlocked level, next unlocked level, restart, and menu/level-select controls; on the Board, Pause + Restart are system/session controls and must remain visually separate from consumable Move/Undo/Rescue actions;
-- visible on-screen return/navigation controls in every scene; keyboard shortcuts are optional accelerators and never the only way out;
-- direct selection/removal behavior;
-- the functional atom inventory panel: only atom types present in the initial layout, including Vitae/Mors when used and, in quintessence layouts, Q grouped with the four elements; preserve the `Pb -> Sn -> Fe -> Cu -> Ag -> Au` unlock chain, parity warnings, depleted/locked/current states, inline counts beside glyphs, and click-to-highlight filtering that leaves non-matches unchanged and gives matches only restrained positive emphasis.
-- in standard endless, a visible score, cleared-board streak, current multiplier, next multiplier threshold, and animated score awards for removals and board clears.
-- in campaign, a persistent score with animated awards but no streak or multiplier; only a level's first completion can add to that score.
-- a persistent dust wallet, dedicated shop, owned counts for Move/Undo/Rescue items, and an in-board `+` purchase dialog when an item is depleted.
-- a blocking completion reward screen that counts up earned score and dust, shows campaign or streak progress, announces unlocks, and only then offers the next level or exit.
-- distinct desktop, phone portrait, and phone landscape layouts. Portrait uses a readable two-row atom inventory when needed; landscape may use a compact side action rail; desktop keeps a centered board with small floating HUD/action groups rather than full-width Board bars. Fresh fields use a skippable centre-out spiral reveal lasting roughly 1.6–3.2 seconds by field size; restarting the same field uses a compressed roughly 0.8–1.0 second profile.
-- persistent Russian/English and sound on/off settings. Sound on/off must control Phaser's global mute state so future audio automatically respects it.
-
-## Economy
-
-- A new profile starts with 30 dust.
-- The `?test=all` campaign-test profile starts with 999,999 non-persistent dust so every shop and hint flow can be exercised without affecting the normal save.
-- The first clear of each campaign level awards 8/12/18 dust for its 37/61/91-cell plate. Claims are idempotent and old completed campaign levels are credited when the economy loads.
-- Endless clears award 2/4/6 dust for 37/61/91-cell fields.
-- The shop sells three Move hints for 30 dust, two Undo items for 50 dust, and one Endless Rescue for 60 dust.
-- Buying only increases persistent inventory. Using an owned item during play consumes exactly one charge; a depleted item shows `+` and opens the matching dust-purchase dialog.
-- The depleted-item dialog offers two explicit choices: watch one rewarded ad for one matching item, or buy the normal bundle for dust. Watching alone never spends dust. A successful reward closes the dialog and starts a persistent 60-second global rewarded cooldown; the UI must show the remaining wait instead of allowing consecutive ads.
-- A rewarded item is granted only from the platform SDK's confirmed reward callback. Closing, errors, unavailable inventory, or concurrent requests grant nothing.
-- Localhost and `?test=all` simulate a successful rewarded placement for testability. The real Yandex adapter pauses/resumes gameplay around the ad and allows only one rewarded request at a time.
-- Move highlights for four seconds only a move that belongs to a verified route from the current position to an empty board. A merely legal move is not sufficient. If no solution exists or the solver cannot verify one within its safety budget, Move is not consumed.
-- Solver-proven unsolvability remains internal while legal moves exist and must not block, stop, or warn the player. A player-facing dead end exists only when a non-cleared board has zero legal moves. Move still requires a solver-verified full-clear route and is not consumed when no verified route can be produced.
-- Undo restores the board and score to immediately before the latest removal. Rescue is Endless-only and is available only in an actual zero-legal-moves dead end; it searches history for the most recent solvable state, restores it, and blocks/highlights the specific move that crossed into the losing branch. Rescue is not consumed when no safe restore point can be proven.
-- Any hint, undo, or rescue used in Endless permanently marks that run `ASSISTED`; assisted scores must never be submitted to the future ranked leaderboard.
-- `src/economy.ts` is renderer-independent authority for balances, inventory, prices, rewards, persistence, and validation.
-- `src/solver.ts` is renderer-independent authority for verified winning routes, dead-end proofs, and finding the last solvable history snapshot. It must return `unknown`, never a false dead-end claim, when its bounded search budget is exhausted.
-
-## Endless scoring
-
-- Every removed atom awards 10 base points immediately.
-- Clearing a 37/61/91-cell field awards 1000/1500/2000 base points.
-- Streak multipliers are ×1.0 at 0, ×1.25 at 3, ×1.5 at 5, ×2.0 at 8, and ×2.5 at 12 cleared boards; ×2.5 is the cap.
-- Removal points use the current cleared-board streak. A clear first increments the streak and then uses the resulting multiplier for its board bonus.
-- An actual dead end with zero legal moves ends normal play in the run until Rescue restores a safe history state or `NEW RUN` starts over. Solver-proven unsolvability alone does not end play while legal moves remain. `NEW RUN` resets score and streak and returns to endless level zero.
-- Standard endless has no previous-level navigation; cleared boards cannot be replayed to farm score.
-- A public endless run starts with two 37-cell boards, continues with three 61-cell boards, and uses 91-cell/55-piece layouts from its sixth board onward.
-- Campaign awards the same 10 points per removed atom and size-based clear bonus without any streak multiplier. Its score is persisted per level only on first completion.
-- Future paid or inventory hints must not create a ranked advantage. A run using them must be unranked unless every player receives the same fixed allowance.
-- `src/endless-score.ts` is the renderer-independent authority for scoring math.
+If prose conflicts with code/tests, report the mismatch instead of changing runtime behavior to satisfy stale prose.
 
 ## Rules contract
 
-Internal IDs and names must remain those in `src/atom-types.ts`.
+Keep internal atom IDs/names from `src/atom-types.ts` and preserve the audited Garden behavior:
 
-- An occupied atom is geometrically free when at least 3 consecutive positions in its circular 6-neighbour ring are empty.
-- Positions outside the 91-cell plate count as empty. Geometry is based on occupancy, not plate membership.
-- Air pairs with Air, Fire with Fire, Water with Water, and Earth with Earth.
-- Salt pairs with Salt or with any one of the four cardinal elements.
-- Vitae pairs only with Mors, and Mors only with Vitae.
-- Quicksilver pairs with Lead, Tin, Iron, Copper, or Silver. It does not pair with Gold.
-- Metals unlock in this removal order: Lead, Tin, Iron, Copper, Silver, Gold.
-- A metal is unavailable while the immediately less-refined metal remains anywhere on the board.
-- Free, unlocked Gold is removed by itself.
-- Quintessence is removed as one five-piece selection containing Quintessence plus exactly one free Air, Fire, Water, and Earth.
-- A mismatching second selection replaces the first selection.
-- Selecting an already selected atom deselects it according to the original selection state machine.
-- The metal sequence is `Pb -> Sn -> Fe -> Cu -> Ag -> Au`. Removing Fe unlocks Cu, not Au. Only removing Ag can unlock Au.
+- an occupied atom is free when at least 3 consecutive positions in its circular six-neighbour ring are empty;
+- positions outside the plate count as empty for freedom geometry;
+- Air/Fire/Water/Earth pair with themselves;
+- Salt pairs with Salt or one cardinal element;
+- Vitae pairs only with Mors and vice versa;
+- Quicksilver pairs with Lead/Tin/Iron/Copper/Silver, never Gold;
+- metals unlock in order `Pb -> Sn -> Fe -> Cu -> Ag -> Au`;
+- free unlocked Gold is removed alone;
+- selection/deselection behavior must continue to come from `GardenBoard` rather than duplicated renderer logic.
 
-`src/board.ts` is the authority for runtime move behavior. Renderer code must call it and must not duplicate or weaken these rules.
+Quintessence may remain in low-level/internal tooling but is not a public mode.
 
-## Main progression
+## Board geometry and generation
 
-- `src/progression.ts` owns a separate deterministic 24-level campaign. Do not route it through or alter the contract of `generateCampaignLevel()`.
-- A separate level 0 tutorial teaches the core matching action first, then geometric freedom, then the remaining-piece inventory/count panel. It never blocks an otherwise legal click, and completion presents one obvious `LEVEL 1` transition into campaign level index 0.
-- Levels 1-3 introduce the complete element set, Salt, and Vitae/Mors on 37-cell plates.
-- Levels 4-9 introduce Quicksilver and one successive metal per level through Gold on 37-cell plates.
-- Levels 10-16 combine the complete standard rules on selected variable masks within a 61-cell capacity.
-- Levels 17-24 use selected full standard 55-piece layouts within a 91-cell capacity.
-- Quintessence stays out of the main campaign and public menu.
-- Generation constructs multiple certified candidates and rejects filler: a selected campaign level must expose early choices and at least one dangerous alternative according to the route analyzer.
-- Every generated campaign record contains a solution certificate replayed through `GardenBoard.select()`, plate geometry, a mechanics definition, candidate-selection data, and difficulty measurements.
-- Campaign level indices are zero-based internally and limited to `0..23`.
+- Public plates are complete canonical regular hexes only: 37 / 61 / 91 cells (radius 3 / 4 / 5).
+- Campaign uses frozen `src/data/campaign-levels.json`; normal runtime must not regenerate Campaign levels.
+- Campaign has exactly 50 levels. Do not recreate a 24-level mechanic-progression API or shape-family campaign contract.
+- `pnpm author:campaign` is an authoring command only. It may create candidate/shortlist data but is not part of normal test/build/runtime validation.
+- Worker generation is for generic puzzle candidates, Daily, and Endless. Do not re-add worker kind `progression`.
+- Offline legacy database generation may stay isolated in `src/legacy-database-generation.ts`; do not export it as product runtime API.
 
-## Endless modes
+## Campaign progression
 
-- The public standard run uses the staged 37/61/91-cell sequence. Its large phase has exactly 55 pieces on distinct cells of the 91-cell plate.
-- `generateCampaignLevel()` remains the legacy/full endless API: every record from it has exactly 55 pieces on the 91-cell plate.
-- `standard` composition: 8 of each cardinal element, 4 Salt, 4 Vitae, 4 Mors, 5 Quicksilver, and one of each metal from Lead through Gold.
-- `quintessence` composition: 8 of each cardinal element, 4 Salt, 3 Vitae, 3 Mors, 5 Quicksilver, two Quintessence, and one of each metal.
-- Level masks use the same structural principle observed across the original database without loading original coordinates: centre Gold plus rotational orbits totalling 54 cells.
-- Mix 60-degree, 120-degree, and 180-degree mask families. The original 50,000-board audit found 27,742 sixfold, 20,169 threefold, 2,089 twofold, and zero fully asymmetric occupancy masks. Atom types themselves need not share the mask symmetry.
-- Preserve rare special silhouettes, including the centre plus complete radius-4 and radius-5 rings. Do not turn this special case into the only layout.
-- Levels are deterministic from campaign seed + variant + zero-based level number.
-- Generation assigns a fresh forward removal schedule to a newly selected procedural mask and returns a solution certificate that must replay through the public `GardenBoard.select()` API to an empty board.
-- Certified metal moves preserve `Pb -> Sn -> Fe -> Cu -> Ag -> Au`; Ag is the final pair and Au the final move in generated levels.
-- The solution certificate is an internal verifier, not a player hint.
-- Do not require a `.dat` file at runtime. Browser generation runs in a module Web Worker.
-- A certified initial solution guarantees solvability, but an arbitrary player route may still dead-end. Restart is sufficient during the current validation phase.
-- `standard` and `quintessence` are rule variants, not difficulty settings.
+- Tutorial is separate from the 50 campaign levels.
+- Chapters are fixed 0–9 / 10–19 / 20–29 / 30–39 / 40–49.
+- Solving an unlocked level unlocks only the next level through the contiguous solved prefix.
+- `Solved` = cleared.
+- `Clean` = cleared without Hint or Rescue on that attempt.
+- Undo and Restart preserve Clean. Hint/Rescue invalidate only the current attempt; a later replay can upgrade Solved to Clean.
+- Mastery thresholds are 0 Novice, 5 Apprentice, 15 Adept, 30 Strategist, 40 Expert, 50 Master.
+- Once all levels are Solved, Continue should target remaining non-Clean levels until full mastery.
+
+## Daily
+
+- Unlock after 5 contiguous Campaign solves.
+- One deterministic puzzle for the current Moscow date.
+- Day boundary: 00:00 `Europe/Moscow`; week: Monday–Sunday.
+- Use trusted platform time for Daily rollover. Do not make browser/device local timezone the product authority.
+- Store Solved/Clean per date, current-week summary, latest 90 entries, and aggregate best solved/clean week counts.
+- Old days are history only; do not create a selectable Daily archive without a new product decision.
+- Undo/Restart are free and preserve Clean.
+- Hint/Rescue use rewarded assistance and invalidate Clean; Rescue is one per attempt and only at a true dead end.
+
+## Endless
+
+- Unlock after 10 contiguous Campaign solves.
+- One run owns one unique run seed and one `EndlessBoardSession`; the live run is not resumed after reload.
+- Board 0–1: 37 cells. Board 2–4: 61 cells. Board 5+: 91 cells.
+- Difficulty continues through profile/band selection after plate size caps at 91.
+- Result = boards cleared. There is no point score, streak multiplier, combo, or public ranked score.
+- Clearing a board automatically advances to the next board.
+- Undo is free and non-assisted before a dead end. At a true dead end ordinary Undo is unavailable.
+- Hint requires a solver-verified winning route, then rewarded confirmation, then marks the run assisted permanently.
+- Rescue requires a solver-verified recoverable history position, then rewarded confirmation. It can be used once per run and marks assisted.
+- A second true dead end after Rescue terminates the run.
+- Persist `bestUnassistedBoards` and `bestAssistedBoards` separately. Assisted results must never replace the canonical clean best shown on Home.
+
+## Assistance
+
+- No booster inventory exists.
+- Undo and Restart are free controls.
+- Tutorial assistance is free.
+- Campaign levels 1–5 are free onboarding assistance; Campaign level 6 onward requires rewarded confirmation for Hint/Rescue.
+- Daily and Endless Hint/Rescue always require rewarded confirmation.
+- Always run the solver first. If Hint has no verified full-clear route or Rescue has no verified safe restore point, do not show a rewarded ad.
+- Only `RewardedAdStatus.REWARDED` authorizes the assisted action.
+- Solver timeout/budget exhaustion is `unknown`; never turn it into a false dead-end claim.
+- A visible dead end means non-cleared board + zero legal moves. Do not expose solver-only unsolvability while legal moves remain.
+
+## Removed product surfaces
+
+Do not reintroduce without explicit approval:
+
+- Dust/currency;
+- Shop or Shop navigation;
+- purchasable/consumable Hint/Undo/Rescue inventory;
+- campaign points or per-level scores;
+- Endless points, score bonuses, streak multipliers, or score farming;
+- public/local leaderboard scene/store;
+- mechanic-introduction cards;
+- legacy 24-level progression;
+- public shape-family Campaign API.
+
+## UI and presentation
+
+- The current runtime target is asset-free functional Phaser presentation until playtest acceptance.
+- Physical Premium / Club Table and the Physical UI Factory are frozen experiments, not runtime dependencies.
+- Do not make tests require premium texture names, Blender output hashes, generated factory rasters, or other frozen-art artifacts for the game to run.
+- Frozen factory tooling may remain isolated and optional.
+- Keep the board readable and dominant; clearly distinguish free/locked/selected state.
+- Keep on-screen navigation sufficient in desktop, phone portrait, and phone landscape. Keyboard shortcuts are optional accelerators only.
+- `BoardInventory` is the atom-count/filter panel, not a booster inventory. It may show only atom types present in the current layout and must preserve metal-chain state readability.
+- Russian/English and sound on/off settings persist. Sound preference controls Phaser global mute.
+- Final art direction is unresolved; consult `ART_DIRECTION.md` before any new visual-production task.
 
 ## Architecture
 
-- Phaser 3 + Vite + strict TypeScript + native ES modules. Runtime source under `src/**` stays `.ts`; do not reintroduce JavaScript runtime modules.
-- Keep rules and generation renderer-independent and Node-testable: `src/atom-types.ts`, `src/hex.ts`, `src/rules.ts`, `src/board.ts`, `src/generator.ts`, `src/campaign.ts`, and `src/progression.ts`.
-- Keep strict TypeScript enabled. Do not use production `any` or `// @ts-ignore` to silence migration/type errors; narrow external `unknown` values explicitly.
-- `BoardScene.ts` owns game/session orchestration. `src/game/board/BoardHud.ts`, `BoardInventory.ts`, `BoardTutorial.ts`, and `BoardIntroAnimator.ts` own their Phaser presentation/lifecycle concerns and must not import board/solver/progression logic. Pure contextual-callout placement lives in `src/game/tutorial-callout-layout.ts` so Node tests never need to import Phaser.
-- Active scenes are `MenuScene`, `LevelSelectScene`, `ShopScene`, and `BoardScene`.
-- Use `Phaser.Scale.RESIZE`; keep the menus, every campaign level button, and the entire plate usable in narrow portrait, phone landscape, and desktop landscape.
-- Campaign completion is persisted through `CampaignProgressStore` in localStorage. Only level 1 is initially unlocked; completing an unlocked level opens exactly the next one. Invalid or unavailable storage falls back to in-memory first-level progress.
-- A board itself is regenerated from its mode, seed, and number; generated coordinates are not persisted.
-- `BrowserLevelGenerator.generate()` and worker requests without a kind remain the full 55-piece generator API. The public run uses `generateEndlessRun()` and `kind: "endless-run"`; progression uses `generateProgression()` and `kind: "progression"`.
+- Phaser 3 + Vite + strict TypeScript + native ES modules.
+- Runtime under `src/**` stays TypeScript; do not reintroduce JS runtime modules.
+- Do not use production `any` or `// @ts-ignore` to suppress type problems.
+- `src/board.ts`, `src/rules.ts`, `src/solver.ts`, generation modules, and progress stores remain renderer-independent and Node-testable.
+- `BoardScene.ts` owns orchestration; board UI/session responsibilities stay split under `src/game/board/`.
+- Active scenes are `MenuScene`, `LevelSelectScene`, `SettingsScene`, and `BoardScene`.
+- Campaign/Daily/Endless progress plus settings use the shared player-data storage boundary. Yandex Player Data is preferred when available; local/browser fallback keeps dev usable.
+- Use `Phaser.Scale.RESIZE` and preserve usable responsive layouts.
 
 ## Git workflow
 
-- The repository is initialized locally. Commit every completed logical change before handoff.
-- Keep dependency caches, `node_modules`, build output, and temporary files untracked.
-- Do not amend or rewrite existing commits unless the user explicitly asks.
+- Commit each completed logical change before handoff.
+- Keep `node_modules`, caches, build outputs, generated temporary files, and context bundles untracked unless explicitly required.
+- Do not amend/rewrite existing commits unless the user asks.
+- User works in Windows PowerShell. Give shell commands in PowerShell-compatible syntax; do not use Unix `\` line continuations.
 
-## Verification
+## Validation before handoff
 
-Before handoff:
+Run the normal gate from `VALIDATION.md`:
 
-1. Run `pnpm typecheck`.
-2. Run `pnpm test`.
-3. Run `pnpm build`.
-4. Verify exact 55-piece counts for both endless variants.
-5. Replay generated solution certificates for all campaign levels and a sequence of levels in both endless variants.
-6. Verify campaign boundaries at levels 1, 2, 3, 4, 10, and 17, plus the challenge-quality gate for every campaign level.
-7. Smoke-test the start menu, the endless lock message and unlock after level 9, all campaign buttons, rejecting a locked level, completing level 1, unlocking level 2, persistence after reload, the standard endless mode, all visible return controls, and desktop/phone-portrait/phone-landscape layouts including live orientation changes. Keep the internal quintessence generator covered by automated tests.
-8. Verify the 37/61/91 endless staging, endless removal awards, all streak thresholds, board-size bonuses, actual zero-legal-moves dead-end handling, hidden solver-unsolvable states with legal moves, new-run reset, disabled backward farming, and narrow-layout score HUD.
-9. Verify campaign score persistence, first-completion-only awards, no campaign streak, and the level-9 endless-unlock notification.
-10. Verify economy migration/persistence, idempotent campaign dust, endless dust rewards, all shop purchases, inventory consumption, depleted-item `+` dialogs, score-safe Undo, Rescue only at an actual zero-legal-moves Endless dead end, and the permanent `ASSISTED` marker.
-11. Verify rewarded-ad success, early close, unavailable SDK, and double-request rejection; only confirmed rewards may change inventory.
-12. Verify campaign and Endless completion screens, count-up totals, progress bars, unlock copy, delayed actions, next-level navigation, and exit navigation.
-13. Verify language and sound settings persist after reload, apply in every scene, and never require Escape for navigation.
-14. Verify rewarded cooldown persistence and automatic modal closing; verify Move follows a replayable complete route and does not spend when no verified route is available; verify solver-unsolvable states stay hidden while legal moves exist; and verify Rescue restores the last solvable state only from an actual zero-legal-moves dead end while blocking the proven losing move.
+```powershell
+pnpm test
+pnpm typecheck
+pnpm build
+```
 
-See `RULES_AUDIT.md` for the source audit behind the contract.
+`pnpm author:campaign` is **authoring only** and is not part of the normal gate. Do not regenerate campaign JSON during ordinary validation.
+
+For product changes, also verify the affected manual acceptance slice: Campaign Solved/Clean/navigation, Daily Moscow rollover/history, Endless dead-end/assistance/records, rewarded confirmation, responsive controls, and persistence as applicable.
