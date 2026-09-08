@@ -11,6 +11,8 @@ import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
 import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
 import { getCampaignLevel } from "../../campaign-levels.js";
 import { BrowserLevelGenerator } from "../../browser.js";
+import { dailyDateKey } from "../../daily-calendar.js";
+import { DailyProgressStore } from "../../daily-progress.js";
 import {
   HintType,
   type HintTypeValue,
@@ -51,6 +53,7 @@ import {
   RewardedAdStatus,
   getYandexGamesAdapter,
 } from "../../platform/yandex-games.js";
+import { getTrustedClock } from "../../platform/trusted-clock.js";
 import { PlayMode, type PlayModeValue } from "../modes.js";
 import { isActualDeadEnd, isRescueEligible } from "../board-session-state.js";
 import {
@@ -83,6 +86,7 @@ import { BoardHud } from "../board/BoardHud.js";
 import { BoardAssistance } from "../board/BoardAssistance.js";
 import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
+import { DailyBoardSession } from "../board/DailyBoardSession.js";
 import {
   MINIMAL_UI_COLORS,
   makeMinimalButton,
@@ -223,7 +227,7 @@ export class BoardScene extends Phaser.Scene {
   variant: BoardVariantValue = BoardVariant.STANDARD;
   generationToken = 0;
   initialPieces: BoardPiece[] = [];
-  plateCells: HexCoord[] = enumerateBoardCells();
+  plateCells: readonly HexCoord[] = enumerateBoardCells();
   plateRadius = 5;
   levelGeometryReady = false;
   levelDefinition: Readonly<ProgressionLevelDefinition> | TutorialLevel["definition"] | undefined;
@@ -246,6 +250,7 @@ export class BoardScene extends Phaser.Scene {
   campaignScoreTween: Phaser.Tweens.Tween | undefined;
   campaignScoringActive = false;
   campaignSession: CampaignBoardSession | undefined;
+  dailySession: DailyBoardSession | undefined;
   removalHistory: RemovalHistoryEntry[] = [];
   activeHintKeys = new Set<string>();
   hintTimer: Phaser.Time.TimerEvent | undefined;
@@ -266,6 +271,7 @@ export class BoardScene extends Phaser.Scene {
   busy = false;
   english = false;
   progress!: ReturnType<typeof getCampaignProgress>;
+  dailyProgress!: DailyProgressStore;
   economy!: ReturnType<typeof getEconomy>;
   leaderboard!: ReturnType<typeof getLeaderboard>;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
@@ -348,6 +354,7 @@ export class BoardScene extends Phaser.Scene {
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
     this.campaignSession = undefined;
+    this.dailySession = undefined;
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
@@ -382,6 +389,7 @@ export class BoardScene extends Phaser.Scene {
   init(data: unknown = {}): void {
     const init = boardInitData(data);
     this.progress = getCampaignProgress(this);
+    this.dailyProgress = new DailyProgressStore();
     this.english = getSettings(this).snapshot.language === "en";
     this.mode = init.mode ?? PlayMode.CAMPAIGN;
     this.variant = BoardVariant.STANDARD;
@@ -409,6 +417,7 @@ export class BoardScene extends Phaser.Scene {
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
     this.campaignSession = undefined;
+    this.dailySession = undefined;
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
@@ -615,6 +624,7 @@ export class BoardScene extends Phaser.Scene {
       this.endlessBoardStartScore = this.endlessScoreState.score;
     }
     this.campaignSession = undefined;
+    this.dailySession = undefined;
     this.removalHistory = [];
     this.hideCampaignDeadEndState();
     this.knownWinningRoute = [];
@@ -665,13 +675,33 @@ export class BoardScene extends Phaser.Scene {
                 ),
               };
             })()
+          : this.mode === PlayMode.DAILY
+          ? await (async () => {
+              const trustedNow = await getTrustedClock().now();
+              if (!trustedNow) {
+                throw new Error(
+                  this.uiText(
+                    "НЕДОСТУПНО ДОВЕРЕННОЕ ВРЕМЯ ЯНДЕКСА",
+                    "YANDEX TRUSTED TIME IS UNAVAILABLE",
+                  ),
+                );
+              }
+              const dateKey = dailyDateKey(trustedNow);
+              const generated = await this.generator.generateDaily(dateKey);
+              const session = new DailyBoardSession(generated, this.dailyProgress);
+              this.dailySession = session;
+              return {
+                ...generated,
+                board: session.board,
+                variant: BoardVariant.STANDARD,
+                shape: "canonical" as const,
+              };
+            })()
           : this.mode === PlayMode.ENDLESS
           ? await this.generator.generateEndlessRun(this.level, {
               campaignSeed: CAMPAIGN_SEED,
             })
-          : await Promise.reject<never>(
-              new Error("Daily mode is not implemented yet"),
-            );
+          : await Promise.reject<never>(new Error("Unsupported play mode"));
       if (token !== this.generationToken) return;
       this.board = record.board;
       this.variant = record.variant;
@@ -860,6 +890,9 @@ export class BoardScene extends Phaser.Scene {
     if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
       this.campaignSession.restart();
       this.board = this.campaignSession.board;
+    } else if (this.mode === PlayMode.DAILY && this.dailySession) {
+      this.dailySession.restart();
+      this.board = this.dailySession.board;
     } else {
       this.attemptState = restartAttempt(this.attemptState);
       this.board = new GardenBoard(this.initialPieces);
@@ -944,6 +977,8 @@ export class BoardScene extends Phaser.Scene {
       this.blockedMoveKey = undefined;
       if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
         this.campaignSession.recordBeforeRemoval(beforeRemovalPieces);
+      } else if (this.mode === PlayMode.DAILY && this.dailySession) {
+        this.dailySession.recordBeforeRemoval(beforeRemovalPieces);
       } else {
         this.removalHistory.push(beforeRemoval);
         if (this.removalHistory.length > 64) this.removalHistory.shift();
@@ -1003,6 +1038,9 @@ export class BoardScene extends Phaser.Scene {
           }
           completionAfterRebuild = () =>
             this.showCampaignCompletion({ snapshot, progressBefore, clean });
+        } else if (this.mode === PlayMode.DAILY) {
+          message = "";
+          completionAfterRebuild = () => void this.completeDailyBoard();
         } else if (this.mode === PlayMode.ENDLESS) {
           const clearScore = scoreClearedBoard(
             this.endlessScoreState,
@@ -1028,7 +1066,9 @@ export class BoardScene extends Phaser.Scene {
         this.analyzeCurrentPosition();
         if (this.actualDeadEnd) {
           message = this.uiText("ХОДОВ НЕТ", "NO MOVES");
-          if (this.mode === PlayMode.CAMPAIGN) this.enterCampaignDeadEndState();
+          if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY) {
+            this.enterCampaignDeadEndState();
+          }
         }
       }
       this.status.setText(message);
@@ -1084,6 +1124,58 @@ export class BoardScene extends Phaser.Scene {
       },
       actions,
     );
+  }
+
+  async completeDailyBoard(): Promise<void> {
+    const session = this.dailySession;
+    if (this.mode !== PlayMode.DAILY || !session || !session.board.won) return;
+
+    this.setBusy(true);
+    this.status.setText(this.uiText("ПРОВЕРЯЕМ ДАТУ…", "VERIFYING DAILY…"));
+    try {
+      const trustedNow = await getTrustedClock().now();
+      if (!trustedNow) {
+        this.status.setText(
+          this.uiText(
+            "НЕ УДАЛОСЬ ПРОВЕРИТЬ ВРЕМЯ ЯНДЕКСА",
+            "YANDEX TRUSTED TIME IS UNAVAILABLE",
+          ),
+        );
+        this.time.delayedCall(1200, () => this.openMainMenu());
+        return;
+      }
+
+      const completion = session.complete(dailyDateKey(trustedNow));
+      if (completion.kind === "expired") {
+        this.status.setText(
+          this.uiText(
+            "ДОСТУПНА НОВАЯ ЕЖЕДНЕВНАЯ ЗАДАЧА",
+            "NEW DAILY AVAILABLE",
+          ),
+        );
+        this.time.delayedCall(1200, () => this.openMainMenu());
+        return;
+      }
+      if (completion.kind !== "recorded") return;
+
+      this.status.setText("");
+      this.completionOverlay.show(
+        {
+          kind: "simple",
+          title: this.uiText("ЕЖЕДНЕВНАЯ ЗАДАЧА ПРОЙДЕНА", "DAILY COMPLETE"),
+          status: completion.clean
+            ? this.uiText("◆ ЧИСТОЕ РЕШЕНИЕ", "◆ CLEAN SOLUTION")
+            : this.uiText("ПРОЙДЕНО С ПОМОЩЬЮ", "SOLVED WITH HELP"),
+          detail: completion.dateKey,
+          primaryLabel: this.uiText("НА ГЛАВНУЮ", "HOME"),
+        },
+        {
+          onHome: () => this.openMainMenu(),
+        },
+      );
+    } finally {
+      this.setBusy(false);
+    }
   }
 
   showEndlessCompletion(): void {
@@ -1287,6 +1379,18 @@ export class BoardScene extends Phaser.Scene {
       );
       return;
     }
+    if (this.mode === PlayMode.DAILY) {
+      const dailySession = this.dailySession;
+      if (!dailySession?.canUndo || !dailySession.undo()) {
+        this.status.setText(this.uiText("ПОКА НЕЧЕГО ОТМЕНЯТЬ", "NOTHING TO UNDO YET"));
+        this.hud.setUndoEnabled(false);
+        return;
+      }
+      this.restoreCampaignSessionBoard(
+        this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"),
+      );
+      return;
+    }
     if (this.removalHistory.length === 0) {
       this.status.setText(this.uiText("ПОКА НЕЧЕГО ОТМЕНЯТЬ", "NOTHING TO UNDO YET"));
       this.hud.setUndoEnabled(false);
@@ -1348,6 +1452,57 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  async useDailyHint(): Promise<void> {
+    const dailySession = this.dailySession;
+    if (!dailySession || !this.board || this.board.won || this.rewardedAdPending) return;
+
+    this.hud.setHintBusy(true);
+    this.rewardedAdPending = true;
+    try {
+      const result = await dailySession.requestHint(
+        this.assistance,
+        this.certifiedSolution,
+      );
+      if (result.kind === "unavailable") {
+        this.status.setText(
+          this.uiText(
+            "ПОДСКАЗКА СЕЙЧАС НЕДОСТУПНА",
+            "NO VERIFIED HINT AVAILABLE",
+          ),
+        );
+        return;
+      }
+      if (result.kind === "reward-denied") {
+        this.status.setText(
+          this.uiText(
+            "ПОДСКАЗКА НЕ ПОЛУЧЕНА",
+            "HINT WAS NOT GRANTED",
+          ),
+        );
+        return;
+      }
+
+      const move = result.move;
+      this.clearMoveHint(false);
+      this.activeHintKeys = new Set(move.map(hexKey));
+      this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
+        this.hintTimer = undefined;
+        this.activeHintKeys.clear();
+        this.render();
+      });
+      this.status.setText(
+        this.uiText(
+          "ПОДСВЕЧЕН ХОД, ДЛЯ КОТОРОГО НАЙДЕН ПУТЬ ДО ПОЛНОЙ ЗАЧИСТКИ",
+          "HIGHLIGHTED MOVE HAS A VERIFIED PATH TO A FULL CLEAR",
+        ),
+      );
+      this.render();
+    } finally {
+      this.rewardedAdPending = false;
+      this.hud.setHintBusy(this.busy);
+    }
+  }
+
   useHint(type: HintTypeValue): void {
     if (
       this.busy ||
@@ -1359,11 +1514,18 @@ export class BoardScene extends Phaser.Scene {
     ) {
       return;
     }
+    if (type === HintType.MOVE && this.mode === PlayMode.DAILY) {
+      void this.useDailyHint();
+      return;
+    }
     if (type === HintType.MOVE && this.mode === PlayMode.CAMPAIGN) {
       void this.useCampaignHint();
       return;
     }
-    if (type === HintType.RESCUE && this.mode === PlayMode.CAMPAIGN) {
+    if (
+      type === HintType.RESCUE &&
+      (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY)
+    ) {
       if (this.campaignDeadEndVisible) void this.requestCampaignRescue();
       else {
         this.status.setText(
@@ -1505,8 +1667,11 @@ export class BoardScene extends Phaser.Scene {
   }
 
   enterCampaignDeadEndState(): void {
-    const session = this.campaignSession;
-    if (this.mode !== PlayMode.CAMPAIGN || !session?.actualDeadEnd) return;
+    const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
+    if (
+      (this.mode !== PlayMode.CAMPAIGN && this.mode !== PlayMode.DAILY) ||
+      !session?.actualDeadEnd
+    ) return;
     this.campaignDeadEndVisible = true;
     this.campaignRescueUnavailable = false;
     this.hud.setUndoEnabled(false);
@@ -1525,7 +1690,7 @@ export class BoardScene extends Phaser.Scene {
 
   refreshCampaignDeadEndActions(): void {
     if (!this.campaignDeadEndVisible) return;
-    const session = this.campaignSession;
+    const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
     const rescueVisible = session?.canRescue === true && !this.campaignRescueUnavailable;
     this.campaignDeadEndRestartButton
       .setLabel(this.uiText("ЗАНОВО", "RESTART"))
@@ -1551,7 +1716,9 @@ export class BoardScene extends Phaser.Scene {
   }
 
   async requestCampaignRescue(): Promise<void> {
-    const session = this.campaignSession;
+    const campaignSession = this.campaignSession;
+    const dailySession = this.dailySession;
+    const session = this.mode === PlayMode.DAILY ? dailySession : campaignSession;
     if (
       !session ||
       !this.campaignDeadEndVisible ||
@@ -1559,18 +1726,29 @@ export class BoardScene extends Phaser.Scene {
       this.rewardedAdPending
     ) return;
 
-    const policy = assistancePolicy(PlayMode.CAMPAIGN, this.level);
+    const rewardRequired =
+      this.mode === PlayMode.DAILY
+        ? true
+        : assistancePolicy(PlayMode.CAMPAIGN, this.level).rewardRequired;
     this.campaignDeadEndRescueButton
       .setLabel(this.uiText("ИЩЕМ…", "CHECKING…"))
       .setEnabled(false);
     this.campaignDeadEndRestartButton.setEnabled(false);
-    this.rewardedAdPending = policy.rewardRequired;
+    this.rewardedAdPending = rewardRequired;
     try {
-      const result = await session.requestRescue(
-        this.assistance,
-        policy.rewardRequired,
-        this.certifiedSolution,
-      );
+      const result =
+        this.mode === PlayMode.DAILY && dailySession
+          ? await dailySession.requestRescue(
+              this.assistance,
+              this.certifiedSolution,
+            )
+          : campaignSession
+          ? await campaignSession.requestRescue(
+              this.assistance,
+              rewardRequired,
+              this.certifiedSolution,
+            )
+          : { kind: "not-eligible" as const };
       if (result.kind === "not-eligible") {
         this.campaignRescueUnavailable = true;
         this.refreshCampaignDeadEndActions();
@@ -1620,13 +1798,15 @@ export class BoardScene extends Phaser.Scene {
     message: string,
     { blockedMove = [], winningRoute }: RestoreOptions = {},
   ): void {
-    const session = this.campaignSession;
+    const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
     if (!session) return;
     this.board = session.board;
-    this.campaignLevelScore = Math.max(0, this.initialPieces.length - this.board.size) * SCORE_PER_REMOVED_ATOM;
-    this.displayedCampaignScore =
-      this.progress.snapshot.campaignScore + this.campaignLevelScore;
-    this.campaignScoreTween?.stop();
+    if (this.mode === PlayMode.CAMPAIGN) {
+      this.campaignLevelScore = Math.max(0, this.initialPieces.length - this.board.size) * SCORE_PER_REMOVED_ATOM;
+      this.displayedCampaignScore =
+        this.progress.snapshot.campaignScore + this.campaignLevelScore;
+      this.campaignScoreTween?.stop();
+    }
     this.actualDeadEnd = false;
     this.positionSolveStatus = SolveStatus.SOLVED;
     this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
@@ -2398,17 +2578,23 @@ export class BoardScene extends Phaser.Scene {
       ? this.uiText("ОБУЧЕНИЕ", "TUTORIAL")
       : this.mode === PlayMode.CAMPAIGN
       ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}`
+      : this.mode === PlayMode.DAILY
+      ? `${this.uiText("ЕЖЕДНЕВНАЯ", "DAILY")} · ${this.dailySession?.daily.dateKey ?? ""}`
       : `ENDLESS · ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}`;
     this.hud.setIdentity(identity);
     this.hud.setRemaining(count);
-    this.hud.setCleanVisible(this.mode === PlayMode.CAMPAIGN);
+    this.hud.setCleanVisible(this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY);
     this.hud.setCleanEligible(
       this.mode === PlayMode.CAMPAIGN
         ? this.campaignSession?.cleanEligible ?? true
+        : this.mode === PlayMode.DAILY
+        ? this.dailySession?.cleanEligible ?? true
         : this.attemptState.cleanEligible,
     );
     const canUndo = this.mode === PlayMode.CAMPAIGN
       ? this.campaignSession?.canUndo === true
+      : this.mode === PlayMode.DAILY
+      ? this.dailySession?.canUndo === true
       : this.removalHistory.length > 0 && !this.board?.won;
     this.hud.setUndoEnabled(!this.busy && canUndo);
     this.updateEndlessHud();
