@@ -35,11 +35,6 @@ test("legacy inventory can still reuse physical assets until its later cleanup",
   assert.match(inventory, /PHYSICAL_MATERIAL_FRAMES\.pieceBall/);
 });
 
-test("legacy mechanic cards can still reuse physical assets until their later cleanup", async () => {
-  const board = await read("src/game/scenes/BoardScene.ts");
-  assert.match(board, /setMechanicCardGlyphTypes[\s\S]{0,700}physicalPieceFrameForType\(type\)/);
-});
-
 test("primitive piece containers are positioned exactly on the hex center", async () => {
   const board = await read("src/game/scenes/BoardScene.ts");
   assert.match(board, /view\.container[\s\S]{0,180}\.setPosition\(position\.x, position\.y\)/);

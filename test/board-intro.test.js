@@ -74,20 +74,13 @@ test("BoardScene starts intro from load/restart paths and consumes piece input",
   assert.doesNotMatch(source, /openUtilityScene[\s\S]{0,500}startBoardIntro\(/);
 });
 
-test("first-time mechanic card defers board intro until dismissal", async () => {
+test("Campaign board intro starts immediately without a mechanic-progression gate", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /pendingBoardIntro/);
-  assert.match(
-    source,
-    /showMechanicCardForLevel\(\)[\s\S]{0,500}mechanicCardVisible[\s\S]{0,500}pendingBoardIntro/,
-  );
-  assert.match(
-    source,
-    /dismissMechanicCard\(\)[\s\S]{0,500}pendingBoardIntro[\s\S]{0,500}startBoardIntro\(pendingProfile\)/,
-  );
+  assert.doesNotMatch(source, /pendingBoardIntro|mechanicCardVisible|showMechanicCardForLevel/);
+  assert.match(source, /this\.updateTutorialGuide\(\);[\s\S]{0,140}this\.startBoardIntro\(introProfile\);/);
 });
 
 
@@ -154,7 +147,6 @@ test("BoardScene uses fresh intro for new fields and restart profile for reset",
   assert.match(source, /loadLevel\(introProfile: BoardIntroProfile = "fresh"\)/);
   assert.match(source, /startBoardIntro\(introProfile\)/);
   assert.match(source, /startBoardIntro\("restart"\)/);
-  assert.match(source, /pendingBoardIntroProfile/);
   assert.match(source, /entranceProgress\(key, this\.time\.now\)/);
   assert.match(source, /view\.container[\s\S]{0,180}\.setScale\(visualState\.scale \* introScale\)/);
   assert.match(source, /view\.container[\s\S]{0,220}\.setAlpha\(alpha\)/);

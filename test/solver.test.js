@@ -4,7 +4,8 @@ import { Atom } from "../src/atom-types.js";
 import { GardenBoard } from "../src/board.js";
 import { generateCampaignLevel } from "../src/campaign.js";
 import { replaySolution } from "../src/generator.js";
-import { generateProgressionLevel } from "../src/progression.js";
+import { generatePuzzleCandidate } from "../src/puzzle-generation.js";
+import { PlateSize } from "../src/plates.js";
 import {
   SolveStatus,
   findLastSolvableSnapshot,
@@ -49,8 +50,16 @@ test("an intentionally tiny budget reports unknown instead of a false dead end",
 });
 
 test("rescue finds the last solvable state and identifies the move to block", () => {
-  const record = generateProgressionLevel(1, {
-    campaignSeed: "solver-rescue",
+  const record = generatePuzzleCandidate({
+    seed: "rescue-candidate-5",
+    plateSize: PlateSize.SMALL,
+    targetPieceCount: 31,
+    composition: {
+      saltPairCount: 1,
+      saltElementPairCount: 1,
+      oppositePairCount: 2,
+      metalDepth: 6,
+    },
   });
   const board = new GardenBoard(record.pieces);
   const losingMove = board.legalMoves().find((move) =>

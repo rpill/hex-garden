@@ -4,9 +4,9 @@ import {
   BoardVariant,
   createSeededRandom,
   encodeBoardDatabase,
-  generateSolvableBoard,
   replaySolution,
 } from "../src/index.js";
+import { generateLegacyDatabaseBoard } from "../src/legacy-database-generation.js";
 
 const outputPath = resolve(process.argv[2] ?? "data/generated-standard.dat");
 const count = Number.parseInt(process.argv[3] ?? "1000", 10);
@@ -26,7 +26,7 @@ const records = [];
 const signatures = new Set();
 
 while (records.length < count) {
-  const record = generateSolvableBoard({ random, variant });
+  const record = generateLegacyDatabaseBoard({ random, variant });
   const signature = record.pieces
     .map(({ q, r, type }) => `${q},${r}:${type}`)
     .sort()

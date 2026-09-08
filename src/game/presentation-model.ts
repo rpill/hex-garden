@@ -1,6 +1,6 @@
 export const GlobalAction = Object.freeze({ BACK: "back", PAUSE: "pause", SETTINGS: "settings" } as const);
 export type GlobalActionValue = (typeof GlobalAction)[keyof typeof GlobalAction];
-export type UtilitySceneKey = "board" | "settings" | "level-select" | "leaderboard" | "menu";
+export type UtilitySceneKey = "board" | "settings" | "level-select" | "menu";
 
 export interface GlobalActionPresentation { label:string; iconOnly:boolean; }
 export function globalActionPresentation(action:GlobalActionValue,english=false):Readonly<GlobalActionPresentation>{
@@ -42,6 +42,6 @@ export function tutorialPresentationStep(step:number,english=false):Readonly<Tut
 export type UtilityReturnPlan=Readonly<{kind:"resume"|"start";scene:UtilitySceneKey}>;
 export function utilityReturnPlan(returnScene:string|undefined):UtilityReturnPlan{
   if(returnScene==="board"||returnScene==="settings")return Object.freeze({kind:"resume",scene:returnScene});
-  if(returnScene==="level-select"||returnScene==="leaderboard"||returnScene==="menu")return Object.freeze({kind:"start",scene:returnScene});
+  if(returnScene==="level-select"||returnScene==="menu")return Object.freeze({kind:"start",scene:returnScene});
   return Object.freeze({kind:"start",scene:"menu"});
 }

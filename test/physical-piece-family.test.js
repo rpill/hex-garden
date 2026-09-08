@@ -39,9 +39,7 @@ test("live BoardScene intentionally ignores the dormant physical piece family", 
   assert.match(board, /ATOM_LABELS\[piece\.type\]/);
 });
 
-test("legacy inventory and mechanic cards may keep physical sprites until cleanup", async () => {
+test("legacy inventory may keep physical sprites until Task 4 cleanup", async () => {
   const inventory = await read("src/game/board/BoardInventory.ts");
-  const board = await read("src/game/scenes/BoardScene.ts");
   assert.match(inventory, /physicalPieceFrameForType\(type\)/);
-  assert.match(board, /setMechanicCardGlyphTypes[\s\S]{0,900}physicalPieceFrameForType\(type\)/);
 });

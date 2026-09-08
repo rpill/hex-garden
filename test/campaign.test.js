@@ -73,10 +73,7 @@ test("browser campaign facade resolves frozen data without posting to the worker
   };
 
   const generator = new BrowserLevelGenerator({ workerFactory: () => fakeWorker });
-  const record = await generator.generate(0, {
-    campaignSeed: "ignored-seed",
-    variant: "daily",
-  });
+  const record = await generator.generate(0);
 
   assert.equal(postCount, 0);
   assert.equal(record.shape, "canonical");

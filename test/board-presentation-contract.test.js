@@ -124,19 +124,16 @@ test("board staging hides placeholder geometry and pieces until the real intro r
   );
   assert.match(source, /levelGeometryReady\s*=\s*false/);
   assert.match(source, /if \(this\.levelGeometryReady\)[\s\S]{0,500}for \(const cell of this\.plateCells\)/);
-  assert.match(source, /this\.mechanicCardVisible[\s\S]{0,300}view\.container\.setVisible\(false\)/);
   assert.match(source, /introAnimator\?\.active[\s\S]{0,500}inventory\.setPresentationVisible/);
 });
 
-test("mechanic cards show the real glyphs for every introduced atom", async () => {
+test("Campaign board startup has no legacy mechanic-introduction gate", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
-  assert.match(source, /mechanicCardGlyphs/);
-  assert.match(source, /introduction\.requiredTypes/);
-  assert.match(source, /atomGlyphFrame\(type\)/);
-  assert.match(source, /layoutMechanicCardGlyphs/);
+  assert.doesNotMatch(source, /mechanicIntroductionForLevel/);
+  assert.doesNotMatch(source, /showMechanicCardForLevel/);
 });
 
 test("spiral reveal keeps atom inventory visible but disables board interaction", async () => {
@@ -151,7 +148,7 @@ test("spiral reveal keeps atom inventory visible but disables board interaction"
 
   assert.match(
     boardSource,
-    /const inventoryVisible\s*=\s*this\.board !== undefined && !this\.mechanicCardVisible/,
+    /const inventoryVisible\s*=\s*this\.board !== undefined/,
   );
   assert.match(
     boardSource,

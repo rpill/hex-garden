@@ -1,11 +1,8 @@
 import Phaser from "phaser";
 import {
-  ACTIVE_ART_THEME,
   GAMEPLAY_UI_FRAMES,
-  PHYSICAL_MATERIAL_FRAMES,
   UI_FRAMES,
   atomGlyphFrame,
-  physicalPieceFrameForType,
 } from "../../art-assets.js";
 import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
 import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
@@ -13,12 +10,7 @@ import { getCampaignLevel } from "../../campaign-levels.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import { dailyDateKey } from "../../daily-calendar.js";
 import { DailyProgressStore } from "../../daily-progress.js";
-import {
-  scoreRemovedAtoms,
-  SCORE_PER_REMOVED_ATOM,
-} from "../../endless-score.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
-import type { ProgressionLevelDefinition } from "../../progression.js";
 import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
 import {
   campaignPostCompletionDestination,
@@ -30,12 +22,10 @@ import {
   createPanelState,
   panelTypesForVariant,
 } from "../../panel-state.js";
-import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
 import { masteryRank, type MasteryRankValue } from "../../mastery.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEndlessProgress } from "../endless-progress.js";
-import { getLeaderboard } from "../leaderboard.js";
 import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
@@ -89,9 +79,6 @@ import {
 } from "../board/BoardInventory.js";
 import { BoardTutorial } from "../board/BoardTutorial.js";
 import {
-  PHYSICAL_PIECE_UI_CANVAS_SCALE,
-} from "../physical-asset-layout.js";
-import {
   BoardIntroAnimator,
   type BoardIntroProfile,
 } from "../board/BoardIntroAnimator.js";
@@ -105,10 +92,6 @@ import {
 
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
-
-function formatScore(value: number): string {
-  return Math.round(value).toLocaleString("ru-RU");
-}
 
 
 const ATOM_LABELS = Object.freeze({
@@ -166,8 +149,6 @@ type PieceView = {
 
 type RemovalHistoryEntry = {
   pieces: readonly BoardPieceInput[];
-  campaignLevelScore: number;
-  displayedCampaignScore: number;
 };
 
 type RestoreOptions = {
@@ -213,8 +194,6 @@ export class BoardScene extends Phaser.Scene {
   plateCells: readonly HexCoord[] = enumerateBoardCells();
   plateRadius = 5;
   levelGeometryReady = false;
-  levelDefinition: Readonly<ProgressionLevelDefinition> | TutorialLevel["definition"] | undefined;
-  boardShape: string | undefined;
   board: GardenBoard | undefined;
   pieceViews = new Map<string, PieceView>();
   panelTypes: AtomType[] = [];
@@ -223,11 +202,6 @@ export class BoardScene extends Phaser.Scene {
   panelLayout: BoardInventoryLayout | undefined;
   tutorialStep = 0;
   tutorialSolution: readonly (readonly HexCoord[])[] = [];
-  mechanicCardVisible = false;
-  campaignLevelScore = 0;
-  displayedCampaignScore = 0;
-  campaignScoreTween: Phaser.Tweens.Tween | undefined;
-  campaignScoringActive = false;
   campaignSession: CampaignBoardSession | undefined;
   dailySession: DailyBoardSession | undefined;
   endlessSession: EndlessBoardSession | undefined;
@@ -250,14 +224,12 @@ export class BoardScene extends Phaser.Scene {
   progress!: ReturnType<typeof getCampaignProgress>;
   endlessProgress!: ReturnType<typeof getEndlessProgress>;
   dailyProgress!: DailyProgressStore;
-  leaderboard!: ReturnType<typeof getLeaderboard>;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
   generator!: BrowserLevelGenerator;
   assistance!: BoardAssistance;
   hud!: BoardHud;
   introAnimator: BoardIntroAnimator | undefined;
   introRevealedKeys = new Set<string>();
-  pendingBoardIntroProfile: BoardIntroProfile | undefined;
   inventory!: BoardInventory;
   tutorialUi!: BoardTutorial;
   inventoryPanel!: BoardInventory["panel"];
@@ -269,12 +241,6 @@ export class BoardScene extends Phaser.Scene {
   backgroundGraphics!: Phaser.GameObjects.Graphics;
   cellGraphics!: Phaser.GameObjects.Graphics;
   atomGraphics!: Phaser.GameObjects.Graphics;
-  mechanicCardGraphics!: Phaser.GameObjects.Graphics;
-  mechanicCardPanel!: ReturnType<typeof makePanel>;
-  mechanicCardText!: Phaser.GameObjects.Text;
-  mechanicCardHint!: Phaser.GameObjects.Text;
-  mechanicCardHitZone!: Phaser.GameObjects.Zone;
-  mechanicCardGlyphs: Phaser.GameObjects.Image[] = [];
   pauseMenuGraphics!: Phaser.GameObjects.Graphics;
   pauseMenuPanel!: ReturnType<typeof makePanel>;
   pauseMenuHitZone!: Phaser.GameObjects.Zone;
@@ -303,7 +269,6 @@ export class BoardScene extends Phaser.Scene {
     this.plateCells = enumerateBoardCells();
     this.plateRadius = 5;
     this.levelGeometryReady = false;
-    this.levelDefinition = undefined;
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
@@ -311,11 +276,6 @@ export class BoardScene extends Phaser.Scene {
     this.panelHighlightTimer = undefined;
     this.tutorialStep = 0;
     this.tutorialSolution = [];
-    this.mechanicCardVisible = false;
-    this.campaignLevelScore = 0;
-    this.displayedCampaignScore = 0;
-    this.campaignScoreTween = undefined;
-    this.campaignScoringActive = false;
     this.campaignSession = undefined;
     this.dailySession = undefined;
     this.endlessSession = undefined;
@@ -336,7 +296,6 @@ export class BoardScene extends Phaser.Scene {
     this.hoveredPieceKey = undefined;
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
-    this.pendingBoardIntroProfile = undefined;
   }
 
   preload(): void {
@@ -366,16 +325,10 @@ export class BoardScene extends Phaser.Scene {
     this.plateCells = enumerateBoardCells();
     this.plateRadius = 5;
     this.levelGeometryReady = false;
-    this.levelDefinition = undefined;
     this.activePanelType = null;
     this.panelHighlightTimer = undefined;
     this.tutorialStep = 0;
     this.tutorialSolution = [];
-    this.mechanicCardVisible = false;
-    this.campaignLevelScore = 0;
-    this.displayedCampaignScore = this.progress.snapshot.campaignScore;
-    this.campaignScoreTween = undefined;
-    this.campaignScoringActive = false;
     this.campaignSession = undefined;
     this.dailySession = undefined;
     this.endlessSession = this.mode === PlayMode.ENDLESS ? new EndlessBoardSession() : undefined;
@@ -395,12 +348,9 @@ export class BoardScene extends Phaser.Scene {
     this.introAnimator?.stop();
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
-    this.pendingBoardIntroProfile = undefined;
   }
 
   create(): void {
-    this.leaderboard = getLeaderboard(this);
-    this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.platform = getYandexGamesAdapter();
     this.assistance = new BoardAssistance(this.platform);
     this.pieceViews = new Map();
@@ -442,29 +392,6 @@ export class BoardScene extends Phaser.Scene {
       { english: this.english },
     );
     this.status = makeText(this, "", 12, "#9aa7b5").setOrigin(0.5).setDepth(10);
-    this.mechanicCardGraphics = this.add.graphics().setDepth(20);
-    this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
-      .setVisible(false);
-    this.pauseMenuGraphics = this.add.graphics().setDepth(40);
-    this.pauseMenuPanel = makePanel(this, UI_FRAMES.panelMainMedium, 40)
-      .setVisible(false);
-    this.pauseMenuHitZone = this.add.zone(0, 0, 1, 1)
-      .setDepth(40)
-      .setVisible(false)
-      .setInteractive();
-    this.mechanicCardText = makeText(this, "", 18, "#eef3f8")
-      .setOrigin(0.5)
-      .setAlign("center")
-      .setDepth(21)
-      .setVisible(false);
-    this.mechanicCardHint = makeText(this, this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"), 12, "#f3c94f")
-      .setOrigin(0.5)
-      .setDepth(21)
-      .setVisible(false);
-    this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
-    this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
-
-
     this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
       .setOrigin(0.5)
       .setFontStyle("bold")
@@ -555,14 +482,6 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.attemptState = createAttemptState();
     this.clearMoveHint(false);
-    if (this.mode === PlayMode.CAMPAIGN) {
-      this.campaignScoreTween?.stop();
-      this.campaignLevelScore = 0;
-      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
-      this.campaignScoringActive =
-        !this.progress.isCompleted(this.level) ||
-        this.progress.snapshot.levelScores[this.level] === 0;
-    }
     this.setBusy(true);
     this.levelGeometryReady = false;
     this.board = undefined;
@@ -570,8 +489,6 @@ export class BoardScene extends Phaser.Scene {
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
     this.tutorialSolution = [];
-    this.pendingBoardIntroProfile = undefined;
-    this.hideMechanicCard();
     this.status.setText("GENERATING");
     this.clearPieceViews();
     this.rebuildPanelViews();
@@ -627,11 +544,9 @@ export class BoardScene extends Phaser.Scene {
       if (token !== this.generationToken) return;
       this.board = record.board;
       this.variant = record.variant;
-      this.boardShape = record.shape;
       this.plateCells = "plateCells" in record ? record.plateCells : enumerateBoardCells();
       this.plateRadius = "plateRadius" in record ? record.plateRadius : 5;
       this.levelGeometryReady = true;
-      this.levelDefinition = "definition" in record ? record.definition : undefined;
       this.initialPieces = record.pieces.map((piece) => ({ ...piece }));
       this.certifiedSolution = record.solution.map((move) =>
         move.map((position) => ({ ...position })),
@@ -647,12 +562,7 @@ export class BoardScene extends Phaser.Scene {
       this.rebuildPanelViews();
       this.rebuildPieceViews();
       this.updateTutorialGuide();
-      this.showMechanicCardForLevel();
-      if (this.mechanicCardVisible) {
-        this.pendingBoardIntroProfile = introProfile;
-      } else {
-        this.startBoardIntro(introProfile);
-      }
+      this.startBoardIntro(introProfile);
       this.layout();
     } catch (error) {
       if (token !== this.generationToken) return;
@@ -777,14 +687,6 @@ export class BoardScene extends Phaser.Scene {
       });
       return;
     }
-    if (this.mode === PlayMode.CAMPAIGN) {
-      this.campaignScoreTween?.stop();
-      this.campaignLevelScore = 0;
-      this.displayedCampaignScore = this.progress.snapshot.campaignScore;
-      this.campaignScoringActive =
-        !this.progress.isCompleted(this.level) ||
-        this.progress.snapshot.levelScores[this.level] === 0;
-    }
     this.removalHistory = [];
     this.knownWinningRoute = this.certifiedSolution;
     this.positionSolveStatus = SolveStatus.SOLVED;
@@ -805,7 +707,6 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialStep = 0;
     this.status.setText("");
     this.rebuildPieceViews();
-    this.pendingBoardIntroProfile = undefined;
     this.startBoardIntro("restart");
     this.updateTutorialGuide();
     this.layout();
@@ -838,7 +739,6 @@ export class BoardScene extends Phaser.Scene {
   selectPiece(piece: BoardPiece): void {
     if (
       this.busy ||
-      this.mechanicCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
@@ -861,8 +761,6 @@ export class BoardScene extends Phaser.Scene {
     const beforeRemovalPieces = this.board.pieces();
     const beforeRemoval = {
       pieces: beforeRemovalPieces,
-      campaignLevelScore: this.campaignLevelScore,
-      displayedCampaignScore: this.displayedCampaignScore,
     };
     const result = this.board.select(piece);
     if (result.kind === "locked") {
@@ -889,24 +787,6 @@ export class BoardScene extends Phaser.Scene {
       this.clearMoveHint(false);
       let message = "";
       if (
-        this.mode === PlayMode.CAMPAIGN &&
-        this.campaignScoringActive
-      ) {
-        const scoredRemoval = scoreRemovedAtoms(
-          { score: this.campaignLevelScore, streak: 0 },
-          result.removed.length,
-        );
-        this.campaignLevelScore = scoredRemoval.state.score;
-        this.showScorePopup(
-          result.removed,
-          `+${formatScore(scoredRemoval.award)}`,
-          "#77dc91",
-        );
-        this.animateCampaignScore(
-          this.progress.snapshot.campaignScore + this.campaignLevelScore,
-        );
-      }
-      if (
         this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT &&
         this.tutorialRemovalCompletesStep(result.removed)
       ) {
@@ -925,7 +805,6 @@ export class BoardScene extends Phaser.Scene {
           const alreadyCompleted = this.progress.isCompleted(this.level);
           const clean = this.campaignSession?.cleanEligible === true;
           const snapshot = this.progress.complete(this.level, { clean });
-          this.campaignScoringActive = false;
           if (snapshot.campaignCompleted) {
             message = this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE");
           } else if (!alreadyCompleted && !this.progress.testMode) {
@@ -1111,62 +990,6 @@ export class BoardScene extends Phaser.Scene {
     );
   }
 
-  showScorePopup(removedPieces: readonly BoardPiece[], text: string, color = "#f3c94f"): void {
-    if (
-      this.mode !== PlayMode.ENDLESS &&
-      this.mode !== PlayMode.CAMPAIGN
-    ) {
-      return;
-    }
-    const positions = removedPieces.map((piece) => this.hexToScreen(piece));
-    const x =
-      positions.length > 0
-        ? positions.reduce((sum, position) => sum + position.x, 0) /
-          positions.length
-        : this.boardCenterX;
-    const y =
-      positions.length > 0
-        ? positions.reduce((sum, position) => sum + position.y, 0) /
-          positions.length
-        : this.boardCenterY;
-    const popup = makeText(this, text, positions.length > 0 ? 17 : 21, color)
-      .setOrigin(0.5)
-      .setPosition(x, y)
-      .setDepth(18)
-      .setScale(0.82);
-    this.tweens.add({
-      targets: popup,
-      y: y - (positions.length > 0 ? 42 : 58),
-      alpha: 0,
-      scale: 1.12,
-      duration: positions.length > 0 ? 760 : 1050,
-      ease: "Cubic.Out",
-      onComplete: () => popup.destroy(),
-    });
-  }
-
-  animateCampaignScore(targetScore: number): void {
-    if (this.mode !== PlayMode.CAMPAIGN) return;
-    this.campaignScoreTween?.stop();
-    const counter = { value: this.displayedCampaignScore };
-    const distance = Math.max(1, targetScore - this.displayedCampaignScore);
-    this.campaignScoreTween = this.tweens.add({
-      targets: counter,
-      value: targetScore,
-      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
-      ease: "Cubic.Out",
-      onUpdate: () => {
-        this.displayedCampaignScore = Math.round(counter.value);
-        this.updateCampaignHud();
-      },
-      onComplete: () => {
-        this.displayedCampaignScore = targetScore;
-        this.campaignScoreTween = undefined;
-        this.updateCampaignHud();
-      },
-    });
-  }
-
   updateEndlessHud(): void {
     // Score chrome is intentionally absent from the functional HUD.
   }
@@ -1219,7 +1042,6 @@ export class BoardScene extends Phaser.Scene {
   undoLastRemoval(): void {
     if (
       this.busy ||
-      this.mechanicCardVisible ||
       this.pauseMenuVisible ||
       !this.board ||
       this.board.won
@@ -1506,7 +1328,6 @@ export class BoardScene extends Phaser.Scene {
   usePrimaryHint(): void {
     if (
       this.busy ||
-      this.mechanicCardVisible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
       !this.board
@@ -1710,12 +1531,6 @@ export class BoardScene extends Phaser.Scene {
     const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
     if (!session) return;
     this.board = session.board;
-    if (this.mode === PlayMode.CAMPAIGN) {
-      this.campaignLevelScore = Math.max(0, this.initialPieces.length - this.board.size) * SCORE_PER_REMOVED_ATOM;
-      this.displayedCampaignScore =
-        this.progress.snapshot.campaignScore + this.campaignLevelScore;
-      this.campaignScoreTween?.stop();
-    }
     this.actualDeadEnd = false;
     this.positionSolveStatus = SolveStatus.SOLVED;
     this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
@@ -1737,10 +1552,6 @@ export class BoardScene extends Phaser.Scene {
     if (!snapshot) return;
     this.removalHistory.splice(index);
     this.board = new GardenBoard(snapshot.pieces);
-    this.campaignLevelScore = snapshot.campaignLevelScore;
-    this.displayedCampaignScore =
-      this.progress.snapshot.campaignScore + this.campaignLevelScore;
-    this.campaignScoreTween?.stop();
     this.actualDeadEnd = false;
     this.positionSolveStatus = SolveStatus.SOLVED;
     this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
@@ -1829,7 +1640,6 @@ export class BoardScene extends Phaser.Scene {
   selectPanelType(type: AtomType): void {
     if (
       this.busy ||
-      this.mechanicCardVisible ||
       this.pauseMenuVisible ||
       !this.board
     ) return;
@@ -1941,86 +1751,6 @@ export class BoardScene extends Phaser.Scene {
     if (this.introAnimator?.active) this.render();
   }
 
-  showMechanicCardForLevel(): void {
-    const introduction =
-      this.mode === PlayMode.CAMPAIGN && !this.progress.isCompleted(this.level)
-        ? mechanicIntroductionForLevel(this.level)
-        : undefined;
-    const text = introduction
-      ? this.english ? introduction.textEn : introduction.text
-      : undefined;
-    if (!text || !introduction) {
-      this.hideMechanicCard();
-      return;
-    }
-    this.setMechanicCardGlyphTypes(introduction.requiredTypes);
-    this.mechanicCardVisible = true;
-    this.mechanicCardText.setText(text).setVisible(true);
-    this.mechanicCardHint
-      .setText(this.uiText("НАЖМИТЕ, ЧТОБЫ НАЧАТЬ", "TAP TO START"))
-      .setVisible(true);
-    this.mechanicCardHitZone
-      .setVisible(true)
-      .setInteractive({ useHandCursor: true });
-  }
-
-  setMechanicCardGlyphTypes(types: readonly AtomType[]): void {
-    this.clearMechanicCardGlyphs();
-    for (const type of types) {
-      const premiumPieceFrame = physicalPieceFrameForType(type);
-      const premiumBallFrame = PHYSICAL_MATERIAL_FRAMES.pieceBall;
-      const frame =
-        premiumPieceFrame && this.textures.exists(premiumPieceFrame)
-          ? premiumPieceFrame
-          : ACTIVE_ART_THEME === "premium" && this.textures.exists(premiumBallFrame)
-          ? premiumBallFrame
-          : atomGlyphFrame(type);
-      if (!this.textures.exists(frame)) continue;
-      const image = this.add.image(0, 0, frame).setDepth(21).setVisible(true);
-      this.mechanicCardGlyphs.push(image);
-    }
-  }
-
-  clearMechanicCardGlyphs(): void {
-    for (const glyph of this.mechanicCardGlyphs) glyph.destroy();
-    this.mechanicCardGlyphs.length = 0;
-  }
-
-  showEndlessUnlockedCard(): void {
-    this.clearMechanicCardGlyphs();
-    this.mechanicCardVisible = true;
-    this.mechanicCardText
-      .setText(
-        "ОТКРЫТ НОВЫЙ РЕЖИМ\n\nENDLESS\n\nНАЧНИТЕ С ПОЛЯ НА 37 КЛЕТОК\nИ УДЕРЖИВАЙТЕ СТРИК",
-      )
-      .setVisible(true);
-    this.mechanicCardHint
-      .setText("НАЖМИТЕ, ЧТОБЫ ПРОДОЛЖИТЬ")
-      .setVisible(true);
-    this.mechanicCardHitZone
-      .setVisible(true)
-      .setInteractive({ useHandCursor: true });
-  }
-
-  dismissMechanicCard(): void {
-    if (!this.mechanicCardVisible) return;
-    const pendingProfile = this.pendingBoardIntroProfile;
-    this.pendingBoardIntroProfile = undefined;
-    this.hideMechanicCard();
-    if (pendingProfile) this.startBoardIntro(pendingProfile);
-    this.render();
-  }
-
-  hideMechanicCard(): void {
-    this.mechanicCardVisible = false;
-    this.clearMechanicCardGlyphs();
-    this.mechanicCardGraphics?.clear();
-    this.mechanicCardPanel?.setVisible(false);
-    this.mechanicCardText?.setVisible(false);
-    this.mechanicCardHint?.setVisible(false);
-    this.mechanicCardHitZone?.setVisible(false).disableInteractive();
-  }
-
   setBusy(value: boolean): void {
     this.busy = value;
     this.pauseRestartButton?.setAlpha(value ? 0.45 : 1);
@@ -2124,7 +1854,6 @@ export class BoardScene extends Phaser.Scene {
       }
     }
     this.render();
-    this.layoutMechanicCard(width, height, compact);
     this.layoutPauseMenu(width, height);
     this.layoutCampaignDeadEnd(width, height);
     this.completionOverlay.layout(width, height);
@@ -2211,57 +1940,6 @@ export class BoardScene extends Phaser.Scene {
   }
 
 
-  layoutMechanicCard(width: number, height: number, compact: boolean): void {
-    this.mechanicCardHitZone.setPosition(width / 2, height / 2).setSize(width, height);
-    if (this.mechanicCardHitZone.input?.hitArea) {
-      this.mechanicCardHitZone.input.hitArea.setTo(0, 0, width, height);
-    }
-    if (!this.mechanicCardVisible) return;
-
-    const cardWidth = Math.min(width - 28, 520);
-    const cardHeight = compact ? 270 : 300;
-    const x = (width - cardWidth) / 2;
-    const y = (height - cardHeight) / 2;
-    this.mechanicCardGraphics.clear();
-    this.mechanicCardGraphics.fillStyle(0x000000, 0.72);
-    this.mechanicCardGraphics.fillRect(0, 0, width, height);
-    resizeNineSlice(this.mechanicCardPanel, cardWidth, cardHeight);
-    this.mechanicCardPanel
-      .setPosition(width / 2, y + cardHeight / 2)
-      .setVisible(true);
-    this.layoutMechanicCardGlyphs(width / 2, y, cardWidth, compact);
-    this.mechanicCardText
-      .setFontSize(compact ? 14 : 18)
-      .setPosition(width / 2, y + (compact ? 164 : 184))
-      .setWordWrapWidth(cardWidth - 34);
-    this.mechanicCardHint.setPosition(width / 2, y + cardHeight - 28);
-  }
-
-  layoutMechanicCardGlyphs(
-    centerX: number,
-    cardTop: number,
-    cardWidth: number,
-    compact: boolean,
-  ): void {
-    const count = this.mechanicCardGlyphs.length;
-    if (count === 0) return;
-    const size = compact ? 56 : 72;
-    const gap = compact ? 18 : 24;
-    const step = size + gap;
-    const totalWidth = size * count + gap * Math.max(0, count - 1);
-    const startX = centerX - totalWidth / 2 + size / 2;
-    const y = cardTop + (compact ? 70 : 78);
-    this.mechanicCardGlyphs.forEach((glyph, index) => {
-      glyph
-        .setPosition(startX + index * step, y)
-        .setDisplaySize(
-          size * (ACTIVE_ART_THEME === "premium" ? PHYSICAL_PIECE_UI_CANVAS_SCALE : 1),
-          size * (ACTIVE_ART_THEME === "premium" ? PHYSICAL_PIECE_UI_CANVAS_SCALE : 1),
-        )
-        .setVisible(true);
-    });
-  }
-
   layoutPanel(contentLeft: number, contentWidth: number, _width: number, height: number, compact: boolean): void {
     this.panelLayout = this.inventory.layout(
       contentLeft,
@@ -2327,7 +2005,7 @@ export class BoardScene extends Phaser.Scene {
 
     const introActive = this.introAnimator?.active === true;
     const inventoryVisible =
-      this.board !== undefined && !this.mechanicCardVisible;
+      this.board !== undefined;
     const boardActionsEnabled = inventoryVisible && !introActive;
     this.renderPanel(introActive);
     this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
@@ -2362,12 +2040,6 @@ export class BoardScene extends Phaser.Scene {
 
     for (const view of this.pieceViews.values()) {
       const key = hexKey(view.piece);
-      if (this.mechanicCardVisible) {
-        view.hitZone.setVisible(false).disableInteractive();
-        view.container.setVisible(false);
-        continue;
-      }
-
       const revealed = !introActive || this.introRevealedKeys.has(key);
       view.hitZone.setVisible(revealed);
       view.container.setVisible(revealed);

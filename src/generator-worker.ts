@@ -1,6 +1,5 @@
 import { generateDailyPuzzle } from "./daily.js";
 import { generateEndlessRunLevel } from "./endless-run.js";
-import { generateProgressionLevel } from "./progression.js";
 import { generatePuzzleCandidate, type PuzzleCandidateOptions } from "./puzzle-generation.js";
 import { isRecord } from "./persistence.js";
 
@@ -16,13 +15,6 @@ function asWorkerPort(value: unknown): WorkerPort {
   return value as unknown as WorkerPort;
 }
 
-interface ProgressionWorkerRequest {
-  requestId: number;
-  kind: "progression";
-  level: number;
-  campaignSeed?: string;
-}
-
 interface EndlessWorkerRequest {
   requestId: number;
   kind: "endless-run";
@@ -31,9 +23,8 @@ interface EndlessWorkerRequest {
 }
 
 type GeneratorWorkerRequest =
-  | { requestId: number; kind: "daily"; dateKey: string }
   | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
-  | ProgressionWorkerRequest
+  | { requestId: number; kind: "daily"; dateKey: string }
   | EndlessWorkerRequest;
 
 function parseRequest(value: unknown): GeneratorWorkerRequest {
@@ -56,17 +47,11 @@ function parseRequest(value: unknown): GeneratorWorkerRequest {
     };
   }
 
-  if (!Number.isSafeInteger(value.level)) {
-    throw new TypeError("Invalid generator worker request");
-  }
-  const level = value.level as number;
-  if (value.kind === "progression") {
-    const campaignSeed = typeof value.campaignSeed === "string" ? value.campaignSeed : undefined;
-    return campaignSeed === undefined
-      ? { requestId, kind: "progression", level }
-      : { requestId, kind: "progression", level, campaignSeed };
-  }
   if (value.kind === "endless-run") {
+    if (!Number.isSafeInteger(value.level)) {
+      throw new TypeError("Invalid Endless worker request");
+    }
+    const level = value.level as number;
     if (typeof value.runSeed !== "string" || value.runSeed.length === 0) {
       throw new TypeError("Invalid Endless worker request");
     }
@@ -88,10 +73,6 @@ port.addEventListener("message", (event) => {
       }
       if (request.kind === "puzzle-candidate") {
         return generatePuzzleCandidate(request.options);
-      }
-      if (request.kind === "progression") {
-        const campaignSeedOptions = request.campaignSeed === undefined ? {} : { campaignSeed: request.campaignSeed };
-        return generateProgressionLevel(request.level, campaignSeedOptions);
       }
       return generateEndlessRunLevel(request.level, { runSeed: request.runSeed });
     })();

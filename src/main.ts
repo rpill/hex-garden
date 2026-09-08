@@ -5,7 +5,6 @@ import { getYandexGamesAdapter } from "./platform/yandex-games.js";
 import { initializePlayerDataStorage } from "./platform/player-data-storage.js";
 import { BoardScene } from "./game/scenes/BoardScene.js";
 import { LevelSelectScene } from "./game/scenes/LevelSelectScene.js";
-import { LeaderboardScene } from "./game/scenes/LeaderboardScene.js";
 import { MenuScene } from "./game/scenes/MenuScene.js";
 import { SettingsScene } from "./game/scenes/SettingsScene.js";
 
@@ -38,7 +37,7 @@ async function startGarden(): Promise<void> {
       activePointers: 3,
       touch: { capture: true },
     },
-    scene: [MenuScene, LevelSelectScene, SettingsScene, LeaderboardScene, BoardScene],
+    scene: [MenuScene, LevelSelectScene, SettingsScene, BoardScene],
   });
 
   window.addEventListener("contextmenu", (event) => event.preventDefault());

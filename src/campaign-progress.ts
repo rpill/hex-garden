@@ -19,10 +19,6 @@ export interface CampaignProgressSnapshotV3 {
 export interface CampaignProgressSnapshot extends CampaignProgressSnapshotV3 {
   /** @deprecated Use solvedLevels. */
   completedLevels: number[];
-  /** @deprecated Campaign score is removed; this is always zero during migration. */
-  levelScores: number[];
-  /** @deprecated Campaign score is removed; this is always zero during migration. */
-  campaignScore: number;
 }
 
 export type CampaignProgressRuntimeSnapshot = CampaignProgressSnapshot;
@@ -105,8 +101,6 @@ function runtimeSnapshot(snapshot: CampaignProgressSnapshotV3): CampaignProgress
   return {
     ...cloneSnapshot(snapshot),
     completedLevels: [...snapshot.solvedLevels],
-    levelScores: Array<number>(CAMPAIGN_LEVEL_COUNT).fill(0),
-    campaignScore: 0,
   };
 }
 
@@ -165,7 +159,7 @@ export class CampaignProgressStore {
 
   complete(
     level: number,
-    { clean = false }: { clean?: boolean; score?: number } = {},
+    { clean = false }: { clean?: boolean } = {},
   ): CampaignProgressRuntimeSnapshot {
     assertLevel(level);
     if (!this.isUnlocked(level)) {

@@ -1,9 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzePuzzleDifficulty, generateProgressionLevel } from "../src/index.js";
+import {
+  PlateSize,
+  analyzePuzzleDifficulty,
+  generatePuzzleCandidate,
+} from "../src/index.js";
 
-test("difficulty analysis is independent of progression chapter metadata", () => {
-  const record = generateProgressionLevel(4, { campaignSeed: "difficulty-api" });
+const composition = Object.freeze({
+  saltPairCount: 1,
+  saltElementPairCount: 1,
+  oppositePairCount: 2,
+  metalDepth: 4,
+});
+
+function candidate(seed) {
+  return generatePuzzleCandidate({
+    seed,
+    plateSize: PlateSize.SMALL,
+    targetPieceCount: 30,
+    composition,
+  });
+}
+
+test("difficulty analysis is independent of removed progression metadata", () => {
+  const record = candidate("difficulty-api");
   const metrics = analyzePuzzleDifficulty({
     pieces: record.pieces,
     solution: record.solution,
@@ -31,9 +51,7 @@ test("difficulty analysis is independent of progression chapter metadata", () =>
 });
 
 test("difficulty sampling is deterministic for the same puzzle and sample seed", () => {
-  const record = generateProgressionLevel(4, {
-    campaignSeed: "difficulty-determinism",
-  });
+  const record = candidate("difficulty-determinism");
   const input = {
     pieces: record.pieces,
     solution: record.solution,

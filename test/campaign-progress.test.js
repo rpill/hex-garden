@@ -39,6 +39,12 @@ test("new campaign progress starts empty and uses a new save key", () => {
   assert.equal(store.snapshot.campaignCompleted, false);
 });
 
+test("runtime campaign snapshot exposes progress only, never legacy score fields", () => {
+  const store = new CampaignProgressStore({ storage: new MemoryStorage() });
+  assert.equal("campaignScore" in store.snapshot, false);
+  assert.equal("levelScores" in store.snapshot, false);
+});
+
 test("solved and clean upgrade independently", () => {
   const storage = new MemoryStorage();
   const store = new CampaignProgressStore({ storage });

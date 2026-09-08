@@ -1,10 +1,9 @@
 import { GardenBoard } from "./board.js";
 import type { DailyPuzzle } from "./daily.js";
 import { GardenDatabase } from "./database.js";
-import { BoardVariant, type BoardVariantValue } from "./generator.js";
+import { BoardVariant } from "./generator.js";
 import type { CampaignLevel } from "./campaign.js";
 import { getCampaignLevel } from "./campaign-levels.js";
-import { DEFAULT_PROGRESSION_SEED, generateProgressionLevel } from "./progression.js";
 import { generateEndlessRunLevel, type EndlessRunLevel } from "./endless-run.js";
 import type { GeneratedPuzzleCandidate, PuzzleCandidateOptions } from "./puzzle-generation.js";
 
@@ -20,11 +19,9 @@ export async function fetchBoardDatabase(
   return new GardenDatabase(await response.arrayBuffer());
 }
 
-type ProgressionLevel = ReturnType<typeof generateProgressionLevel>;
 type SerializedResult<T extends { board: GardenBoard }> = Omit<T, "board">;
 type WorkerResult =
   | SerializedResult<DailyPuzzle>
-  | SerializedResult<ProgressionLevel>
   | SerializedResult<EndlessRunLevel>
   | SerializedResult<GeneratedPuzzleCandidate>;
 type BrowserResult<T extends { board: GardenBoard }> = Omit<T, "board"> & { board: GardenBoard };
@@ -93,10 +90,7 @@ export class BrowserLevelGenerator {
    * getCampaignLevel(level). This facade remains while BoardScene callers are
    * migrated; it never posts Campaign work to the generator worker.
    */
-  generate(
-    level: number,
-    _options: { campaignSeed?: string; variant?: BoardVariantValue } = {},
-  ): Promise<BrowserResult<CampaignLevel>> {
+  generate(level: number): Promise<BrowserResult<CampaignLevel>> {
     const record = getCampaignLevel(level);
     const plateCells = record.plateCells.map((cell) => ({ ...cell }));
     const pieces = record.pieces.map((piece) => ({ ...piece }));
@@ -112,13 +106,6 @@ export class BrowserLevelGenerator {
       shape: "canonical",
       board: new GardenBoard(pieces),
     });
-  }
-
-  generateProgression(
-    level: number,
-    { campaignSeed = DEFAULT_PROGRESSION_SEED }: { campaignSeed?: string } = {},
-  ): Promise<BrowserResult<ProgressionLevel>> {
-    return this.#request({ kind: "progression", level, campaignSeed });
   }
 
   generateEndlessRun(

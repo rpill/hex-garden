@@ -61,24 +61,14 @@ export {
   encodeBoardDatabase,
 } from "./database.js";
 export {
-  BoardShape,
   BoardVariant,
   createSeededRandom,
-  generateSolvableBoard,
   replaySolution,
 } from "./generator.js";
 export {
   DEFAULT_CAMPAIGN_SEED,
   generateCampaignLevel,
 } from "./campaign.js";
-export {
-  DEFAULT_PROGRESSION_SEED,
-  PROGRESSION_LEVEL_COUNT,
-  ProgressionChapter,
-  analyzeProgressionDifficulty,
-  generateProgressionLevel,
-  getProgressionLevelDefinition,
-} from "./progression.js";
 export {
   CAMPAIGN_PROGRESS_STORAGE_KEY,
   CampaignProgressStore,
@@ -114,17 +104,6 @@ export {
   type EndlessRunResult,
 } from "./endless-progress.js";
 export {
-  ENDLESS_BOARD_BASE_SCORE,
-  SCORE_PER_REMOVED_ATOM,
-  STREAK_MULTIPLIER_STEPS,
-  boardClearBaseScore,
-  createEndlessScoreState,
-  nextStreakMultiplier,
-  scoreClearedBoard,
-  scoreRemovedAtoms,
-  streakMultiplier,
-} from "./endless-score.js";
-export {
   endlessDifficultyBand,
   endlessPlateSize,
   generateEndlessRunLevel,
@@ -155,12 +134,6 @@ export {
   SettingsStore,
   normalizeSettings,
 } from "./settings.js";
-export {
-  FAKE_LEADERBOARD_ENTRIES,
-  LEADERBOARD_STORAGE_KEY,
-  LocalLeaderboardStore,
-  normalizeLeaderboardProfile,
-} from "./leaderboard.js";
 export {
   SolveStatus,
   findLastSolvableSnapshot,
@@ -196,10 +169,6 @@ export {
   findLongestEmptyNeighbourRun,
 } from "./tutorial.js";
 export { campaignPostCompletionDestination } from "./campaign-routing.js";
-export {
-  CAMPAIGN_MECHANIC_INTRODUCTIONS,
-  mechanicIntroductionForLevel,
-} from "./mechanic-introductions.js";
 export {
   dailyDateKey,
   dailyWeekKey,

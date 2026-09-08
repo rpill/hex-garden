@@ -19,7 +19,7 @@ import {
 } from "../ui.js";
 
 
-const RETURN_SCENES = new Set<UtilitySceneKey>(["board", "menu", "level-select", "leaderboard"]);
+const RETURN_SCENES = new Set<UtilitySceneKey>(["board", "menu", "level-select"]);
 function returnSceneFromData(data: unknown): UtilitySceneKey {
   if (typeof data !== "object" || data === null) return "menu";
   const value = (data as { returnScene?: unknown }).returnScene;
