@@ -14,14 +14,25 @@ for (const file of ["BoardHud.ts", "BoardInventory.ts", "BoardTutorial.ts", "Boa
 }
 
 
-test("BoardHud owns an always-available restart action", async () => {
+test("BoardHud is asset-free and exposes only core board actions", async () => {
   const text = await readFile(
     new URL("../src/game/board/BoardHud.ts", import.meta.url),
     "utf8",
   );
-  assert.match(text, /onRestart:/);
-  assert.match(text, /restartButton/);
-  assert.match(text, /GAMEPLAY_UI_FRAMES\.retry/);
+
+  assert.match(text, /onBack:/);
+  assert.match(text, /onUndo:/);
+  assert.match(text, /onHint:/);
+  assert.match(text, /onOverflow:/);
+  assert.match(text, /setIdentity\(/);
+  assert.match(text, /setRemaining\(/);
+  assert.match(text, /setCleanEligible\(/);
+  assert.match(text, /setUndoEnabled\(/);
+  assert.match(text, /setHintBusy\(/);
+
+  assert.doesNotMatch(text, /dust|shop|inventory/i);
+  assert.doesNotMatch(text, /GAMEPLAY_UI_FRAMES|UI_FRAMES|art-assets|makePanel|makeCurrencyDisplay/);
+  assert.doesNotMatch(text, /onRestart:|restartButton|onRescue:|rescueButton/);
 });
 
 
@@ -81,23 +92,31 @@ test("tutorial completion uses one focused Level 1 transition instead of a HUD p
   assert.match(completionSource, /compactTransition/);
 });
 
-test("restart stays in the system-control group and never joins consumable layout", async () => {
+test("BoardScene wires the minimal HUD without permanent shop, settings, or restart controls", async () => {
   const boardSource = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
-  const inventorySource = await readFile(
-    new URL("../src/game/board/BoardInventory.ts", import.meta.url),
+
+  assert.match(boardSource, /onBack:/);
+  assert.match(boardSource, /onUndo:\s*\(\) => this\.undoLastRemoval\(\)/);
+  assert.match(boardSource, /onHint:\s*\(\) => this\.useHint\(HintType\.MOVE\)/);
+  assert.match(boardSource, /onOverflow:\s*\(\) => this\.openPauseMenu\(\)/);
+  assert.match(boardSource, /this\.hud\.layout\(width, height\)/);
+  assert.doesNotMatch(boardSource, /this\.(?:shopButton|settingsButton|restartButton|dustHud|headerPanel)/);
+});
+
+
+test("Campaign BoardScene constructs a fixed CampaignBoardSession without a worker request", async () => {
+  const boardSource = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(boardSource, /systemRestartX/);
-  assert.doesNotMatch(boardSource, /hintEntries\.length \* actionStep \+ restartWidth/);
-  assert.doesNotMatch(boardSource, /hintEntries\.length \* 48\)/);
-  assert.match(inventorySource, /HintType\.MOVE/);
-  assert.match(inventorySource, /HintType\.UNDO/);
-  assert.match(inventorySource, /HintType\.RESCUE/);
-  assert.doesNotMatch(inventorySource, /GAMEPLAY_UI_FRAMES\.retry/);
+  assert.match(boardSource, /new CampaignBoardSession\(getCampaignLevel\(this\.level\)\)/);
+  assert.doesNotMatch(boardSource, /PlayMode\.CAMPAIGN\s*\?\s*await this\.generator\.generate\(this\.level\)/);
+  assert.doesNotMatch(boardSource, /generateProgression\(this\.level/);
+  assert.match(boardSource, /CAMPAIGN_LEVEL_COUNT/);
 });
 
 test("board staging hides placeholder geometry and pieces until the real intro reveals them", async () => {

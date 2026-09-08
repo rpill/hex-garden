@@ -16,6 +16,7 @@ import {
 } from "../../scene-background.js";
 import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
 import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
+import { getCampaignLevel } from "../../campaign-levels.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import {
   HintType,
@@ -30,12 +31,14 @@ import {
   nextStreakMultiplier,
   scoreClearedBoard,
   scoreRemovedAtoms,
+  SCORE_PER_REMOVED_ATOM,
   streakMultiplier,
   type EndlessScoreState,
   type ScoreAwardResult,
 } from "../../endless-score.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
-import { PROGRESSION_LEVEL_COUNT, type ProgressionLevelDefinition } from "../../progression.js";
+import type { ProgressionLevelDefinition } from "../../progression.js";
+import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
 import { ENDLESS_REQUIRED_COMPLETIONS } from "../../mode-access.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey, type HexCoord } from "../../hex.js";
 import {
@@ -76,6 +79,13 @@ import {
   type TutorialLevel,
 } from "../../tutorial.js";
 import { BoardHud } from "../board/BoardHud.js";
+import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
+import {
+  createAttemptState,
+  markRescueUsed,
+  markSolverAssisted,
+  restartAttempt,
+} from "../board/attempt-state.js";
 import {
   BoardInventory,
   type BoardInventoryLayout,
@@ -93,7 +103,6 @@ import {
 } from "../board/BoardIntroAnimator.js";
 import {
   makeButton,
-  makeCurrencyDisplay,
   makePanel,
   makeText,
   preloadUiAssets,
@@ -241,6 +250,7 @@ export class BoardScene extends Phaser.Scene {
   displayedCampaignScore = 0;
   campaignScoreTween: Phaser.Tweens.Tween | undefined;
   campaignScoringActive = false;
+  campaignSession: CampaignBoardSession | undefined;
   removalHistory: RemovalHistoryEntry[] = [];
   activeHintKeys = new Set<string>();
   hintTimer: Phaser.Time.TimerEvent | undefined;
@@ -302,17 +312,9 @@ export class BoardScene extends Phaser.Scene {
   pauseLevelsButton!: ReturnType<typeof makeButton>;
   pauseExitButton!: ReturnType<typeof makeButton>;
   completionOverlay!: CompletionOverlay;
-  headerPanel!: ReturnType<typeof makePanel>;
-  header!: Phaser.GameObjects.Text;
   status!: Phaser.GameObjects.Text;
-  endlessHud!: Phaser.GameObjects.Text;
-  campaignHud!: Phaser.GameObjects.Text;
-  dustHud!: ReturnType<typeof makeCurrencyDisplay>;
-  menuButton!: ReturnType<typeof makeButton>;
-  shopButton!: ReturnType<typeof makeButton>;
-  settingsButton!: ReturnType<typeof makeButton>;
-  restartButton!: ReturnType<typeof makeButton>;
   hintButtons!: Map<HintTypeValue, ReturnType<typeof makeButton>>;
+  attemptState = createAttemptState();
   boardCenterX = 0;
   boardCenterY = 0;
   hexSize = 24;
@@ -344,6 +346,7 @@ export class BoardScene extends Phaser.Scene {
     this.displayedCampaignScore = 0;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
+    this.campaignSession = undefined;
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
@@ -357,6 +360,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.attemptState = createAttemptState();
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
     this.introAnimator = undefined;
@@ -401,6 +405,7 @@ export class BoardScene extends Phaser.Scene {
     this.displayedCampaignScore = this.progress.snapshot.campaignScore;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
+    this.campaignSession = undefined;
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
@@ -414,6 +419,7 @@ export class BoardScene extends Phaser.Scene {
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.attemptState = createAttemptState();
     this.pauseMenuVisible = false;
     this.hoveredPieceKey = undefined;
     this.introAnimator?.stop();
@@ -458,14 +464,17 @@ export class BoardScene extends Phaser.Scene {
     this.hud = new BoardHud(
       this,
       {
-        onPause: () => this.openPauseMenu(),
-        onShop: () => this.openUtilityScene("shop"),
-        onSettings: () => this.openUtilityScene("settings"),
-        onRestart: () => this.restartLevel(),
+        onBack: () => {
+          if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL) this.openLevelSelect();
+          else this.openMainMenu();
+        },
+        onUndo: () => this.undoLastRemoval(),
+        onHint: () => this.useHint(HintType.MOVE),
+        onOverflow: () => this.openPauseMenu(),
       },
       { english: this.english },
     );
-    this.headerPanel = this.hud.headerPanel;
+    this.status = makeText(this, "", 12, "#9aa7b5").setOrigin(0.5).setDepth(10);
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
     this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
       .setVisible(false);
@@ -482,11 +491,6 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(40)
       .setVisible(false)
       .setInteractive();
-    this.header = this.hud.header;
-    this.status = this.hud.status;
-    this.endlessHud = this.hud.endless;
-    this.campaignHud = this.hud.campaign;
-    this.dustHud = this.hud.dust;
     this.mechanicCardText = makeText(this, "", 18, "#eef3f8")
       .setOrigin(0.5)
       .setAlign("center")
@@ -522,10 +526,6 @@ export class BoardScene extends Phaser.Scene {
       this.closeEconomyModal(),
     ).setIcon(GAMEPLAY_UI_FRAMES.back, 18).setDepth(31).setVisible(false).disableInteractive();
 
-    this.menuButton = this.hud.pauseButton;
-    this.shopButton = this.hud.shopButton;
-    this.settingsButton = this.hud.settingsButton;
-    this.restartButton = this.hud.restartButton;
     this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
       .setOrigin(0.5)
       .setFontStyle("bold")
@@ -593,11 +593,13 @@ export class BoardScene extends Phaser.Scene {
     if (this.mode === PlayMode.ENDLESS) {
       this.endlessBoardStartScore = this.endlessScoreState.score;
     }
+    this.campaignSession = undefined;
     this.removalHistory = [];
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
+    this.attemptState = createAttemptState();
     this.clearMoveHint(false);
     if (this.mode === PlayMode.CAMPAIGN) {
       this.campaignScoreTween?.stop();
@@ -626,9 +628,21 @@ export class BoardScene extends Phaser.Scene {
         this.mode === PlayMode.TUTORIAL
           ? createTutorialLevel()
           : this.mode === PlayMode.CAMPAIGN
-          ? await this.generator.generateProgression(this.level, {
-              campaignSeed: CAMPAIGN_SEED,
-            })
+          ? (() => {
+              const session = new CampaignBoardSession(getCampaignLevel(this.level));
+              this.campaignSession = session;
+              return {
+                board: session.board,
+                variant: BoardVariant.STANDARD,
+                shape: "canonical" as const,
+                plateCells: session.level.plateCells.map((cell) => ({ ...cell })),
+                plateRadius: session.level.plateRadius,
+                pieces: session.level.pieces.map((piece) => ({ ...piece })),
+                solution: session.level.solution.map((move) =>
+                  move.map((position) => ({ ...position })),
+                ),
+              };
+            })()
           : this.mode === PlayMode.ENDLESS
           ? await this.generator.generateEndlessRun(this.level, {
               campaignSeed: CAMPAIGN_SEED,
@@ -820,7 +834,13 @@ export class BoardScene extends Phaser.Scene {
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
     this.clearMoveHint(false);
-    this.board = new GardenBoard(this.initialPieces);
+    if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
+      this.campaignSession.restart();
+      this.board = this.campaignSession.board;
+    } else {
+      this.attemptState = restartAttempt(this.attemptState);
+      this.board = new GardenBoard(this.initialPieces);
+    }
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
     this.status.setText("");
@@ -878,8 +898,9 @@ export class BoardScene extends Phaser.Scene {
       this.render();
       return;
     }
+    const beforeRemovalPieces = this.board.pieces();
     const beforeRemoval = {
-      pieces: this.board.pieces(),
+      pieces: beforeRemovalPieces,
       endlessScoreState: { ...this.endlessScoreState },
       campaignLevelScore: this.campaignLevelScore,
       displayedCampaignScore: this.displayedCampaignScore,
@@ -897,8 +918,12 @@ export class BoardScene extends Phaser.Scene {
       this.status.setText("");
     } else if (result.kind === "removed") {
       this.blockedMoveKey = undefined;
-      this.removalHistory.push(beforeRemoval);
-      if (this.removalHistory.length > 64) this.removalHistory.shift();
+      if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
+        this.campaignSession.recordBeforeRemoval(beforeRemovalPieces);
+      } else {
+        this.removalHistory.push(beforeRemoval);
+        if (this.removalHistory.length > 64) this.removalHistory.shift();
+      }
       this.clearMoveHint(false);
       let message = "";
       if (this.mode === PlayMode.ENDLESS) {
@@ -1067,21 +1092,21 @@ export class BoardScene extends Phaser.Scene {
     this.completionOverlay.show(
       {
         title: campaignComplete ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE") : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE"),
-        subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${PROGRESSION_LEVEL_COUNT}`,
+        subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${CAMPAIGN_LEVEL_COUNT}`,
         scoreAward,
         totalScore: snapshot.campaignScore,
         dustAward,
         dustTotal,
         progressStart: progressBefore.completedLevels.length,
         progressEnd: completed,
-        progressMax: PROGRESSION_LEVEL_COUNT,
+        progressMax: CAMPAIGN_LEVEL_COUNT,
         progressText: (value) =>
-          `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${PROGRESSION_LEVEL_COUNT}`,
+          `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${CAMPAIGN_LEVEL_COUNT}`,
         unlockText: unlockedEndless
           ? this.uiText("ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS", "NEW MODE UNLOCKED: ENDLESS")
           : campaignComplete
           ? this.uiText("ВСЕ УРОВНИ ПРОЙДЕНЫ", "ALL LEVELS COMPLETE")
-          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(PROGRESSION_LEVEL_COUNT, this.level + 2)}`,
+          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(CAMPAIGN_LEVEL_COUNT, this.level + 2)}`,
         continueLabel: campaignComplete
           ? this.uiText("К РЕЗУЛЬТАТАМ", "VIEW RESULTS")
           : this.uiText("СЛЕДУЮЩИЙ УРОВЕНЬ", "NEXT LEVEL"),
@@ -1209,31 +1234,11 @@ export class BoardScene extends Phaser.Scene {
   }
 
   updateEndlessHud(): void {
-    const visible = this.mode === PlayMode.ENDLESS;
-    this.endlessHud?.setVisible(visible);
-    if (!visible || !this.endlessHud) return;
-    const streak = this.endlessScoreState.streak;
-    const multiplier = streakMultiplier(streak);
-    const next = nextStreakMultiplier(streak);
-    const nextLabel = next
-      ? `${this.uiText("ДАЛЬШЕ", "NEXT")} ×${formatMultiplier(next.multiplier)} ${this.uiText("НА", "AT")} ${next.streak}`
-      : `${this.uiText("МАКС", "MAX")} ×${formatMultiplier(multiplier)}`;
-    const separator = this.scale.width < 560 ? "\n" : "   ";
-    const assisted = this.endlessAssisted ? "   ASSISTED" : "";
-    this.endlessHud.setText(
-      `${this.uiText("СЧЁТ", "SCORE")} ${formatScore(this.displayedEndlessScore)}   ` +
-        `${this.uiText("СЕРИЯ", "STREAK")} ${streak}   ×${formatMultiplier(multiplier)}` +
-        `${assisted}${separator}${nextLabel}`,
-    );
+    // Score chrome is intentionally absent from the functional HUD.
   }
 
   updateCampaignHud(): void {
-    const visible = this.mode === PlayMode.CAMPAIGN;
-    this.campaignHud?.setVisible(visible);
-    if (!visible || !this.campaignHud) return;
-    this.campaignHud.setText(
-      `${this.uiText("СЧЁТ КАМПАНИИ", "CAMPAIGN SCORE")} ${formatScore(this.displayedCampaignScore)}`,
-    );
+    // Campaign progress lives on Home/Chapters, not on the board chrome.
   }
 
   updateEconomyUi(): void {
@@ -1241,9 +1246,6 @@ export class BoardScene extends Phaser.Scene {
     const snapshot = this.economy.snapshot;
     const visible =
       this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.ENDLESS;
-    this.dustHud?.setValue(snapshot.dust).setVisible(visible);
-    this.hud.setRestartEmphasis(this.actualDeadEnd);
-
     const labels = {
       [HintType.MOVE]: this.uiText("ХОД", "HINT"),
       [HintType.UNDO]: this.uiText("ОТМЕНА", "UNDO"),
@@ -1313,6 +1315,37 @@ export class BoardScene extends Phaser.Scene {
     return analysis;
   }
 
+  undoLastRemoval(): void {
+    if (
+      this.busy ||
+      this.mechanicCardVisible ||
+      this.economyModalVisible ||
+      this.pauseMenuVisible ||
+      !this.board ||
+      this.board.won
+    ) {
+      return;
+    }
+    if (this.mode === PlayMode.CAMPAIGN) {
+      const session = this.campaignSession;
+      if (!session?.canUndo || !session.undo()) {
+        this.status.setText(this.uiText("ПОКА НЕЧЕГО ОТМЕНЯТЬ", "NOTHING TO UNDO YET"));
+        this.hud.setUndoEnabled(false);
+        return;
+      }
+      this.restoreCampaignSessionBoard(
+        this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"),
+      );
+      return;
+    }
+    if (this.removalHistory.length === 0) {
+      this.status.setText(this.uiText("ПОКА НЕЧЕГО ОТМЕНЯТЬ", "NOTHING TO UNDO YET"));
+      this.hud.setUndoEnabled(false);
+      return;
+    }
+    this.restoreLastRemoval(this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"));
+  }
+
   useHint(type: HintTypeValue): void {
     if (
       this.busy ||
@@ -1372,6 +1405,11 @@ export class BoardScene extends Phaser.Scene {
       const move = analysis.route[0];
       if (!move) return;
       if (!this.economy.consumeHint(type)) return;
+      if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
+        this.campaignSession.markHintUsed();
+      } else {
+        this.attemptState = markSolverAssisted(this.attemptState);
+      }
       this.markEndlessAssisted();
       this.clearMoveHint(false);
       this.activeHintKeys = new Set(move.map(hexKey));
@@ -1434,6 +1472,11 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       if (!this.economy.consumeHint(type)) return;
+      if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
+        this.campaignSession.markRescueUsed();
+      } else {
+        this.attemptState = markRescueUsed(this.attemptState);
+      }
       this.markEndlessAssisted();
       this.restoreHistorySnapshot(
         rescue.index,
@@ -1448,6 +1491,28 @@ export class BoardScene extends Phaser.Scene {
 
   markEndlessAssisted(): void {
     if (this.mode === PlayMode.ENDLESS) this.endlessAssisted = true;
+  }
+
+
+  restoreCampaignSessionBoard(message: string): void {
+    const session = this.campaignSession;
+    if (!session) return;
+    this.board = session.board;
+    this.campaignLevelScore = Math.max(0, this.initialPieces.length - this.board.size) * SCORE_PER_REMOVED_ATOM;
+    this.displayedCampaignScore =
+      this.progress.snapshot.campaignScore + this.campaignLevelScore;
+    this.campaignScoreTween?.stop();
+    this.actualDeadEnd = false;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.knownWinningRoute = this.analyzeCurrentPosition().route;
+    this.blockedMoveKey = undefined;
+    this.clearPanelHighlight(false);
+    this.clearMoveHint(false);
+    this.status.setText(message);
+    this.setBusy(false);
+    this.rebuildPieceViews();
+    this.updateEconomyUi();
+    this.layout();
   }
 
   restoreLastRemoval(message: string): void {
@@ -1915,7 +1980,11 @@ export class BoardScene extends Phaser.Scene {
   setBusy(value: boolean): void {
     this.busy = value;
     this.pauseRestartButton?.setAlpha(value ? 0.45 : 1);
-    this.hud.setBusy(value);
+    this.hud.setHintBusy(value);
+    const canUndo = this.mode === PlayMode.CAMPAIGN
+      ? this.campaignSession?.canUndo === true
+      : this.removalHistory.length > 0 && !this.board?.won;
+    this.hud.setUndoEnabled(!value && canUndo);
   }
 
   layout(): void {
@@ -1935,120 +2004,21 @@ export class BoardScene extends Phaser.Scene {
     const contentCenter = contentLeft + contentWidth / 2;
 
     layoutPaperBackground(this.backgroundImage, width, height, { bands: false });
-    const utilitySize = compact ? 42 : 46;
-    const utilityGap = compact ? 7 : 10;
-    const compactSystem = compact || portrait || sideDock;
-    const systemButtonWidth = compactSystem ? utilitySize : 96;
-    const restartButtonWidth = compactSystem ? Math.min(42, utilitySize) : 100;
-    const utilityButtonWidth = compactSystem ? utilitySize : 104;
-    const systemButtonHeight = compactSystem ? utilitySize : 40;
-    const menuX = margin + systemButtonWidth / 2;
-    const restartX = menuX + systemButtonWidth / 2 + utilityGap + restartButtonWidth / 2;
-    const systemRestartX = restartX;
-    const settingsX = width - margin - utilityButtonWidth / 2;
-    const shopX = settingsX - utilityButtonWidth / 2 - utilityGap - utilityButtonWidth / 2;
-
-    this.menuButton
-      .setIconOnlyMode(compact || portrait || sideDock)
-      .setFixedSize(systemButtonWidth, systemButtonHeight)
-      .setPosition(menuX, 28);
-    this.restartButton
-      .setIconOnlyMode(compact || portrait || sideDock)
-      .setFixedSize(restartButtonWidth, systemButtonHeight)
-      .setPosition(systemRestartX, 28);
-    this.settingsButton
-      .setIconOnlyMode(compact || portrait || sideDock)
-      .setFixedSize(utilityButtonWidth, systemButtonHeight)
-      .setPosition(settingsX, 28);
-    this.shopButton
-      .setIconOnlyMode(compact || portrait || sideDock)
-      .setFixedSize(utilityButtonWidth, systemButtonHeight)
-      .setPosition(shopX, 28);
-    this.header
-      .setFontSize(compact ? 12 : 15)
-      .setFontStyle("bold")
-      .setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
-    resizeNineSlice(
-      this.headerPanel,
-      portrait
-        ? Math.min(Math.max(300, contentWidth - 24), 380)
-        : Math.min(Math.max(220, contentWidth * 0.58), 420),
-      38,
-    );
-    this.headerPanel.setPosition(contentCenter, portrait ? 74 : sideDock ? 18 : 27);
-    this.endlessHud
-      .setFontSize(compact ? 11 : 12)
-      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
-    this.campaignHud
-      .setFontSize(compact ? 11 : 12)
-      .setPosition(contentCenter, portrait ? 104 : sideDock ? 42 : 58);
-    this.dustHud
+    this.hud.layout(width, height);
+    this.status
       .setFontSize(compact ? 10 : 12)
-      .setPosition(
-        shopX - utilityButtonWidth / 2 - (compactSystem ? 38 : 54),
-        28,
-      );
-    this.updateEndlessHud();
-    this.updateCampaignHud();
+      .setWordWrapWidth(Math.max(240, contentWidth - 32))
+      .setPosition(contentCenter, height - (compact ? 116 : 112));
     this.updateEconomyUi();
 
     this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
-    const panelTop = this.panelLayout?.top ?? height - 68;
-    const hintEntries = [...this.hintButtons.entries()].filter(
-      ([type]) =>
-        (this.mode === PlayMode.CAMPAIGN && type !== HintType.RESCUE) ||
-        this.mode === PlayMode.ENDLESS,
-    );
-
-    let boardBottom;
-    if (sideDock) {
-      const sideX = contentLeft / 2;
-      const sideButtonWidth = contentLeft - 16;
-      this.menuButton
-        .setFixedSize(Math.min(40, sideButtonWidth), 40)
-        .setPosition(sideX, 23);
-      this.restartButton
-        .setFixedSize(Math.min(40, sideButtonWidth), 40)
-        .setPosition(sideX, 69);
-      const consumableStartY = 132;
-      hintEntries.forEach(([, button], index) => {
-        button
-          .setFontSize(10)
-          .setFixedSize(sideButtonWidth, 44)
-          .setPosition(sideX, consumableStartY + index * 48);
-      });
-      this.status
-        .setFontSize(10)
-        .setWordWrapWidth(Math.max(240, contentWidth - 30))
-        .setPosition(contentCenter, panelTop - 9);
-      boardBottom = panelTop - boardBottomGap;
-    } else {
-      const actionsY = panelTop - 58;
-      const actionGap = 8;
-      const availableForHints = Math.max(104, contentWidth - margin * 2 - actionGap * Math.max(0, hintEntries.length - 1));
-      const actionWidth = Math.min(
-        compact ? 168 : 190,
-        Math.max(104, availableForHints / Math.max(1, hintEntries.length)),
-      );
-      const actionStep = actionWidth + actionGap;
-      const totalActionWidth = hintEntries.length > 0
-        ? hintEntries.length * actionWidth + Math.max(0, hintEntries.length - 1) * actionGap
-        : 0;
-      const actionLeft = contentCenter - totalActionWidth / 2;
-      hintEntries.forEach(([, button], index) => {
-        button
-          .setFontSize(compact ? 11 : 12)
-          .setFixedSize(actionWidth, 46)
-          .setPosition(actionLeft + actionWidth / 2 + actionStep * index, actionsY);
-      });
-      const actionRowVisible = hintEntries.length > 0;
-      const statusY = actionRowVisible ? actionsY - 40 : panelTop - 20;
-      this.status
-        .setFontSize(compact ? 10 : 12)
-        .setWordWrapWidth(Math.max(240, contentWidth - 32))
-        .setPosition(contentCenter, statusY);
-      boardBottom = statusY - 20;
-    }
+    const panelTop = this.panelLayout?.top ?? height - 110;
+    const statusY = Math.min(panelTop - 18, height - (compact ? 118 : 114));
+    this.status
+      .setFontSize(compact ? 10 : 12)
+      .setWordWrapWidth(Math.max(240, contentWidth - 32))
+      .setPosition(contentCenter, statusY);
+    let boardBottom = Math.min(statusY - 20, height - 126) - boardBottomGap;
 
     const boardTop = topInset + boardTopGap;
     const boardHeight = Math.max(100, boardBottom - boardTop);
@@ -2062,7 +2032,7 @@ export class BoardScene extends Phaser.Scene {
     this.boardCenterX = contentCenter;
     this.boardCenterY = boardTop + boardHeight / 2;
 
-    if (this.panelLayout && !sideDock) {
+    if (this.panelLayout) {
       const visualBoardBottom = Math.max(
         ...this.plateCells.map((cell) => this.hexToScreen(cell).y),
       ) + this.hexSize * 0.88;
@@ -2071,27 +2041,13 @@ export class BoardScene extends Phaser.Scene {
         panelHeight: this.panelLayout.height,
         viewportHeight: height,
         gap: compact ? 8 : 12,
-        bottomPadding: hintEntries.length > 0 ? 86 : 10,
+        bottomPadding: compact ? 92 : 88,
       });
       this.repositionPanel(anchor.top);
-
-      const panelBottom = anchor.top + this.panelLayout.height;
-      if (hintEntries.length > 0) {
-        const actionY = panelBottom + 30;
-        const actionGap = 8;
-        const availableForHints = Math.max(104, contentWidth - margin * 2 - actionGap * Math.max(0, hintEntries.length - 1));
-        const actionWidth = Math.min(
-          compact ? 168 : 190,
-          Math.max(104, availableForHints / Math.max(1, hintEntries.length)),
-        );
-        const actionStep = actionWidth + actionGap;
-        const totalActionWidth = hintEntries.length * actionWidth + Math.max(0, hintEntries.length - 1) * actionGap;
-        const actionLeft = contentCenter - totalActionWidth / 2;
-        hintEntries.forEach(([, button], index) => {
-          button.setPosition(actionLeft + actionWidth / 2 + actionStep * index, actionY);
-        });
-        this.status.setPosition(contentCenter, Math.min(height - 14, actionY + 34));
-      }
+      this.status.setPosition(
+        contentCenter,
+        Math.min(anchor.top - 16, height - (compact ? 118 : 114)),
+      );
     }
 
     for (const view of this.pieceViews.values()) {
@@ -2385,21 +2341,28 @@ export class BoardScene extends Phaser.Scene {
 
   render(): void {
     const count = this.board?.size ?? 0;
-    const total = this.initialPieces.length || 0;
     const levelLabel =
       this.mode === PlayMode.CAMPAIGN
-        ? `${String(this.level + 1).padStart(2, "0")}/${PROGRESSION_LEVEL_COUNT}`
+        ? `${String(this.level + 1).padStart(2, "0")}/${CAMPAIGN_LEVEL_COUNT}`
         : String(this.level + 1).padStart(4, "0");
     const tutorialMode = this.mode === PlayMode.TUTORIAL;
-    this.header.setVisible(!tutorialMode);
-    this.headerPanel.setVisible(!tutorialMode);
-    this.header.setText(
-      tutorialMode
-        ? ""
-        : this.mode === PlayMode.CAMPAIGN
-        ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}  ·  ${this.uiText("ОСТАЛОСЬ", "LEFT")} ${count}/${total}`
-        : `ENDLESS  ·  ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}  ·  ${count}/${total}`,
+    const identity = tutorialMode
+      ? this.uiText("ОБУЧЕНИЕ", "TUTORIAL")
+      : this.mode === PlayMode.CAMPAIGN
+      ? `${this.uiText("УРОВЕНЬ", "LEVEL")} ${levelLabel}`
+      : `ENDLESS · ${this.uiText("ПОЛЕ", "BOARD")} ${levelLabel}`;
+    this.hud.setIdentity(identity);
+    this.hud.setRemaining(count);
+    this.hud.setCleanVisible(this.mode === PlayMode.CAMPAIGN);
+    this.hud.setCleanEligible(
+      this.mode === PlayMode.CAMPAIGN
+        ? this.campaignSession?.cleanEligible ?? true
+        : this.attemptState.cleanEligible,
     );
+    const canUndo = this.mode === PlayMode.CAMPAIGN
+      ? this.campaignSession?.canUndo === true
+      : this.removalHistory.length > 0 && !this.board?.won;
+    this.hud.setUndoEnabled(!this.busy && canUndo);
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();
@@ -2410,6 +2373,9 @@ export class BoardScene extends Phaser.Scene {
     const boardActionsEnabled = inventoryVisible && !introActive;
     this.renderPanel(introActive);
     this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
+    for (const button of this.hintButtons.values()) {
+      button.setVisible(false).disableInteractive();
+    }
     this.cellGraphics.clear();
     if (this.levelGeometryReady) {
       const physicalCellsRendered =
