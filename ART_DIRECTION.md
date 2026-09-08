@@ -4,7 +4,9 @@
 
 The final visual direction is **not selected**.
 
-The final style is still unresolved. The current live evaluation candidate is **Physical Premium / Club Table**: a dark-green felt table with real photographed/derived walnut, leather, and aged-brass surfaces. The target is the weighted tactile calm of billiards, poker tables, roulette hardware, and premium physical puzzle pieces rather than a flat illustrated UI or literal casino imagery. The current live Board uses the paused Blender Physical Asset Factory V11 cell and dedicated physical piece family as an evaluation checkpoint; this art is improved but still not approved final piece art. Mechanized Magic remains bundled only as rejected legacy runtime art.
+**Physical Premium / Club Table** and the **Physical UI Factory** are a **FROZEN EXPERIMENT, not the live runtime presentation**. Their source material and isolated factory tooling may remain in the repository for later reference, but current gameplay must not be judged against or forced to load those premium texture/frame contracts.
+
+The current runtime target is an **asset-free functional redesign with Phaser primitives until product playtest acceptance**. Visual work is intentionally subordinate to validating the redesigned Campaign, Daily, Endless, assistance, progression, and navigation flows.
 
 ## Current valid decisions
 
@@ -16,23 +18,16 @@ The final style is still unresolved. The current live evaluation candidate is **
 - Non-exclusive assets are acceptable. Identity can come from curation, composition, palette, field presentation, animation, typography, and a small set of custom/high-salience elements rather than from making every source asset exclusive.
 - Dynamic labels, counts, prices, scores, and localized strings should remain renderer text rather than being baked into raster UI assets.
 
-## Current live candidate
+## Frozen physical experiment
 
-The active evaluation build now tests a physical-material Board language:
+The previous Physical Premium / Club Table pass is retained only as frozen experimental work:
 
-- the Board scene uses a deep green textile surface derived from real PBR material detail rather than a flat ivory canvas;
-- empty hexes are reusable ivory ceramic socket sprites tiled by Phaser;
-- all 15 atom types use dedicated centered physical sphere/orb renders from the paused Blender factory iteration rather than an old glyph laid over one generic base;
-- the 1024x1024 Blender renders are master art only; browser runtime uses 256x256 high-quality derivatives while preserving the same transparent canvas framing and display-space proportions;
-- the bottom inventory is a recessed walnut rack with felt inset and shows miniature versions of the same dedicated physical pieces;
-- HUD, Move/Undo/Rescue, and blocking cards use flattened walnut/leather/brass material surfaces instead of flat Phaser rectangles;
-- on roomy desktop layouts Pause/Restart/Shop/Settings use short labeled physical plaques instead of four tiny icon-only squares; compact layouts may collapse them to icons;
-- the rejected B5 Kenney Adventure/RPG/Space raster UI experiments and the pale B6 Ivory pass remain pending cleanup after live acceptance.
+- deep-green felt, walnut, leather, brass, ceramic sockets, and dedicated physical atom renders are **not** the current live presentation contract;
+- Physical UI Factory source/manifests and generated rasters may remain for isolated tooling tests and possible future reuse;
+- runtime Board/Menu acceptance tests must target functional Phaser primitives rather than premium texture names, frame names, material roles, or Blender output hashes;
+- freezing the experiment does **not** mean deleting its factory solely for cleanup; it means stopping it from constraining the current product runtime.
 
-The current dedicated piece family uses its own material/inlay language. Internal atom IDs and mechanics remain unchanged; do not reintroduce old Chequered Ink glyph overlays during premium runtime feedback or transitions.
-
-This is a **live candidate, not a commitment**. The target sensation is weighted, quiet tabletop tactility: substantial materials, centered orderly pieces, crisp press feedback, and eventually a short dry click/tick sound language. Do not drift into parchment fantasy, glossy mobile chrome, literal casino neon, or ornate RPG framing.
-
+The final art family remains unresolved and can be revisited only after the functional redesign is accepted in playtesting.
 
 ## Active presentation rules
 

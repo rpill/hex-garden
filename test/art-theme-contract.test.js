@@ -4,25 +4,12 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("premium tabletop is the default visual candidate with only the old baseline retained for comparison", async () => {
-  const themeSource = await read("src/art-theme.ts");
-  const mainSource = await read("src/main.ts");
+test("live Home and Board HUD stay independent of frozen art-theme assets", async () => {
+  const menu = await read("src/game/scenes/MenuScene.ts");
+  const hud = await read("src/game/board/BoardHud.ts");
 
-  assert.match(themeSource, /ART_THEME_IDS\s*=\s*\["premium",\s*"chequered"\]/);
-  assert.match(themeSource, /:\s*"premium"/);
-  assert.doesNotMatch(themeSource, /"adventure"|"rpg"|"space"/);
-  assert.doesNotMatch(mainSource, /F2|cycleArtTheme/);
-});
-
-test("premium tabletop stays renderer-owned and keeps current Chequered pieces", async () => {
-  const artSource = await read("src/art-assets.ts");
-  const uiSource = await read("src/game/ui.ts");
-
-  assert.match(artSource, /CHEQUERED_ROOT/);
-  assert.match(artSource, /chequeredUrl\("gems"/);
-  assert.doesNotMatch(artSource, /ART_SURFACE_URLS|RASTER_UI_ROOTS|shared-gems/);
-  assert.match(uiSource, /class RendererSurface/);
-  assert.doesNotMatch(uiSource, /class RasterSurface/);
+  assert.doesNotMatch(menu, /art-assets|scene-background|preloadUiAssets|PHYSICAL_|physicalPiece/);
+  assert.doesNotMatch(hud, /art-assets|scene-background|preloadUiAssets|PHYSICAL_|physicalPiece/);
 });
 
 test("functional board cells use the minimal UI palette instead of the legacy art palette", async () => {

@@ -52,3 +52,25 @@ test("runtime product has no legacy mechanic progression or shape-family generat
     /BoardShape|generateSolvableBoard|generateProgression|getProgressionLevelDefinition|ProgressionChapter|mechanicIntroductionForLevel|kind:\s*["']progression["']/,
   );
 });
+
+
+test("frozen premium presentation is no longer enforced by live product contracts", () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  for (const rel of [
+    "test/physical-premium-contract.test.js",
+    "test/physical-premium-raster-contract.test.js",
+    "test/premium-tabletop-contract.test.js",
+    "test/physical-piece-family.test.js",
+  ]) {
+    assert.equal(fs.existsSync(path.join(root, rel)), false, `${rel} must stay removed`);
+  }
+
+  const artDirection = fs.readFileSync(path.join(root, "ART_DIRECTION.md"), "utf8");
+  const currentState = fs.readFileSync(path.join(root, "CURRENT_STATE.md"), "utf8");
+  const docs = `${artDirection}\n${currentState}`;
+
+  assert.match(docs, /FROZEN EXPERIMENT/i);
+  assert.match(docs, /not the live runtime presentation/i);
+  assert.match(docs, /asset-free functional redesign/i);
+  assert.match(docs, /Phaser primitives/i);
+});

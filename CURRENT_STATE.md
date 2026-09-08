@@ -38,16 +38,12 @@ This file is a concise factual snapshot of the current implementation. For stabl
 
 ## Current runtime art state
 
-- The current live Board candidate is **Physical Premium / Club Table**: deep green felt plus real/derived walnut, brown leather, and aged-brass 2D material surfaces.
-- The Board now uses a tiled felt surface, reusable ivory ceramic socket cells, a walnut/felt inventory rack, physical leather/brass control plaques, and a dedicated physical sprite for every atom type.
-- The current cell plus all 15 piece sprites come from the paused Blender Physical Asset Factory V11 iteration. The 1024x1024 Blender renders remain master art; the browser build uses centered 256x256 premultiplied-alpha Lanczos derivatives so Phaser is not shrinking 1024px art to board scale at runtime.
-- Premium pieces no longer overlay the old Chequered Ink atom glyphs. Material texture plus the embedded physical mark in each factory render carries identity.
-- On roomy desktop Board layouts the four system actions use short labels plus secondary glyphs instead of tiny icon-only squares; compact responsive layouts retain icon-only collapse.
-- The rejected B5 Adventure/RPG/Space raster UI themes are no longer active runtime candidates but their test assets remain on disk pending cleanup after live acceptance.
-- This is a live comparison candidate, **not** the approved final art direction.
-- Mechanized Magic remains bundled under `public/assets/mechanized-magic/**` as rejected legacy art but is no longer the active mapping.
-- Asset sources/license notes are recorded in `THIRD_PARTY_ASSETS.md` and `public/assets/chequered-ink/SOURCE.txt`.
-- The final visual direction is unresolved. See `ART_DIRECTION.md` before doing further visual work.
+- **Physical Premium / Club Table** and the **Physical UI Factory** are a **FROZEN EXPERIMENT, not the live runtime presentation**.
+- The current runtime target is an **asset-free functional redesign with Phaser primitives until product playtest acceptance**.
+- Live Board/Menu acceptance is based on functional layout, state, controls, readable primitive cells/pieces, and product flow rather than premium texture/frame names or generated Blender rasters.
+- Frozen factory scripts/manifests/rasters may remain in the repository as isolated experimental tooling; their presence is not a runtime requirement.
+- Factory tests should preserve existing skip/availability behavior when optional factory assets or Blender are absent.
+- The final visual direction remains unresolved; see `ART_DIRECTION.md` before restarting visual production work.
 
 ## Documentation / context handoff state
 
@@ -64,4 +60,4 @@ This file is a concise factual snapshot of the current implementation. For stabl
 
 ## Current focus
 
-Live-verify the current Physical Premium Board integration with the paused V11 factory art: smooth 256px browser sprites, exact cell/piece centering, dedicated material identity for all 15 atoms, inventory readability, and immediate no-animation removal of cleared pieces. Further Blender factory refinement is intentionally paused for this iteration.
+Finish the functional product redesign and acceptance cleanup using asset-free Phaser primitives. Do not resume Physical Premium / Physical UI Factory integration work until product playtest acceptance explicitly reopens visual production.
