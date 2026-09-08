@@ -1,4 +1,5 @@
 import type { CampaignProgressSnapshot } from "../campaign-progress.js";
+import type { DailyWeekSummary } from "../daily-progress.js";
 import {
   campaignContinueTarget,
   masteryRank,
@@ -12,6 +13,21 @@ export type HomeProgressSnapshot = Pick<
   "tutorialCompleted" | "solvedLevels" | "cleanLevels"
 >;
 
+export type HomeDailyState = "open" | "solved" | "clean";
+
+export interface HomeDailyDayModel {
+  dateKey: string;
+  state: HomeDailyState;
+}
+
+export interface HomeDailyModel {
+  dateKey: string;
+  todayState: HomeDailyState;
+  weekStates: readonly HomeDailyDayModel[];
+  solvedCount: number;
+  cleanCount: number;
+}
+
 export interface HomeModel {
   firstLaunch: boolean;
   continueTarget: CampaignContinueTarget;
@@ -20,11 +36,46 @@ export interface HomeModel {
   rank: MasteryRankValue;
   showDaily: boolean;
   showEndless: boolean;
+  daily: Readonly<HomeDailyModel> | null;
+}
+
+export interface CreateHomeModelOptions {
+  unlockAll?: boolean;
+  daily?: Readonly<{
+    dateKey: string;
+    weekSummary: DailyWeekSummary;
+  }>;
+}
+
+function homeDailyState(state: "missing" | "solved" | "clean"): HomeDailyState {
+  return state === "missing" ? "open" : state;
+}
+
+function createHomeDailyModel(
+  input: NonNullable<CreateHomeModelOptions["daily"]>,
+): Readonly<HomeDailyModel> {
+  const weekStates = Object.freeze(
+    input.weekSummary.days.map((day) =>
+      Object.freeze({
+        dateKey: day.dateKey,
+        state: homeDailyState(day.state),
+      }),
+    ),
+  );
+  const today = weekStates.find((day) => day.dateKey === input.dateKey);
+
+  return Object.freeze({
+    dateKey: input.dateKey,
+    todayState: today?.state ?? "open",
+    weekStates,
+    solvedCount: input.weekSummary.solvedCount,
+    cleanCount: input.weekSummary.cleanCount,
+  });
 }
 
 export function createHomeModel(
   snapshot: HomeProgressSnapshot,
-  { unlockAll = false }: { unlockAll?: boolean } = {},
+  { unlockAll = false, daily }: CreateHomeModelOptions = {},
 ): Readonly<HomeModel> {
   const solvedCount = snapshot.solvedLevels.length;
   const cleanCount = snapshot.cleanLevels.length;
@@ -37,5 +88,6 @@ export function createHomeModel(
     rank: masteryRank(cleanCount),
     showDaily: dailyAccess(snapshot, { unlockAll }).unlocked,
     showEndless: endlessAccess(snapshot, { unlockAll }).unlocked,
+    daily: daily ? createHomeDailyModel(daily) : null,
   });
 }

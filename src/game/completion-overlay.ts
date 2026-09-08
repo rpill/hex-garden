@@ -27,6 +27,7 @@ export interface SimpleCompletionOverlayData {
   detail?: string;
   primaryLabel: string;
   homeLabel?: string;
+  secondaryLabel?: string;
 }
 
 export type CompletionOverlayData = CampaignCompletionOverlayData | SimpleCompletionOverlayData;
@@ -35,6 +36,7 @@ export interface CompletionOverlayActions {
   onNext?: () => void;
   onTryClean?: () => void;
   onHome?: () => void;
+  onSecondary?: () => void;
 }
 
 type CompletionScene = Phaser.Scene & { english?: boolean };
@@ -68,6 +70,7 @@ export class CompletionOverlay {
   #onNext: (() => void) | undefined;
   #onTryClean: (() => void) | undefined;
   #onHome: (() => void) | undefined;
+  #onSecondary: (() => void) | undefined;
 
   constructor(scene: CompletionScene) {
     this.scene = scene;
@@ -111,6 +114,7 @@ export class CompletionOverlay {
     this.#onNext = actions.onNext;
     this.#onTryClean = actions.onTryClean;
     this.#onHome = actions.onHome;
+    this.#onSecondary = actions.onSecondary;
 
     this.dim.setVisible(true);
     this.card.setVisible(true);
@@ -127,16 +131,22 @@ export class CompletionOverlay {
     const showTryClean = data.kind === "campaign"
       ? createCampaignCompletionPresentation(data).showTryClean && Boolean(this.#onTryClean)
       : false;
-    const showHomeSecondary = data.kind === "simple" && Boolean(this.#onNext && this.#onHome);
-    const hasSecondary = showTryClean || showHomeSecondary;
+    const showSimpleSecondary = data.kind === "simple" && Boolean(
+      this.#onSecondary ?? (this.#onNext && this.#onHome ? this.#onHome : undefined),
+    );
+    const hasSecondary = showTryClean || showSimpleSecondary;
     this.secondaryButton.setVisible(hasSecondary).setEnabled(hasSecondary);
 
     if (showTryClean) {
       this.secondaryButton.setLabel(this.label("ПОПРОБОВАТЬ ЧИСТО", "TRY CLEAN"));
-    } else if (showHomeSecondary) {
-      this.secondaryButton.setLabel(data.kind === "simple" && data.homeLabel
-        ? data.homeLabel
-        : this.label("НА ГЛАВНУЮ", "HOME"));
+    } else if (showSimpleSecondary) {
+      this.secondaryButton.setLabel(
+        data.kind === "simple" && this.#onSecondary && data.secondaryLabel
+          ? data.secondaryLabel
+          : data.kind === "simple" && data.homeLabel
+            ? data.homeLabel
+            : this.label("НА ГЛАВНУЮ", "HOME"),
+      );
     }
 
     this.layout(this.scene.scale.width, this.scene.scale.height);
@@ -215,6 +225,7 @@ export class CompletionOverlay {
     this.#onNext = undefined;
     this.#onTryClean = undefined;
     this.#onHome = undefined;
+    this.#onSecondary = undefined;
     this.dim.clear().setVisible(false);
     this.card.clear().setVisible(false);
     this.hitZone.setVisible(false).disableInteractive();
@@ -293,7 +304,11 @@ export class CompletionOverlay {
     const presentation = this.data.kind === "campaign"
       ? createCampaignCompletionPresentation(this.data)
       : undefined;
-    const callback = presentation?.showTryClean ? this.#onTryClean : this.#onHome;
+    const callback = presentation?.showTryClean
+      ? this.#onTryClean
+      : this.data.kind === "simple" && this.#onSecondary
+        ? this.#onSecondary
+        : this.#onHome;
     if (!callback) return;
     this.hide();
     callback();

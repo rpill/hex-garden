@@ -1158,6 +1158,9 @@ export class BoardScene extends Phaser.Scene {
       }
       if (completion.kind !== "recorded") return;
 
+      const week = this.dailyProgress.weekSummary(completion.dateKey);
+      const achievedClean = completion.snapshot.entries[completion.dateKey]?.clean === true;
+
       this.status.setText("");
       this.completionOverlay.show(
         {
@@ -1166,11 +1169,17 @@ export class BoardScene extends Phaser.Scene {
           status: completion.clean
             ? this.uiText("◆ ЧИСТОЕ РЕШЕНИЕ", "◆ CLEAN SOLUTION")
             : this.uiText("ПРОЙДЕНО С ПОМОЩЬЮ", "SOLVED WITH HELP"),
-          detail: completion.dateKey,
+          detail: this.english
+            ? `WEEK ${week.solvedCount}/7 · ◆ ${week.cleanCount}/7 CLEAN`
+            : `НЕДЕЛЯ ${week.solvedCount}/7 · ◆ ЧИСТО ${week.cleanCount}/7`,
           primaryLabel: this.uiText("НА ГЛАВНУЮ", "HOME"),
+          ...(!achievedClean
+            ? { secondaryLabel: this.uiText("ПОПРОБОВАТЬ ЧИСТО", "TRY CLEAN") }
+            : {}),
         },
         {
           onHome: () => this.openMainMenu(),
+          ...(!achievedClean ? { onSecondary: () => this.loadLevel() } : {}),
         },
       );
     } finally {

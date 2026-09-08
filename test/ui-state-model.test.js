@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { buttonVisualState } from "../src/game/presentation-model.js";
 import { createHomeModel } from "../src/game/home-model.js";
 import { homeLayoutMetrics } from "../src/game/navigation-layout.js";
@@ -80,4 +81,71 @@ test("home layout keeps the primary action dominant on portrait and short landsc
     assert.ok(layout.primaryY > layout.progressY);
     assert.ok(layout.secondaryY > layout.primaryY);
   }
+});
+
+test("home daily model maps today and the seven Moscow-week states", () => {
+  const campaign = {
+    tutorialCompleted: true,
+    solvedLevels: [0, 1, 2, 3, 4],
+    cleanLevels: [0, 1],
+  };
+  const dateKey = "2026-09-09";
+  const dateKeys = [
+    "2026-09-07",
+    "2026-09-08",
+    "2026-09-09",
+    "2026-09-10",
+    "2026-09-11",
+    "2026-09-12",
+    "2026-09-13",
+  ];
+
+  const daily = (todayState) => ({
+    dateKey,
+    weekSummary: {
+      weekKey: "2026-09-07",
+      days: dateKeys.map((day) => ({
+        dateKey: day,
+        state: day === dateKey ? todayState : day === "2026-09-07" ? "clean" : "missing",
+      })),
+      solvedCount: todayState === "missing" ? 1 : 2,
+      cleanCount: todayState === "clean" ? 2 : 1,
+    },
+  });
+
+  const open = createHomeModel(campaign, { daily: daily("missing") });
+  assert.equal(open.showDaily, true);
+  assert.equal(open.daily.todayState, "open");
+  assert.deepEqual(open.daily.weekStates.map((day) => day.dateKey), dateKeys);
+  assert.deepEqual(
+    open.daily.weekStates.map((day) => day.state),
+    ["clean", "open", "open", "open", "open", "open", "open"],
+  );
+
+  const solved = createHomeModel(campaign, { daily: daily("solved") });
+  assert.equal(solved.daily.todayState, "solved");
+
+  const clean = createHomeModel(campaign, { daily: daily("clean") });
+  assert.equal(clean.daily.todayState, "clean");
+  assert.equal(clean.daily.solvedCount, 2);
+  assert.equal(clean.daily.cleanCount, 2);
+});
+
+test("home Daily card uses trusted Yandex time and starts Daily mode", () => {
+  const menuSource = readFileSync(new URL("../src/game/scenes/MenuScene.ts", import.meta.url), "utf8");
+  assert.match(menuSource, /getTrustedClock\(\)\.now\(\)/);
+  assert.match(menuSource, /dailyDateKey\(trustedNow\)/);
+  assert.match(menuSource, /ЕЖЕДНЕВНАЯ ЗАДАЧА/);
+  assert.match(menuSource, /PlayMode\.DAILY/);
+  assert.doesNotMatch(menuSource, /Date\.now\(\)/);
+});
+
+test("Daily completion shows current week and optional Try Clean secondary action", () => {
+  const boardSource = readFileSync(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8");
+  const overlaySource = readFileSync(new URL("../src/game/completion-overlay.ts", import.meta.url), "utf8");
+  assert.match(boardSource, /weekSummary\(completion\.dateKey\)/);
+  assert.match(boardSource, /ПОПРОБОВАТЬ ЧИСТО/);
+  assert.match(boardSource, /onSecondary/);
+  assert.match(overlaySource, /secondaryLabel/);
+  assert.match(overlaySource, /#onSecondary/);
 });
