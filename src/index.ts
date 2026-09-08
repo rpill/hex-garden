@@ -106,6 +106,14 @@ export {
   type ModeAccessSnapshot,
 } from "./mode-access.js";
 export {
+  ENDLESS_PROGRESS_STORAGE_KEY,
+  EndlessProgressStore,
+  normalizeEndlessProgress,
+  type EndlessProgressSnapshot,
+  type EndlessProgressStoreOptions,
+  type EndlessRunResult,
+} from "./endless-progress.js";
+export {
   ENDLESS_BOARD_BASE_SCORE,
   SCORE_PER_REMOVED_ATOM,
   STREAK_MULTIPLIER_STEPS,
