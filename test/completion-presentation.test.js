@@ -42,6 +42,46 @@ test("campaign completion model offers Try Clean only after assisted completion"
   assert.equal(clean.status, "clean");
 });
 
+test("endless result keeps clean best canonical while assisted best remains separate", async () => {
+  const { createEndlessCompletionPresentation } = await import("../src/game/completion-presentation.js");
+  const { EndlessProgressStore } = await import("../src/endless-progress.js");
+
+  class MemoryStorage {
+    values = new Map();
+    getItem(key) { return this.values.get(key) ?? null; }
+    setItem(key, value) { this.values.set(key, String(value)); }
+    removeItem(key) { this.values.delete(key); }
+  }
+
+  const store = new EndlessProgressStore({ storage: new MemoryStorage() });
+  store.submit({ boardsCleared: 6, assisted: false });
+
+  const cleanSnapshot = store.submit({ boardsCleared: 8, assisted: false });
+  const clean = createEndlessCompletionPresentation({
+    boardsCleared: 8,
+    assisted: false,
+    bestUnassistedBoards: cleanSnapshot.bestUnassistedBoards,
+  });
+  assert.deepEqual(clean, {
+    boardsCleared: 8,
+    assisted: false,
+    bestCleanBoards: 8,
+  });
+
+  const assistedSnapshot = store.submit({ boardsCleared: 12, assisted: true });
+  const assisted = createEndlessCompletionPresentation({
+    boardsCleared: 12,
+    assisted: true,
+    bestUnassistedBoards: assistedSnapshot.bestUnassistedBoards,
+  });
+  assert.deepEqual(assisted, {
+    boardsCleared: 12,
+    assisted: true,
+    bestCleanBoards: 8,
+  });
+  assert.equal(assistedSnapshot.bestAssistedBoards, 12);
+});
+
 test("campaign clear persists attempt Clean state instead of score or currency rewards", () => {
   const source = fs.readFileSync(boardSceneUrl, "utf8");
   assert.match(source, /const clean = this\.campaignSession\?\.cleanEligible === true/);

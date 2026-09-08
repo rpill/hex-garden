@@ -1,5 +1,6 @@
 import type { CampaignProgressSnapshot } from "../campaign-progress.js";
 import type { DailyWeekSummary } from "../daily-progress.js";
+import type { EndlessProgressSnapshot } from "../endless-progress.js";
 import {
   campaignContinueTarget,
   masteryRank,
@@ -28,6 +29,10 @@ export interface HomeDailyModel {
   cleanCount: number;
 }
 
+export interface HomeEndlessModel {
+  bestBoards: number;
+}
+
 export interface HomeModel {
   firstLaunch: boolean;
   continueTarget: CampaignContinueTarget;
@@ -37,6 +42,7 @@ export interface HomeModel {
   showDaily: boolean;
   showEndless: boolean;
   daily: Readonly<HomeDailyModel> | null;
+  endless: Readonly<HomeEndlessModel> | null;
 }
 
 export interface CreateHomeModelOptions {
@@ -45,6 +51,7 @@ export interface CreateHomeModelOptions {
     dateKey: string;
     weekSummary: DailyWeekSummary;
   }>;
+  endless?: Readonly<Pick<EndlessProgressSnapshot, "bestUnassistedBoards">>;
 }
 
 function homeDailyState(state: "missing" | "solved" | "clean"): HomeDailyState {
@@ -75,7 +82,7 @@ function createHomeDailyModel(
 
 export function createHomeModel(
   snapshot: HomeProgressSnapshot,
-  { unlockAll = false, daily }: CreateHomeModelOptions = {},
+  { unlockAll = false, daily, endless }: CreateHomeModelOptions = {},
 ): Readonly<HomeModel> {
   const solvedCount = snapshot.solvedLevels.length;
   const cleanCount = snapshot.cleanLevels.length;
@@ -89,5 +96,8 @@ export function createHomeModel(
     showDaily: dailyAccess(snapshot, { unlockAll }).unlocked,
     showEndless: endlessAccess(snapshot, { unlockAll }).unlocked,
     daily: daily ? createHomeDailyModel(daily) : null,
+    endless: endless
+      ? Object.freeze({ bestBoards: endless.bestUnassistedBoards })
+      : null,
   });
 }

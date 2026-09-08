@@ -49,9 +49,12 @@ test("home hides unreached modes instead of showing locked cards", () => {
     tutorialCompleted: true,
     solvedLevels: Array.from({ length: 10 }, (_, level) => level),
     cleanLevels: [],
+  }, {
+    endless: { bestUnassistedBoards: 8 },
   });
   assert.equal(ten.showDaily, true);
   assert.equal(ten.showEndless, true);
+  assert.deepEqual(ten.endless, { bestBoards: 8 });
 });
 
 test("home Continue switches from campaign progress to Clean mastery", () => {
@@ -138,6 +141,15 @@ test("home Daily card uses trusted Yandex time and starts Daily mode", () => {
   assert.match(menuSource, /ЕЖЕДНЕВНАЯ ЗАДАЧА/);
   assert.match(menuSource, /PlayMode\.DAILY/);
   assert.doesNotMatch(menuSource, /Date\.now\(\)/);
+});
+
+test("home Endless card shows the canonical clean boards-cleared best and starts Endless", () => {
+  const menuSource = readFileSync(new URL("../src/game/scenes/MenuScene.ts", import.meta.url), "utf8");
+  assert.match(menuSource, /getEndlessProgress/);
+  assert.match(menuSource, /model\.endless/);
+  assert.match(menuSource, /BEST/);
+  assert.match(menuSource, /PlayMode\.ENDLESS/);
+  assert.doesNotMatch(menuSource, /multiplier|leaderboard/i);
 });
 
 test("Daily completion shows current week and optional Try Clean secondary action", () => {

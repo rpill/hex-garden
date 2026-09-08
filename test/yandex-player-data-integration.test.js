@@ -25,3 +25,10 @@ test("campaign progress and settings consume the hydrated player storage boundar
   assert.match(settings, /getPlayerDataStorage\(\)/);
   assert.match(settings, /new SettingsStore\(\{[\s\S]*storage/);
 });
+
+
+test("endless progress uses the hydrated player storage boundary", async () => {
+  const endless = await source("src/game/endless-progress.ts");
+  assert.match(endless, /getPlayerDataStorage\(\)/);
+  assert.match(endless, /new EndlessProgressStore\(\{\s*storage/s);
+});

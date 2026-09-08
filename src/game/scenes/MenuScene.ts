@@ -18,6 +18,7 @@ import {
 import { PlayMode } from "../modes.js";
 import { homeLayoutMetrics } from "../navigation-layout.js";
 import { getCampaignProgress } from "../campaign-progress.js";
+import { getEndlessProgress } from "../endless-progress.js";
 import { getSettings } from "../settings.js";
 
 const RANK_LABELS = Object.freeze({
@@ -52,6 +53,7 @@ function dailyTodayLabel(state: HomeDailyState, english: boolean): string {
 export class MenuScene extends Phaser.Scene {
   progress!: ReturnType<typeof getCampaignProgress>;
   dailyProgress!: DailyProgressStore;
+  endlessProgress!: ReturnType<typeof getEndlessProgress>;
   settings!: ReturnType<typeof getSettings>;
   model!: Readonly<HomeModel>;
   english = false;
@@ -67,6 +69,9 @@ export class MenuScene extends Phaser.Scene {
   dailyTitle!: Phaser.GameObjects.Text;
   dailyStatus!: Phaser.GameObjects.Text;
   dailyWeek!: Phaser.GameObjects.Text;
+  endlessButton!: MinimalButton;
+  endlessTitle!: Phaser.GameObjects.Text;
+  endlessStatus!: Phaser.GameObjects.Text;
   chaptersButton!: MinimalButton;
   settingsButton!: MinimalButton;
 
@@ -78,10 +83,12 @@ export class MenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
     this.progress = getCampaignProgress(this);
     this.dailyProgress = new DailyProgressStore();
+    this.endlessProgress = getEndlessProgress(this);
     this.settings = getSettings(this);
     this.english = this.settings.snapshot.language === "en";
     this.model = createHomeModel(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
+      endless: this.endlessProgress.snapshot,
     });
 
     this.title = makeMinimalText(this, "HEX GARDEN", 36)
@@ -118,6 +125,16 @@ export class MenuScene extends Phaser.Scene {
     this.dailyWeek = makeMinimalText(this, "", 11, MINIMAL_UI_COLORS.textMuted)
       .setOrigin(0.5)
       .setVisible(false);
+    this.endlessButton = makeMinimalButton(this, "", () => this.activateEndless())
+      .setVisible(false);
+    this.endlessButton.label.setVisible(false);
+    this.endlessTitle = makeMinimalText(this, "ENDLESS", 13)
+      .setOrigin(0.5)
+      .setFontStyle("bold")
+      .setVisible(false);
+    this.endlessStatus = makeMinimalText(this, "", 12, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5)
+      .setVisible(false);
     this.chaptersButton = makeMinimalButton(
       this,
       this.english ? "CHAPTERS" : "ГЛАВЫ",
@@ -146,6 +163,7 @@ export class MenuScene extends Phaser.Scene {
       this.progressText.setVisible(false);
       this.rankText.setVisible(false);
       this.setDailyVisible(false);
+      this.setEndlessVisible(false);
       return;
     }
 
@@ -164,6 +182,7 @@ export class MenuScene extends Phaser.Scene {
       );
 
     this.refreshDailyCard();
+    this.refreshEndlessCard();
 
     if (this.model.continueTarget.kind === "campaign") {
       this.primaryButton
@@ -223,6 +242,24 @@ export class MenuScene extends Phaser.Scene {
     this.dailyWeek.setVisible(visible);
   }
 
+  private refreshEndlessCard(): void {
+    const visible = this.model.showEndless;
+    this.setEndlessVisible(visible);
+    if (!visible) return;
+
+    const bestBoards = this.model.endless?.bestBoards ?? 0;
+    this.endlessStatus.setText(
+      this.english ? `BEST: ${bestBoards} BOARDS` : `РЕКОРД: ${bestBoards} ПОЛЕЙ`,
+    );
+    this.endlessButton.setEnabled(true);
+  }
+
+  private setEndlessVisible(visible: boolean): void {
+    this.endlessButton.setVisible(visible);
+    this.endlessTitle.setVisible(visible);
+    this.endlessStatus.setVisible(visible);
+  }
+
   private async refreshDailyModel(): Promise<void> {
     if (!this.model.showDaily) return;
 
@@ -246,6 +283,7 @@ export class MenuScene extends Phaser.Scene {
         dateKey,
         weekSummary: this.dailyProgress.weekSummary(dateKey),
       },
+      endless: this.endlessProgress.snapshot,
     });
     this.refreshPresentation();
     this.layout();
@@ -265,6 +303,11 @@ export class MenuScene extends Phaser.Scene {
   private activateDaily(): void {
     if (!this.model.showDaily || !this.dailyReady || !this.model.daily) return;
     this.scene.start("board", { mode: PlayMode.DAILY });
+  }
+
+  private activateEndless(): void {
+    if (!this.model.showEndless) return;
+    this.scene.start("board", { mode: PlayMode.ENDLESS, level: 0 });
   }
 
   layout(): void {
@@ -299,20 +342,58 @@ export class MenuScene extends Phaser.Scene {
     let secondaryY = metrics.secondaryY;
     if (this.model.showDaily) {
       const dailyHeight = metrics.shortLandscape ? 62 : 76;
+      const endlessHeight = metrics.shortLandscape ? 62 : 68;
       const dailyY = metrics.primaryY + (metrics.shortLandscape ? 68 : 80);
-      secondaryY = dailyY + (metrics.shortLandscape ? 63 : 73);
-      this.dailyButton
-        .setPosition(metrics.centerX, dailyY)
-        .setSize(metrics.primaryWidth, dailyHeight);
-      this.dailyTitle
-        .setFontSize(metrics.compact ? 11 : 13)
-        .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 18 : 22));
-      this.dailyStatus
-        .setFontSize(metrics.compact ? 11 : 13)
-        .setPosition(metrics.centerX, dailyY - 1);
-      this.dailyWeek
-        .setFontSize(metrics.compact ? 9 : 10)
-        .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 18 : 23));
+
+      if (metrics.shortLandscape && this.model.showEndless) {
+        const cardGap = 12;
+        const cardWidth = (metrics.primaryWidth - cardGap) / 2;
+        const dailyX = metrics.centerX - (cardWidth + cardGap) / 2;
+        const endlessX = metrics.centerX + (cardWidth + cardGap) / 2;
+        secondaryY = dailyY + 63;
+
+        this.dailyButton.setPosition(dailyX, dailyY).setSize(cardWidth, dailyHeight);
+        this.dailyTitle.setFontSize(11).setPosition(dailyX, dailyY - 18);
+        this.dailyStatus.setFontSize(10).setPosition(dailyX, dailyY - 1);
+        this.dailyWeek.setFontSize(8).setPosition(dailyX, dailyY + 18);
+
+        this.endlessButton.setPosition(endlessX, dailyY).setSize(cardWidth, endlessHeight);
+        this.endlessTitle.setFontSize(11).setPosition(endlessX, dailyY - 12);
+        this.endlessStatus
+          .setFontSize(9)
+          .setFixedSize(Math.max(80, cardWidth - 16), 0)
+          .setPosition(endlessX, dailyY + 10);
+      } else {
+        this.dailyButton
+          .setPosition(metrics.centerX, dailyY)
+          .setSize(metrics.primaryWidth, dailyHeight);
+        this.dailyTitle
+          .setFontSize(metrics.compact ? 11 : 13)
+          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 18 : 22));
+        this.dailyStatus
+          .setFontSize(metrics.compact ? 11 : 13)
+          .setPosition(metrics.centerX, dailyY - 1);
+        this.dailyWeek
+          .setFontSize(metrics.compact ? 9 : 10)
+          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 18 : 23));
+
+        if (this.model.showEndless) {
+          const endlessY = dailyY + dailyHeight / 2 + 10 + endlessHeight / 2;
+          secondaryY = endlessY + 58;
+          this.endlessButton
+            .setPosition(metrics.centerX, endlessY)
+            .setSize(metrics.primaryWidth, endlessHeight);
+          this.endlessTitle
+            .setFontSize(metrics.compact ? 11 : 13)
+            .setPosition(metrics.centerX, endlessY - 13);
+          this.endlessStatus
+            .setFontSize(metrics.compact ? 10 : 12)
+            .setFixedSize(Math.max(120, metrics.primaryWidth - 24), 0)
+            .setPosition(metrics.centerX, endlessY + 12);
+        } else {
+          secondaryY = dailyY + (metrics.shortLandscape ? 63 : 73);
+        }
+      }
     }
 
     this.chaptersButton

@@ -4,7 +4,9 @@ import { CAMPAIGN_LEVEL_COUNT } from "../plates.js";
 import { CAMPAIGN_CHAPTERS } from "./chapter-model.js";
 import {
   createCampaignCompletionPresentation,
+  createEndlessCompletionPresentation,
   type CampaignCompletionPresentationInput,
+  type EndlessCompletionPresentationInput,
 } from "./completion-presentation.js";
 import {
   MINIMAL_UI_COLORS,
@@ -20,6 +22,10 @@ export interface CampaignCompletionOverlayData extends CampaignCompletionPresent
   chapterCleanCount: number;
 }
 
+export interface EndlessCompletionOverlayData extends EndlessCompletionPresentationInput {
+  kind: "endless";
+}
+
 export interface SimpleCompletionOverlayData {
   kind: "simple";
   title: string;
@@ -30,7 +36,10 @@ export interface SimpleCompletionOverlayData {
   secondaryLabel?: string;
 }
 
-export type CompletionOverlayData = CampaignCompletionOverlayData | SimpleCompletionOverlayData;
+export type CompletionOverlayData =
+  | CampaignCompletionOverlayData
+  | EndlessCompletionOverlayData
+  | SimpleCompletionOverlayData;
 
 export interface CompletionOverlayActions {
   onNext?: () => void;
@@ -124,6 +133,7 @@ export class CompletionOverlay {
     }
 
     if (data.kind === "campaign") this.applyCampaignCopy(data);
+    else if (data.kind === "endless") this.applyEndlessCopy(data);
     else this.applySimpleCopy(data);
 
     const hasPrimary = Boolean(this.#onNext ?? this.#onHome);
@@ -131,15 +141,15 @@ export class CompletionOverlay {
     const showTryClean = data.kind === "campaign"
       ? createCampaignCompletionPresentation(data).showTryClean && Boolean(this.#onTryClean)
       : false;
-    const showSimpleSecondary = data.kind === "simple" && Boolean(
+    const showNonCampaignSecondary = data.kind !== "campaign" && Boolean(
       this.#onSecondary ?? (this.#onNext && this.#onHome ? this.#onHome : undefined),
     );
-    const hasSecondary = showTryClean || showSimpleSecondary;
+    const hasSecondary = showTryClean || showNonCampaignSecondary;
     this.secondaryButton.setVisible(hasSecondary).setEnabled(hasSecondary);
 
     if (showTryClean) {
       this.secondaryButton.setLabel(this.label("ПОПРОБОВАТЬ ЧИСТО", "TRY CLEAN"));
-    } else if (showSimpleSecondary) {
+    } else if (showNonCampaignSecondary) {
       this.secondaryButton.setLabel(
         data.kind === "simple" && this.#onSecondary && data.secondaryLabel
           ? data.secondaryLabel
@@ -280,6 +290,29 @@ export class CompletionOverlay {
     } else {
       this.primaryButton.setLabel(this.label("НА ГЛАВНУЮ", "HOME"));
     }
+  }
+
+  private applyEndlessCopy(data: EndlessCompletionOverlayData): void {
+    const presentation = createEndlessCompletionPresentation(data);
+    const englishStatus = `${presentation.boardsCleared} ${
+      presentation.boardsCleared === 1 ? "BOARD" : "BOARDS"
+    }${presentation.assisted ? " · WITH HELP" : ""}`;
+    const russianStatus = `ОЧИЩЕНО ПОЛЕЙ: ${presentation.boardsCleared}${
+      presentation.assisted ? " · С ПОМОЩЬЮ" : ""
+    }`;
+
+    this.title.setText(this.label("ЗАБЕГ ЗАВЕРШЁН", "RUN COMPLETE"));
+    this.status
+      .setText(this.scene.english ? englishStatus : russianStatus)
+      .setColor(MINIMAL_UI_COLORS.text);
+    this.detail.setText(
+      presentation.assisted
+        ? `${this.label("ЧИСТЫЙ РЕКОРД", "BEST CLEAN")} ${presentation.bestCleanBoards}`
+        : `${this.label("РЕКОРД", "BEST")} ${presentation.bestCleanBoards}`,
+    );
+    this.mastery.setText("");
+    this.rank.setText("");
+    this.primaryButton.setLabel(this.label("ЕЩЁ РАЗ", "TRY AGAIN"));
   }
 
   private applySimpleCopy(data: SimpleCompletionOverlayData): void {

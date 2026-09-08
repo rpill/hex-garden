@@ -34,3 +34,37 @@ export function createCampaignCompletionPresentation(
     campaignComplete: data.chapterComplete && data.level === CAMPAIGN_LEVEL_COUNT - 1,
   });
 }
+
+export interface EndlessCompletionPresentationInput {
+  boardsCleared: number;
+  assisted: boolean;
+  bestUnassistedBoards: number;
+}
+
+export interface EndlessCompletionPresentation {
+  boardsCleared: number;
+  assisted: boolean;
+  bestCleanBoards: number;
+}
+
+function assertBoardCount(value: number, name: string): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative safe integer`);
+  }
+}
+
+export function createEndlessCompletionPresentation(
+  data: EndlessCompletionPresentationInput,
+): Readonly<EndlessCompletionPresentation> {
+  assertBoardCount(data.boardsCleared, "boardsCleared");
+  assertBoardCount(data.bestUnassistedBoards, "bestUnassistedBoards");
+  if (!data.assisted && data.bestUnassistedBoards < data.boardsCleared) {
+    throw new RangeError("bestUnassistedBoards must include the completed clean run");
+  }
+
+  return Object.freeze({
+    boardsCleared: data.boardsCleared,
+    assisted: data.assisted,
+    bestCleanBoards: data.bestUnassistedBoards,
+  });
+}

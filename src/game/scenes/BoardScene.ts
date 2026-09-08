@@ -41,6 +41,7 @@ import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
 import { masteryRank, type MasteryRankValue } from "../../mastery.js";
 import { getCampaignProgress } from "../campaign-progress.js";
+import { getEndlessProgress } from "../endless-progress.js";
 import { getEconomy } from "../economy.js";
 import { getLeaderboard } from "../leaderboard.js";
 import { getSettings } from "../settings.js";
@@ -263,6 +264,7 @@ export class BoardScene extends Phaser.Scene {
   busy = false;
   english = false;
   progress!: ReturnType<typeof getCampaignProgress>;
+  endlessProgress!: ReturnType<typeof getEndlessProgress>;
   dailyProgress!: DailyProgressStore;
   economy!: ReturnType<typeof getEconomy>;
   leaderboard!: ReturnType<typeof getLeaderboard>;
@@ -377,6 +379,7 @@ export class BoardScene extends Phaser.Scene {
   init(data: unknown = {}): void {
     const init = boardInitData(data);
     this.progress = getCampaignProgress(this);
+    this.endlessProgress = getEndlessProgress(this);
     this.dailyProgress = new DailyProgressStore();
     this.english = getSettings(this).snapshot.language === "en";
     this.mode = init.mode ?? PlayMode.CAMPAIGN;
@@ -1152,17 +1155,16 @@ export class BoardScene extends Phaser.Scene {
   showEndlessCompletion(): void {
     const session = this.endlessSession;
     if (this.mode !== PlayMode.ENDLESS || !session) return;
-    const cleared = session.boardsCleared;
+    const result = this.endlessProgress.submit({
+      boardsCleared: session.boardsCleared,
+      assisted: session.assisted,
+    });
     this.completionOverlay.show(
       {
-        kind: "simple",
-        title: this.uiText("ЗАБЕГ ЗАВЕРШЁН", "RUN COMPLETE"),
-        status: this.english
-          ? `${cleared} ${cleared === 1 ? "BOARD" : "BOARDS"}`
-          : `ОЧИЩЕНО ПОЛЕЙ: ${cleared}`,
-        detail: session.assisted ? this.uiText("С ПОМОЩЬЮ", "WITH HELP") : "",
-        primaryLabel: this.uiText("ЕЩЁ РАЗ", "TRY AGAIN"),
-        homeLabel: this.uiText("НА ГЛАВНУЮ", "HOME"),
+        kind: "endless",
+        boardsCleared: session.boardsCleared,
+        assisted: session.assisted,
+        bestUnassistedBoards: result.bestUnassistedBoards,
       },
       {
         onNext: () => this.scene.restart({
