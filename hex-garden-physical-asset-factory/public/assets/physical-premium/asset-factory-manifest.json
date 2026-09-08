@@ -1,0 +1,89 @@
+{
+  "factory_version": 11,
+  "manifest_version": 11,
+  "render_size": 1024,
+  "files": [
+    "board-cell.png",
+    "piece-salt.png",
+    "piece-air.png",
+    "piece-fire.png",
+    "piece-water.png",
+    "piece-earth.png",
+    "piece-quicksilver.png",
+    "piece-gold.png",
+    "piece-silver.png",
+    "piece-copper.png",
+    "piece-iron.png",
+    "piece-tin.png",
+    "piece-lead.png",
+    "piece-vitae.png",
+    "piece-mors.png",
+    "piece-quintessence.png"
+  ],
+  "assets": {
+    "board-cell.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "4e37079a7415141d751c9571fa52d81328a21f100032c790c8bb216ec7a86f39"
+    },
+    "piece-salt.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "47154c8c017f478686875be2297e875ada216abfac297128ba87ea3a88bf0a74"
+    },
+    "piece-air.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "6d70f6e7c408156fe669fbc0dc211cbf76bf3a44d5dfe3d64e54141cafec286b"
+    },
+    "piece-fire.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "9cddfe8ae1536bf4d67f70dc826217cc91f366196275fd42c91bdc4404cb199a"
+    },
+    "piece-water.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "a29ee6d90620f302b7bbd230bd18139be4c9fd59a70b6f2a99365b2df4531858"
+    },
+    "piece-earth.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "3d2a946342e3c2e26cb4e512e070c045ae90fe615096de7a1cb53a0180abe202"
+    },
+    "piece-quicksilver.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "55cda9d24b72b7f3d6481b19e0cb3fb3da5a99ddb1c4abd509206e396b13b009"
+    },
+    "piece-gold.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "654f1ceec9eac4e7ce492a2910ba025c8f61e2552cd8238a9f456ea57fcc0981"
+    },
+    "piece-silver.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "63edc673aedb6acf292fabe607a47b56692340da6bb6826a505de3728f840d29"
+    },
+    "piece-copper.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "a53e2111172791ae59b12b7f38309b516649a26e16afe9ff3ce3d36d70e62ca7"
+    },
+    "piece-iron.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "efd3a4048cee752333e7f347149a017d7a454b828a9c732cad3c6f2c3d1c6028"
+    },
+    "piece-tin.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "c88a1e625f2ecea6404175f339e2f16b752829e5db5a28885443db29cfbba3ae"
+    },
+    "piece-lead.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "c5412c299582a8cd54cbda8810f59a769f321d851e978e17bb969bf3c2c34b42"
+    },
+    "piece-vitae.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "f3316d7f63013b4b2d13863eb4f5de90e3c76d382253df4a0cba59bd33c3d5e5"
+    },
+    "piece-mors.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "5436960d6ce4cca147fac130f0fc639384da006c7d10965e21fbbb386397d9f5"
+    },
+    "piece-quintessence.png": {
+      "source_sha256": "6097f19e333767ae28743f42b16de53c51d0ec4615deb9d7eaf90ef5e8904444",
+      "png_sha256": "21dafff3c3e64d44aba4475c0b25d3ed0e0d79be1ce349d25e5a67a021f8f9aa"
+    }
+  }
+}

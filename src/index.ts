@@ -9,6 +9,15 @@ export {
 } from "./atom-types.js";
 export { GardenBoard } from "./board.js";
 export {
+  CAMPAIGN_LEVEL_COUNT,
+  CAMPAIGN_PLATE_SCHEDULE,
+  PLATE_SPECS,
+  PlateSize,
+  campaignPlateSize,
+  plateSpec,
+} from "./plates.js";
+export type { PlateSizeValue, PlateSpec } from "./plates.js";
+export {
   ATOMS_PER_BOARD,
   BYTES_PER_ATOM,
   BYTES_PER_BOARD,
