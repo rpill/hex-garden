@@ -194,3 +194,9 @@ export {
   CAMPAIGN_MECHANIC_INTRODUCTIONS,
   mechanicIntroductionForLevel,
 } from "./mechanic-introductions.js";
+export {
+  dailyDateKey,
+  dailyWeekKey,
+  dailyWeekdayIndex,
+  datesForMoscowWeek,
+} from "./daily-calendar.js";
