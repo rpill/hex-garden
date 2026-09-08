@@ -189,6 +189,7 @@ export {
   createTutorialLevel,
   findLongestEmptyNeighbourRun,
 } from "./tutorial.js";
+export { campaignPostCompletionDestination } from "./campaign-routing.js";
 export {
   CAMPAIGN_MECHANIC_INTRODUCTIONS,
   mechanicIntroductionForLevel,

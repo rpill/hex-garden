@@ -39,6 +39,10 @@ import {
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
 import type { ProgressionLevelDefinition } from "../../progression.js";
 import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
+import {
+  campaignPostCompletionDestination,
+  type CampaignHomeReveal,
+} from "../../campaign-routing.js";
 import { ENDLESS_REQUIRED_COMPLETIONS } from "../../mode-access.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey, type HexCoord } from "../../hex.js";
 import {
@@ -757,10 +761,10 @@ export class BoardScene extends Phaser.Scene {
     this.scene.start("level-select");
   }
 
-  openMainMenu(): void {
+  openMainMenu(reveal?: CampaignHomeReveal): void {
     this.submitEndlessResult();
     this.generationToken += 1;
-    this.scene.start("menu");
+    this.scene.start("menu", reveal ? { reveal } : undefined);
   }
 
   openUtilityScene(key: UtilitySceneKey): void {
@@ -1002,7 +1006,8 @@ export class BoardScene extends Phaser.Scene {
         message = "BOARD CLEARED";
         if (this.mode === PlayMode.TUTORIAL) {
           this.progress.completeTutorial();
-          completionAfterRebuild = () => this.showTutorialCompletion();
+          completionAfterRebuild = () =>
+            this.scene.restart({ mode: PlayMode.CAMPAIGN, level: 0 });
           message = "";
         } else if (this.mode === PlayMode.CAMPAIGN) {
           const progressBefore = this.progress.snapshot;
@@ -1093,32 +1098,6 @@ export class BoardScene extends Phaser.Scene {
     this.layout();
   }
 
-  showTutorialCompletion(): void {
-    this.completionOverlay.show(
-      {
-        title: this.uiText("ОБУЧЕНИЕ ПРОЙДЕНО", "TUTORIAL COMPLETE"),
-        subtitle: "",
-        scoreAward: 0,
-        totalScore: 0,
-        dustAward: 0,
-        dustTotal: 0,
-        progressStart: 0,
-        progressEnd: 1,
-        progressMax: 1,
-        progressText: () => "",
-        continueLabel: this.uiText("УРОВЕНЬ 1 →", "LEVEL 1 →"),
-        exitLabel: "",
-        compactTransition: true,
-      },
-      {
-        onContinue: () =>
-          this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: 0 }),
-        onExit: () =>
-          this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: 0 }),
-      },
-    );
-  }
-
   showCampaignCompletion({
     snapshot,
     progressBefore,
@@ -1129,9 +1108,36 @@ export class BoardScene extends Phaser.Scene {
   }: CampaignCompletionArgs): void {
     const completed = snapshot.completedLevels.length;
     const campaignComplete = snapshot.campaignCompleted;
+    const firstCompletion = !progressBefore.solvedLevels.includes(this.level);
+    const plannedDestination = campaignPostCompletionDestination(this.level);
+    const destination =
+      !firstCompletion && plannedDestination.kind === "home" && plannedDestination.reveal !== "campaign-complete"
+        ? Object.freeze({ kind: "next" as const, level: this.level + 1 })
+        : plannedDestination;
+    const chapterMilestone = firstCompletion && (
+      this.level === 9 ||
+      this.level === 19 ||
+      this.level === 29 ||
+      this.level === 39 ||
+      this.level === 49
+    );
+    const chapterNumber = Math.floor(this.level / 10) + 1;
+    const title = campaignComplete
+      ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE")
+      : chapterMilestone
+      ? `${this.uiText("ГЛАВА", "CHAPTER")} ${chapterNumber} ${this.uiText("ЗАВЕРШЕНА", "COMPLETE")}`
+      : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE");
+    const revealText = destination.kind === "home"
+      ? destination.reveal === "daily"
+        ? this.uiText("DAILY ОТКРЫТ", "DAILY UNLOCKED")
+        : destination.reveal === "endless"
+        ? this.uiText("ENDLESS ОТКРЫТ", "ENDLESS UNLOCKED")
+        : this.uiText("МАСТЕРСТВО КАМПАНИИ ДОСТУПНО НА ГЛАВНОЙ", "CAMPAIGN MASTERY IS AVAILABLE FROM HOME")
+      : undefined;
+
     this.completionOverlay.show(
       {
-        title: campaignComplete ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE") : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE"),
+        title,
         subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${CAMPAIGN_LEVEL_COUNT}`,
         scoreAward,
         totalScore: snapshot.campaignScore,
@@ -1142,20 +1148,26 @@ export class BoardScene extends Phaser.Scene {
         progressMax: CAMPAIGN_LEVEL_COUNT,
         progressText: (value) =>
           `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${CAMPAIGN_LEVEL_COUNT}`,
-        unlockText: unlockedEndless
+        unlockText: revealText ?? (unlockedEndless
           ? this.uiText("ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS", "NEW MODE UNLOCKED: ENDLESS")
           : campaignComplete
           ? this.uiText("ВСЕ УРОВНИ ПРОЙДЕНЫ", "ALL LEVELS COMPLETE")
-          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(CAMPAIGN_LEVEL_COUNT, this.level + 2)}`,
-        continueLabel: campaignComplete
-          ? this.uiText("К РЕЗУЛЬТАТАМ", "VIEW RESULTS")
+          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(CAMPAIGN_LEVEL_COUNT, this.level + 2)}`),
+        continueLabel: destination.kind === "home"
+          ? this.uiText("НА ГЛАВНУЮ", "HOME")
+          : destination.kind === "chapter-next"
+          ? this.uiText("СЛЕДУЮЩАЯ ГЛАВА", "NEXT CHAPTER")
           : this.uiText("СЛЕДУЮЩИЙ УРОВЕНЬ", "NEXT LEVEL"),
         exitLabel: this.uiText("К ВЫБОРУ УРОВНЕЙ", "LEVEL SELECT"),
       },
       {
         onContinue: () => {
-          if (campaignComplete) this.openLevelSelect();
-          else this.changeLevel(1);
+          if (destination.kind === "home") {
+            this.openMainMenu(destination.reveal);
+            return;
+          }
+          this.level = destination.level;
+          this.loadLevel();
         },
         onExit: () => this.openLevelSelect(),
       },

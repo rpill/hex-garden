@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { HexCoord } from "../../hex.js";
-import { makeText } from "../ui.js";
+import { makeMinimalText } from "../minimal-ui.js";
 import {
   chooseCalloutPlacement,
   type CalloutSide,
@@ -31,7 +31,7 @@ export class BoardTutorial {
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(8);
     this.calloutGraphics = scene.add.graphics().setDepth(8.5);
-    this.text = makeText(scene, "", 13, "#dfe6ee").setOrigin(0.5).setDepth(9).setVisible(false);
+    this.text = makeMinimalText(scene, "", 13, "#dfe6ee").setOrigin(0.5).setDepth(9).setVisible(false);
   }
 
   renderGuide(state: TutorialGuideState): void {

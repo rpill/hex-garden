@@ -68,7 +68,7 @@ test("tutorial third step targets the remaining-count inventory panel", async ()
   assert.match(text, /preferredSides/);
 });
 
-test("tutorial completion uses one focused Level 1 transition instead of a HUD play button", async () => {
+test("tutorial completion persists once and restarts directly into Campaign Level 1", async () => {
   const boardSource = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
@@ -77,19 +77,16 @@ test("tutorial completion uses one focused Level 1 transition instead of a HUD p
     new URL("../src/game/board/BoardHud.ts", import.meta.url),
     "utf8",
   );
-  const completionSource = await readFile(
-    new URL("../src/game/completion-overlay.ts", import.meta.url),
-    "utf8",
-  );
 
-  assert.match(boardSource, /showTutorialCompletion/);
-  assert.match(boardSource, /ОБУЧЕНИЕ ПРОЙДЕНО/);
-  assert.match(boardSource, /УРОВЕНЬ 1 →/);
-  assert.match(boardSource, /mode: PlayMode\.CAMPAIGN, level: 0/);
-  assert.match(boardSource, /compactTransition: true/);
+  assert.match(
+    boardSource,
+    /this\.progress\.completeTutorial\(\);[\s\S]{0,220}this\.scene\.restart\(\{ mode: PlayMode\.CAMPAIGN, level: 0 \}\)/,
+  );
+  assert.doesNotMatch(boardSource, /showTutorialCompletion/);
+  assert.doesNotMatch(boardSource, /ОБУЧЕНИЕ ПРОЙДЕНО/);
+  assert.doesNotMatch(boardSource, /compactTransition: true/);
   assert.doesNotMatch(hudSource, /nextButton/);
   assert.doesNotMatch(hudSource, /onNext/);
-  assert.match(completionSource, /compactTransition/);
 });
 
 test("BoardScene wires the minimal HUD without permanent shop, settings, or restart controls", async () => {

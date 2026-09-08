@@ -2,28 +2,33 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("successful removals use a quiet link-and-settle feedback before the views are rebuilt", async () => {
+test("successful removals disappear immediately with no transient piece animation", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /animateRemovalFeedback\(result\.removed/);
-  assert.match(source, /REMOVAL_FEEDBACK_DURATION_MS/);
-  assert.match(source, /removalFeedbackActive/);
-  assert.match(source, /linkProgress/);
-  assert.match(source, /strokeCircle/);
+  assert.doesNotMatch(source, /animateRemovalFeedback/);
+  assert.doesNotMatch(source, /REMOVAL_FEEDBACK_DURATION_MS/);
+  assert.doesNotMatch(source, /removalFeedbackActive/);
+  assert.doesNotMatch(source, /view\.tokenBase\.texture\.key/);
+  assert.doesNotMatch(source, /targets:\s*transient/);
+  assert.match(source, /result\.kind === "removed"/);
+  assert.match(source, /this\.rebuildPieceViews\(\)/);
 });
 
-test("a winning removal gets to finish its feedback before the completion overlay opens", async () => {
+test("winning removals do not wait for removal feedback before completion", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /scheduleWonBoardCompletion/);
-  assert.match(source, /REMOVAL_FEEDBACK_DURATION_MS/);
-  assert.match(source, /delayedCall/);
+  assert.doesNotMatch(source, /REMOVAL_FEEDBACK_DURATION_MS/);
+  assert.doesNotMatch(source, /scheduleWonBoardCompletion/);
+  assert.doesNotMatch(source, /delayedCall\([^\n]*REMOVAL/);
+  assert.match(source, /this\.progress\.completeTutorial\(\);[\s\S]{0,220}this\.scene\.restart\(\{ mode: PlayMode\.CAMPAIGN, level: 0 \}\)/);
+  assert.match(source, /this\.showCampaignCompletion\(/);
+  assert.match(source, /this\.showEndlessCompletion\(/);
 });
 
 test("inventory counts acknowledge normal-play removals instead of snapping silently", async () => {
@@ -38,18 +43,13 @@ test("inventory counts acknowledge normal-play removals instead of snapping sile
   assert.match(source, /Cubic\.Out/);
 });
 
-
-test("pair feedback keeps a straight link but draws, pulses, and fades it instead of showing a static segment", async () => {
+test("removal path contains no connector line, pulse, ring, shrink, fade, or pull animation", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
 
-  assert.match(source, /straightRemovalPoint/);
-  assert.match(source, /lineDrawProgress/);
-  assert.match(source, /pulseProgress/);
-  assert.match(source, /lineWidthScale/);
-  assert.match(source, /feedback\.lineBetween\(first\.x, first\.y, drawEnd\.x, drawEnd\.y\)/);
-  assert.match(source, /feedback\.fillCircle\(pulse\.x, pulse\.y/);
-  assert.doesNotMatch(source, /quadraticRemovalPoint|drawRemovalCurve|removalLinkControl/);
+  assert.doesNotMatch(source, /straightRemovalPoint|lineDrawProgress|pulseProgress|lineWidthScale/);
+  assert.doesNotMatch(source, /feedback\.lineBetween|feedback\.fillCircle|feedback\.strokeCircle/);
+  assert.doesNotMatch(source, /targetScaleX|targetScaleY|pull = Math\.min/);
 });

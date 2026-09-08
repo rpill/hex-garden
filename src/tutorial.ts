@@ -11,6 +11,7 @@ import {
 import { CURATED_OPENING_LEVELS } from "./opening-levels.js";
 
 export const TUTORIAL_GUIDED_MOVE_COUNT = 3;
+const TUTORIAL_PLATE_RADIUS = 3 as const;
 
 export function findLongestEmptyNeighbourRun(
   pieces: readonly HexCoord[],
@@ -70,8 +71,8 @@ export function createTutorialLevel(): TutorialLevel {
   return {
     variant: BoardVariant.STANDARD,
     shape: "tutorial-r3",
-    plateRadius: 3,
-    plateCells: enumerateHexPlate(3),
+    plateRadius: TUTORIAL_PLATE_RADIUS,
+    plateCells: enumerateHexPlate(TUTORIAL_PLATE_RADIUS),
     pieces,
     solution,
     board: new GardenBoard(pieces),
