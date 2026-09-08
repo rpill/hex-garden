@@ -3,23 +3,35 @@ import test from "node:test";
 
 import {
   completionCardMetrics,
-  levelGridMetrics,
+  chapterGridMetrics,
   shopGridMetrics,
 } from "../src/game/presentation-layout.js";
 import { boardFloatingMetrics } from "../src/game/responsive-layout.js";
 
-test("desktop campaign layout uses large tiles and at most six columns", () => {
-  const layout = levelGridMetrics(1768, 864, 25, 80);
-  assert.ok(layout.columns >= 5 && layout.columns <= 6);
-  assert.ok(layout.tileWidth >= 120);
-  assert.ok(layout.tileHeight >= 82);
-  assert.ok(layout.gridWidth > 700);
+test("desktop chapters use one ten-level row per chapter", () => {
+  const layout = chapterGridMetrics(1280, 800, 92);
+  assert.equal(layout.columns, 10);
+  assert.equal(layout.rowsPerChapter, 1);
+  assert.ok(layout.tileWidth >= 72);
+  assert.ok(layout.tileHeight >= 38);
+  assert.ok(layout.totalHeight <= 800 - 92 - 12);
 });
 
-test("portrait campaign layout remains readable without ten tiny columns", () => {
-  const layout = levelGridMetrics(390, 844, 25, 72);
-  assert.ok(layout.columns >= 3 && layout.columns <= 4);
-  assert.ok(layout.tileWidth >= 80);
+test("portrait chapters use readable five-column sections", () => {
+  const layout = chapterGridMetrics(390, 844, 96);
+  assert.equal(layout.columns, 5);
+  assert.equal(layout.rowsPerChapter, 2);
+  assert.ok(layout.tileWidth >= 60);
+  assert.ok(layout.tileHeight >= 40);
+  assert.ok(layout.totalHeight <= 844 - 96 - 12);
+});
+
+test("short landscape chapters remain five compact rows", () => {
+  const layout = chapterGridMetrics(844, 390, 72);
+  assert.equal(layout.columns, 10);
+  assert.equal(layout.rowsPerChapter, 1);
+  assert.ok(layout.tileHeight >= 28);
+  assert.ok(layout.totalHeight <= 390 - 72 - 8);
 });
 
 test("shop uses three cards on desktop, stays single-row in short landscape, and stacks on narrow portrait", () => {

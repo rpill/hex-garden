@@ -1,3 +1,62 @@
+export interface ChapterGridMetrics {
+  columns: number;
+  rowsPerChapter: number;
+  gapX: number;
+  gapY: number;
+  tileWidth: number;
+  tileHeight: number;
+  gridWidth: number;
+  labelHeight: number;
+  chapterGap: number;
+  sectionHeight: number;
+  totalHeight: number;
+}
+
+export function chapterGridMetrics(
+  width: number,
+  height: number,
+  contentTop = 92,
+): Readonly<ChapterGridMetrics> {
+  const shortLandscape = height < 520 && width > height;
+  const columns = width >= 700 ? 10 : 5;
+  const rowsPerChapter = Math.ceil(10 / columns);
+  const gapX = width < 520 ? 6 : 8;
+  const gapY = shortLandscape ? 4 : 6;
+  const sidePadding = width < 520 ? 14 : 24;
+  const gridWidth = Math.min(Math.max(1, width - sidePadding * 2), 980);
+  const tileWidth = Math.floor((gridWidth - gapX * (columns - 1)) / columns);
+  const labelHeight = shortLandscape ? 16 : 18;
+  const chapterGap = shortLandscape ? 6 : 10;
+  const bottomPadding = shortLandscape ? 8 : 12;
+  const availableHeight = Math.max(1, height - contentTop - bottomPadding);
+  const fixedHeight =
+    5 * labelHeight +
+    4 * chapterGap +
+    5 * Math.max(0, rowsPerChapter - 1) * gapY;
+  const rawTileHeight = Math.floor(
+    Math.max(1, availableHeight - fixedHeight) / (5 * rowsPerChapter),
+  );
+  const minTileHeight = shortLandscape ? 28 : 40;
+  const tileHeight = Math.max(minTileHeight, Math.min(52, rawTileHeight));
+  const sectionHeight =
+    labelHeight + rowsPerChapter * tileHeight + Math.max(0, rowsPerChapter - 1) * gapY;
+  const totalHeight = 5 * sectionHeight + 4 * chapterGap;
+
+  return Object.freeze({
+    columns,
+    rowsPerChapter,
+    gapX,
+    gapY,
+    tileWidth,
+    tileHeight,
+    gridWidth,
+    labelHeight,
+    chapterGap,
+    sectionHeight,
+    totalHeight,
+  });
+}
+
 export interface LevelGridMetrics { columns:number; rows:number; gapX:number; gapY:number; tileWidth:number; tileHeight:number; gridWidth:number; gridHeight:number; }
 export function levelGridMetrics(width:number,height:number,itemCount:number,contentTop=72): Readonly<LevelGridMetrics> {
   const columns=width>=1000?6:width>=700?5:width>=480?4:3; const rows=Math.ceil(itemCount/columns); const gapX=width<480?8:12; const gapY=gapX;

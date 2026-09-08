@@ -4,6 +4,8 @@ import {
   Atom,
   BoardVariant,
   CAMPAIGN_LEVEL_COUNT,
+  CAMPAIGN_CHAPTERS,
+  campaignLevelState,
   campaignPlateSize,
   generateCampaignLevel,
   hexKey,
@@ -75,4 +77,28 @@ test("campaign certificates that contain metals remove them in progression order
     checked += 1;
   }
   assert.ok(checked > 0, "expected frozen campaign to contain metal-chain levels");
+});
+
+
+test("campaign chapter navigation exposes five sections of ten levels", () => {
+  assert.equal(CAMPAIGN_CHAPTERS.length, 5);
+  assert.deepEqual(
+    CAMPAIGN_CHAPTERS.map((chapter) => [chapter.startLevel, chapter.endLevel]),
+    [[0, 9], [10, 19], [20, 29], [30, 39], [40, 49]],
+  );
+});
+
+test("campaign level state is locked, current, solved, or clean only", () => {
+  const empty = { solvedLevels: [], cleanLevels: [], highestUnlocked: 0 };
+  assert.equal(campaignLevelState(empty, 0), "current");
+  assert.equal(campaignLevelState(empty, 1), "locked");
+
+  const solved = { solvedLevels: [0], cleanLevels: [], highestUnlocked: 1 };
+  assert.equal(campaignLevelState(solved, 0), "solved");
+  assert.equal(campaignLevelState(solved, 1), "current");
+  assert.equal(campaignLevelState(solved, 2), "locked");
+
+  const clean = { solvedLevels: [0], cleanLevels: [0], highestUnlocked: 1 };
+  assert.equal(campaignLevelState(clean, 0), "clean");
+  assert.equal(campaignLevelState(empty, 7, { unlockAll: true }), "current");
 });

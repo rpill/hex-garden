@@ -34,6 +34,16 @@ export {
   plateSpec,
 } from "./plates.js";
 export type { PlateSizeValue, PlateSpec } from "./plates.js";
+export {
+  CAMPAIGN_CHAPTERS,
+  CampaignLevelState,
+  campaignLevelState,
+} from "./game/chapter-model.js";
+export type {
+  CampaignChapterDefinition,
+  CampaignLevelStateValue,
+  ChapterProgressSnapshot,
+} from "./game/chapter-model.js";
 export { CAMPAIGN_LEVELS, getCampaignLevel } from "./campaign-levels.js";
 export type { CampaignLevelRecord } from "./campaign-levels.js";
 export { generatePuzzleCandidate } from "./puzzle-generation.js";
