@@ -4,6 +4,7 @@ import { BoardVariant, type BoardVariantValue } from "./generator.js";
 import { DEFAULT_CAMPAIGN_SEED, type CampaignLevel } from "./campaign.js";
 import { DEFAULT_PROGRESSION_SEED, generateProgressionLevel } from "./progression.js";
 import { generateEndlessRunLevel, type EndlessRunLevel } from "./endless-run.js";
+import type { GeneratedPuzzleCandidate, PuzzleCandidateOptions } from "./puzzle-generation.js";
 
 export async function fetchBoardDatabase(
   url: string | URL,
@@ -19,7 +20,11 @@ export async function fetchBoardDatabase(
 
 type ProgressionLevel = ReturnType<typeof generateProgressionLevel>;
 type SerializedResult<T extends { board: GardenBoard }> = Omit<T, "board">;
-type WorkerResult = SerializedResult<CampaignLevel> | SerializedResult<ProgressionLevel> | SerializedResult<EndlessRunLevel>;
+type WorkerResult =
+  | SerializedResult<CampaignLevel>
+  | SerializedResult<ProgressionLevel>
+  | SerializedResult<EndlessRunLevel>
+  | SerializedResult<GeneratedPuzzleCandidate>;
 type BrowserResult<T extends { board: GardenBoard }> = Omit<T, "board"> & { board: GardenBoard };
 
 interface PendingRequest {
@@ -100,6 +105,12 @@ export class BrowserLevelGenerator {
     { campaignSeed = DEFAULT_CAMPAIGN_SEED }: { campaignSeed?: string } = {},
   ): Promise<BrowserResult<EndlessRunLevel>> {
     return this.#request({ kind: "endless-run", level, campaignSeed });
+  }
+
+  generatePuzzleCandidate(
+    options: PuzzleCandidateOptions,
+  ): Promise<BrowserResult<GeneratedPuzzleCandidate>> {
+    return this.#request({ kind: "puzzle-candidate", options });
   }
 
   #request<T extends { board: GardenBoard }>(message: Record<string, unknown>): Promise<BrowserResult<T>> {

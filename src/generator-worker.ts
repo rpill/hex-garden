@@ -2,6 +2,7 @@ import { generateCampaignLevel } from "./campaign.js";
 import { generateEndlessRunLevel } from "./endless-run.js";
 import { BoardVariant, type BoardVariantValue } from "./generator.js";
 import { generateProgressionLevel } from "./progression.js";
+import { generatePuzzleCandidate, type PuzzleCandidateOptions } from "./puzzle-generation.js";
 import { isRecord } from "./persistence.js";
 
 interface WorkerPort {
@@ -23,15 +24,29 @@ interface WorkerRequestBase {
 }
 
 type GeneratorWorkerRequest =
+  | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
   | (WorkerRequestBase & { kind: "progression" })
   | (WorkerRequestBase & { kind: "endless-run" })
   | (WorkerRequestBase & { kind?: undefined; variant?: BoardVariantValue });
 
 function parseRequest(value: unknown): GeneratorWorkerRequest {
-  if (!isRecord(value) || !Number.isSafeInteger(value.requestId) || !Number.isSafeInteger(value.level)) {
+  if (!isRecord(value) || !Number.isSafeInteger(value.requestId)) {
     throw new TypeError("Invalid generator worker request");
   }
   const requestId = value.requestId as number;
+
+  if (value.kind === "puzzle-candidate") {
+    if (!isRecord(value.options)) throw new TypeError("Invalid puzzle candidate worker request");
+    return {
+      requestId,
+      kind: "puzzle-candidate",
+      options: value.options as unknown as PuzzleCandidateOptions,
+    };
+  }
+
+  if (!Number.isSafeInteger(value.level)) {
+    throw new TypeError("Invalid generator worker request");
+  }
   const level = value.level as number;
   const campaignSeed = typeof value.campaignSeed === "string" ? value.campaignSeed : undefined;
   const base = campaignSeed === undefined ? { requestId, level } : { requestId, level, campaignSeed };
@@ -50,16 +65,22 @@ port.addEventListener("message", (event) => {
   try {
     const request = parseRequest(event.data);
     requestId = request.requestId;
-    const campaignSeedOptions = request.campaignSeed === undefined ? {} : { campaignSeed: request.campaignSeed };
-    const generated =
-      request.kind === "progression"
-        ? generateProgressionLevel(request.level, campaignSeedOptions)
-        : request.kind === "endless-run"
-          ? generateEndlessRunLevel(request.level, campaignSeedOptions)
-          : generateCampaignLevel(request.level, {
-              ...campaignSeedOptions,
-              ...(request.variant === undefined ? {} : { variant: request.variant }),
-            });
+    const generated = (() => {
+      if (request.kind === "puzzle-candidate") {
+        return generatePuzzleCandidate(request.options);
+      }
+      const campaignSeedOptions = request.campaignSeed === undefined ? {} : { campaignSeed: request.campaignSeed };
+      if (request.kind === "progression") {
+        return generateProgressionLevel(request.level, campaignSeedOptions);
+      }
+      if (request.kind === "endless-run") {
+        return generateEndlessRunLevel(request.level, campaignSeedOptions);
+      }
+      return generateCampaignLevel(request.level, {
+        ...campaignSeedOptions,
+        ...(request.variant === undefined ? {} : { variant: request.variant }),
+      });
+    })();
     const { board: _board, ...result } = generated;
     port.postMessage({ requestId: request.requestId, result });
   } catch (error) {

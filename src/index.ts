@@ -19,6 +19,12 @@ export {
   plateSpec,
 } from "./plates.js";
 export type { PlateSizeValue, PlateSpec } from "./plates.js";
+export { generatePuzzleCandidate } from "./puzzle-generation.js";
+export type {
+  GeneratedPuzzleCandidate,
+  PuzzleCandidateOptions,
+  PuzzleComposition,
+} from "./puzzle-generation.js";
 export {
   ATOMS_PER_BOARD,
   BYTES_PER_ATOM,
