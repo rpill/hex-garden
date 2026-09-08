@@ -5,10 +5,12 @@ import test from "node:test";
 const boardSourceUrl = new URL("../src/game/scenes/BoardScene.ts", import.meta.url);
 const uiSourceUrl = new URL("../src/game/ui.ts", import.meta.url);
 
-test("BoardScene respects nullable Phaser input and exact optional view fields", async () => {
+test("BoardScene primitive PieceView respects Phaser input contracts", async () => {
   const source = await readFile(boardSourceUrl, "utf8");
-  assert.match(source, /glyph:\s*Phaser\.GameObjects\.Image\s*\|\s*undefined/);
-  assert.match(source, /label:\s*Phaser\.GameObjects\.Text\s*\|\s*undefined/);
+  assert.match(source, /circle:\s*Phaser\.GameObjects\.Graphics;/);
+  assert.match(source, /label:\s*Phaser\.GameObjects\.Text;/);
+  assert.match(source, /hitZone:\s*Phaser\.GameObjects\.Zone;/);
+  assert.doesNotMatch(source, /glyph:\s*Phaser\.GameObjects\.Image/);
   assert.match(source, /if\s*\(hitZone\.input\)\s*hitZone\.input\.cursor\s*=\s*"pointer"/);
   assert.match(source, /const hitArea = view\.hitZone\.input\?\.hitArea/);
   assert.match(source, /override\s+update\(\):\s*void/);
