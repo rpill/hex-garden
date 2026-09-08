@@ -59,3 +59,27 @@ test("BoardScene exposes only visible dead-end state, not solver doom", async ()
   assert.match(source, /isRescueEligible\(/);
   assert.match(source, /actualDeadEnd/);
 });
+
+test("Endless BoardScene owns one run session and routes visible dead ends through End Run / Rescue Run", async () => {
+  const [boardSource, hudSource] = await Promise.all([
+    readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/game/board/BoardHud.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(boardSource, /import \{ EndlessBoardSession \} from "\.\.\/board\/EndlessBoardSession\.js"/);
+  assert.match(boardSource, /endlessRunSeed/);
+  assert.match(boardSource, /endless-v2:/);
+  assert.match(boardSource, /generateEndlessRun\(this\.level, \{\s*runSeed: this\.endlessRunSeed,?\s*\}\)/);
+  assert.doesNotMatch(boardSource, /campaignSeed: CAMPAIGN_SEED/);
+  assert.match(boardSource, /this\.endlessSession\.recordBeforeRemoval\(beforeRemovalPieces\)/);
+  assert.match(boardSource, /this\.endlessSession\.clearBoard\(\)/);
+  assert.match(boardSource, /this\.endlessSession\.enterDeadEnd\(\)/);
+  assert.match(boardSource, /requestEndlessRescue/);
+  assert.match(boardSource, /requestEndlessHint/);
+  assert.doesNotMatch(boardSource, /awardEndlessClear/);
+  assert.doesNotMatch(boardSource, /scoreClearedBoard/);
+
+  assert.match(hudSource, /setEndlessDeadEndState\(/);
+  assert.match(hudSource, /END RUN/);
+  assert.match(hudSource, /RESCUE RUN/);
+});

@@ -2,7 +2,7 @@ import { GardenBoard } from "./board.js";
 import type { DailyPuzzle } from "./daily.js";
 import { GardenDatabase } from "./database.js";
 import { BoardVariant, type BoardVariantValue } from "./generator.js";
-import { DEFAULT_CAMPAIGN_SEED, type CampaignLevel } from "./campaign.js";
+import type { CampaignLevel } from "./campaign.js";
 import { getCampaignLevel } from "./campaign-levels.js";
 import { DEFAULT_PROGRESSION_SEED, generateProgressionLevel } from "./progression.js";
 import { generateEndlessRunLevel, type EndlessRunLevel } from "./endless-run.js";
@@ -123,15 +123,8 @@ export class BrowserLevelGenerator {
 
   generateEndlessRun(
     level: number,
-    options: { runSeed: string } | { campaignSeed?: string },
+    { runSeed }: { runSeed: string },
   ): Promise<BrowserResult<EndlessRunLevel>> {
-    // Task 4 will move BoardScene to a unique session runSeed. Until then,
-    // accept its legacy campaignSeed-shaped call only at this browser boundary
-    // and translate it into the new worker protocol. Core Endless generation
-    // no longer depends on Campaign progression or Campaign generation.
-    const runSeed = "runSeed" in options
-      ? options.runSeed
-      : options.campaignSeed ?? DEFAULT_CAMPAIGN_SEED;
     return this.#request({ kind: "endless-run", level, runSeed });
   }
 

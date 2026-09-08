@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   Atom,
   PlateSize,
@@ -87,4 +88,16 @@ test("browser worker facade sends runSeed through the dedicated endless request"
   assert.equal(record.plateCells.length, 37);
   assert.equal(replaySolution(record.board, record.solution), true);
   generator.terminate();
+});
+
+
+test("browser Endless boundary requires an explicit runSeed", async () => {
+  const source = await readFile(new URL("../src/browser.ts", import.meta.url), "utf8");
+  const start = source.indexOf("  generateEndlessRun(");
+  const end = source.indexOf("\n  generateDaily(", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const method = source.slice(start, end);
+  assert.match(method, /\{ runSeed \}: \{ runSeed: string \}/);
+  assert.doesNotMatch(method, /campaignSeed/);
 });

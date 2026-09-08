@@ -21,12 +21,8 @@ import {
   rewardedAmountForHint,
 } from "../../economy.js";
 import {
-  createEndlessScoreState,
-  scoreClearedBoard,
   scoreRemovedAtoms,
   SCORE_PER_REMOVED_ATOM,
-  streakMultiplier,
-  type EndlessScoreState,
 } from "../../endless-score.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
 import type { ProgressionLevelDefinition } from "../../progression.js";
@@ -87,6 +83,7 @@ import { BoardAssistance } from "../board/BoardAssistance.js";
 import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
 import { DailyBoardSession } from "../board/DailyBoardSession.js";
+import { EndlessBoardSession } from "../board/EndlessBoardSession.js";
 import {
   MINIMAL_UI_COLORS,
   makeMinimalButton,
@@ -119,7 +116,6 @@ import {
   resizeNineSlice,
 } from "../ui.js";
 
-const CAMPAIGN_SEED = "rules-lab-v1";
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
 
@@ -127,9 +123,6 @@ function formatScore(value: number): string {
   return Math.round(value).toLocaleString("ru-RU");
 }
 
-function formatMultiplier(value: number): string {
-  return Number.isInteger(value) ? value.toFixed(1) : String(value);
-}
 
 const ATOM_LABELS = Object.freeze({
   [Atom.SALT]: "Sa",
@@ -186,10 +179,8 @@ type PieceView = {
 
 type RemovalHistoryEntry = {
   pieces: readonly BoardPieceInput[];
-  endlessScoreState: Readonly<EndlessScoreState>;
   campaignLevelScore: number;
   displayedCampaignScore: number;
-  displayedEndlessScore: number;
 };
 
 type RestoreOptions = {
@@ -212,13 +203,18 @@ function isPlayModeValue(value: unknown): value is PlayModeValue {
   return typeof value === "string" && (Object.values(PlayMode) as readonly string[]).includes(value);
 }
 
-function boardInitData(data: unknown): { mode?: PlayModeValue; level?: number } {
+function boardInitData(data: unknown): { mode?: PlayModeValue; level?: number; runSeed?: string } {
   if (typeof data !== "object" || data === null) return {};
-  const raw = data as { mode?: unknown; level?: unknown };
+  const raw = data as { mode?: unknown; level?: unknown; runSeed?: unknown };
   return {
     ...(isPlayModeValue(raw.mode) ? { mode: raw.mode } : {}),
     ...(Number.isSafeInteger(raw.level) && (raw.level as number) >= 0 ? { level: raw.level as number } : {}),
+    ...(typeof raw.runSeed === "string" && raw.runSeed.length > 0 ? { runSeed: raw.runSeed } : {}),
   };
+}
+
+function createEndlessRunSeed(): string {
+  return `endless-v2:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
 export class BoardScene extends Phaser.Scene {
@@ -241,24 +237,20 @@ export class BoardScene extends Phaser.Scene {
   tutorialStep = 0;
   tutorialSolution: readonly (readonly HexCoord[])[] = [];
   mechanicCardVisible = false;
-  endlessScoreState: Readonly<EndlessScoreState> = createEndlessScoreState();
-  displayedEndlessScore = 0;
-  endlessScoreTween: Phaser.Tweens.Tween | undefined;
-  endlessRunOver = false;
   campaignLevelScore = 0;
   displayedCampaignScore = 0;
   campaignScoreTween: Phaser.Tweens.Tween | undefined;
   campaignScoringActive = false;
   campaignSession: CampaignBoardSession | undefined;
   dailySession: DailyBoardSession | undefined;
+  endlessSession: EndlessBoardSession | undefined;
+  endlessRunSeed = "";
   removalHistory: RemovalHistoryEntry[] = [];
   activeHintKeys = new Set<string>();
   hintTimer: Phaser.Time.TimerEvent | undefined;
-  endlessAssisted = false;
   economyModalVisible = false;
   economyModalProduct: HintProduct | undefined;
   rewardedAdPending = false;
-  endlessBoardStartScore = 0;
   certifiedSolution: readonly (readonly HexCoord[])[] = [];
   knownWinningRoute: readonly (readonly HexCoord[])[] = [];
   positionSolveStatus: SolveStatusValue = SolveStatus.UNKNOWN;
@@ -345,24 +337,20 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialStep = 0;
     this.tutorialSolution = [];
     this.mechanicCardVisible = false;
-    this.endlessScoreState = createEndlessScoreState();
-    this.displayedEndlessScore = 0;
-    this.endlessScoreTween = undefined;
-    this.endlessRunOver = false;
     this.campaignLevelScore = 0;
     this.displayedCampaignScore = 0;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
     this.campaignSession = undefined;
     this.dailySession = undefined;
+    this.endlessSession = undefined;
+    this.endlessRunSeed = "";
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
-    this.endlessAssisted = false;
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
-    this.endlessBoardStartScore = 0;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
@@ -397,6 +385,8 @@ export class BoardScene extends Phaser.Scene {
     this.level =
       this.mode === PlayMode.CAMPAIGN
         ? Math.min(requestedLevel, this.progress.snapshot.highestUnlocked)
+        : this.mode === PlayMode.ENDLESS
+        ? 0
         : requestedLevel;
     this.initialPieces = [];
     this.plateCells = enumerateBoardCells();
@@ -408,24 +398,20 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialStep = 0;
     this.tutorialSolution = [];
     this.mechanicCardVisible = false;
-    this.endlessScoreState = createEndlessScoreState();
-    this.displayedEndlessScore = 0;
-    this.endlessScoreTween = undefined;
-    this.endlessRunOver = false;
     this.campaignLevelScore = 0;
     this.displayedCampaignScore = this.progress.snapshot.campaignScore;
     this.campaignScoreTween = undefined;
     this.campaignScoringActive = false;
     this.campaignSession = undefined;
     this.dailySession = undefined;
+    this.endlessSession = this.mode === PlayMode.ENDLESS ? new EndlessBoardSession() : undefined;
+    this.endlessRunSeed = this.mode === PlayMode.ENDLESS ? init.runSeed ?? createEndlessRunSeed() : "";
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
-    this.endlessAssisted = false;
     this.economyModalVisible = false;
     this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
-    this.endlessBoardStartScore = 0;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
@@ -619,10 +605,6 @@ export class BoardScene extends Phaser.Scene {
 
   async loadLevel(introProfile: BoardIntroProfile = "fresh"): Promise<void> {
     const token = ++this.generationToken;
-    if (this.mode === PlayMode.ENDLESS) this.endlessRunOver = false;
-    if (this.mode === PlayMode.ENDLESS) {
-      this.endlessBoardStartScore = this.endlessScoreState.score;
-    }
     this.campaignSession = undefined;
     this.dailySession = undefined;
     this.removalHistory = [];
@@ -699,7 +681,7 @@ export class BoardScene extends Phaser.Scene {
             })()
           : this.mode === PlayMode.ENDLESS
           ? await this.generator.generateEndlessRun(this.level, {
-              campaignSeed: CAMPAIGN_SEED,
+              runSeed: this.endlessRunSeed,
             })
           : await Promise.reject<never>(new Error("Unsupported play mode"));
       if (token !== this.generationToken) return;
@@ -748,12 +730,7 @@ export class BoardScene extends Phaser.Scene {
       }
       return;
     }
-    if (this.mode === PlayMode.ENDLESS) {
-      if (delta <= 0 || !this.board?.won || this.endlessRunOver) return;
-      this.level += 1;
-      this.loadLevel();
-      return;
-    }
+    if (this.mode === PlayMode.ENDLESS) return;
     const maximum =
       this.mode === PlayMode.CAMPAIGN
         ? this.progress.snapshot.highestUnlocked
@@ -773,7 +750,6 @@ export class BoardScene extends Phaser.Scene {
   }
 
   openMainMenu(reveal?: CampaignHomeReveal): void {
-    this.submitEndlessResult();
     this.generationToken += 1;
     this.scene.start("menu", reveal ? { reveal } : undefined);
   }
@@ -847,13 +823,6 @@ export class BoardScene extends Phaser.Scene {
     this.openMainMenu();
   }
 
-  submitEndlessResult(): void {
-    if (this.mode !== PlayMode.ENDLESS || !this.leaderboard) return;
-    this.leaderboard.submitEndlessScore(this.endlessScoreState.score, {
-      assisted: this.endlessAssisted,
-    });
-  }
-
   restartLevel(): void {
     if (
       this.busy ||
@@ -863,14 +832,11 @@ export class BoardScene extends Phaser.Scene {
     ) return;
     this.hideCampaignDeadEndState();
     if (this.mode === PlayMode.ENDLESS) {
-      this.submitEndlessResult();
-      this.endlessScoreTween?.stop();
-      this.endlessScoreState = createEndlessScoreState();
-      this.displayedEndlessScore = 0;
-      this.endlessRunOver = false;
-      this.endlessAssisted = false;
-      this.level = 0;
-      this.loadLevel("restart");
+      this.scene.restart({
+        mode: PlayMode.ENDLESS,
+        level: 0,
+        runSeed: createEndlessRunSeed(),
+      });
       return;
     }
     if (this.mode === PlayMode.CAMPAIGN) {
@@ -939,7 +905,7 @@ export class BoardScene extends Phaser.Scene {
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
-      this.endlessRunOver ||
+      (this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true) ||
       !this.board
     ) {
       return;
@@ -958,10 +924,8 @@ export class BoardScene extends Phaser.Scene {
     const beforeRemovalPieces = this.board.pieces();
     const beforeRemoval = {
       pieces: beforeRemovalPieces,
-      endlessScoreState: { ...this.endlessScoreState },
       campaignLevelScore: this.campaignLevelScore,
       displayedCampaignScore: this.displayedCampaignScore,
-      displayedEndlessScore: this.displayedEndlessScore,
     };
     const result = this.board.select(piece);
     if (result.kind === "locked") {
@@ -979,21 +943,15 @@ export class BoardScene extends Phaser.Scene {
         this.campaignSession.recordBeforeRemoval(beforeRemovalPieces);
       } else if (this.mode === PlayMode.DAILY && this.dailySession) {
         this.dailySession.recordBeforeRemoval(beforeRemovalPieces);
+      } else if (this.mode === PlayMode.ENDLESS && this.endlessSession) {
+        this.endlessSession.recordBeforeRemoval(beforeRemovalPieces);
       } else {
         this.removalHistory.push(beforeRemoval);
         if (this.removalHistory.length > 64) this.removalHistory.shift();
       }
       this.clearMoveHint(false);
       let message = "";
-      if (this.mode === PlayMode.ENDLESS) {
-        const scoredRemoval = scoreRemovedAtoms(
-          this.endlessScoreState,
-          result.removed.length,
-        );
-        this.endlessScoreState = scoredRemoval.state;
-        this.showScorePopup(result.removed, `+${formatScore(scoredRemoval.award)}`);
-        this.animateEndlessScore(this.endlessScoreState.score);
-      } else if (
+      if (
         this.mode === PlayMode.CAMPAIGN &&
         this.campaignScoringActive
       ) {
@@ -1041,25 +999,13 @@ export class BoardScene extends Phaser.Scene {
         } else if (this.mode === PlayMode.DAILY) {
           message = "";
           completionAfterRebuild = () => void this.completeDailyBoard();
-        } else if (this.mode === PlayMode.ENDLESS) {
-          const clearScore = scoreClearedBoard(
-            this.endlessScoreState,
-            1 + 3 * this.plateRadius * (this.plateRadius + 1),
-          );
-          this.endlessScoreState = clearScore.state;
-          const dust = this.economy.awardEndlessClear(
-            1 + 3 * this.plateRadius * (this.plateRadius + 1),
-          );
-          this.showScorePopup(
-            [],
-            `CLEAR +${formatScore(clearScore.award)}`,
-            "#77dc91",
-          );
-          this.animateEndlessScore(this.endlessScoreState.score);
-          message =
-            `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
-            `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
-          completionAfterRebuild = () => this.showEndlessCompletion();
+        } else if (this.mode === PlayMode.ENDLESS && this.endlessSession) {
+          this.endlessSession.clearBoard();
+          const cleared = this.endlessSession.boardsCleared;
+          message = this.english
+            ? `${cleared} ${cleared === 1 ? "BOARD" : "BOARDS"} CLEARED`
+            : `ОЧИЩЕНО ПОЛЕЙ: ${cleared}`;
+          completionAfterRebuild = () => this.continueEndlessAfterClear();
         }
         this.setBusy(false);
       } else {
@@ -1068,6 +1014,11 @@ export class BoardScene extends Phaser.Scene {
           message = this.uiText("ХОДОВ НЕТ", "NO MOVES");
           if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY) {
             this.enterCampaignDeadEndState();
+          } else if (this.mode === PlayMode.ENDLESS && this.endlessSession) {
+            const deadEnd = this.endlessSession.enterDeadEnd();
+            if (deadEnd.kind === "terminal") {
+              completionAfterRebuild = () => this.showEndlessCompletion();
+            }
           }
         }
       }
@@ -1187,19 +1138,38 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  continueEndlessAfterClear(): void {
+    const session = this.endlessSession;
+    if (this.mode !== PlayMode.ENDLESS || !session) return;
+    const nextLevel = session.boardsCleared;
+    this.time.delayedCall(650, () => {
+      if (this.mode !== PlayMode.ENDLESS || this.endlessSession !== session) return;
+      this.level = nextLevel;
+      void this.loadLevel();
+    });
+  }
+
   showEndlessCompletion(): void {
-    const streak = this.endlessScoreState.streak;
+    const session = this.endlessSession;
+    if (this.mode !== PlayMode.ENDLESS || !session) return;
+    const cleared = session.boardsCleared;
     this.completionOverlay.show(
       {
         kind: "simple",
-        title: this.uiText("ПОЛЕ ОЧИЩЕНО", "BOARD CLEARED"),
-        status: `${this.uiText("ПОЛЕ", "BOARD")} ${String(this.level + 1).padStart(2, "0")} · ${this.uiText("СЕРИЯ", "STREAK")} ${streak}`,
-        detail: this.endlessAssisted ? this.uiText("С ПОМОЩЬЮ", "ASSISTED") : "",
-        primaryLabel: this.uiText("СЛЕДУЮЩЕЕ ПОЛЕ", "NEXT BOARD"),
-        homeLabel: this.uiText("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"),
+        title: this.uiText("ЗАБЕГ ЗАВЕРШЁН", "RUN COMPLETE"),
+        status: this.english
+          ? `${cleared} ${cleared === 1 ? "BOARD" : "BOARDS"}`
+          : `ОЧИЩЕНО ПОЛЕЙ: ${cleared}`,
+        detail: session.assisted ? this.uiText("С ПОМОЩЬЮ", "WITH HELP") : "",
+        primaryLabel: this.uiText("ЕЩЁ РАЗ", "TRY AGAIN"),
+        homeLabel: this.uiText("НА ГЛАВНУЮ", "HOME"),
       },
       {
-        onNext: () => this.changeLevel(1),
+        onNext: () => this.scene.restart({
+          mode: PlayMode.ENDLESS,
+          level: 0,
+          runSeed: createEndlessRunSeed(),
+        }),
         onHome: () => this.openMainMenu(),
       },
     );
@@ -1236,28 +1206,6 @@ export class BoardScene extends Phaser.Scene {
       duration: positions.length > 0 ? 760 : 1050,
       ease: "Cubic.Out",
       onComplete: () => popup.destroy(),
-    });
-  }
-
-  animateEndlessScore(targetScore: number): void {
-    if (this.mode !== PlayMode.ENDLESS) return;
-    this.endlessScoreTween?.stop();
-    const counter = { value: this.displayedEndlessScore };
-    const distance = Math.max(1, targetScore - this.displayedEndlessScore);
-    this.endlessScoreTween = this.tweens.add({
-      targets: counter,
-      value: targetScore,
-      duration: Math.min(900, 220 + Math.sqrt(distance) * 12),
-      ease: "Cubic.Out",
-      onUpdate: () => {
-        this.displayedEndlessScore = Math.round(counter.value);
-        this.updateEndlessHud();
-      },
-      onComplete: () => {
-        this.displayedEndlessScore = targetScore;
-        this.endlessScoreTween = undefined;
-        this.updateEndlessHud();
-      },
     });
   }
 
@@ -1349,7 +1297,6 @@ export class BoardScene extends Phaser.Scene {
     if (this.actualDeadEnd) {
       this.positionSolveStatus = SolveStatus.DEAD_END;
       this.knownWinningRoute = [];
-      if (this.mode === PlayMode.ENDLESS) this.endlessRunOver = true;
       return { status: SolveStatus.DEAD_END, route: [] };
     }
 
@@ -1396,6 +1343,25 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       this.restoreCampaignSessionBoard(
+        this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"),
+      );
+      return;
+    }
+    if (this.mode === PlayMode.ENDLESS) {
+      const session = this.endlessSession;
+      if (!session) return;
+      if (session.deadEnd) {
+        this.showEndlessCompletion();
+        return;
+      }
+      const snapshot = session.undoSnapshot();
+      if (!snapshot) {
+        this.status.setText(this.uiText("ПОКА НЕЧЕГО ОТМЕНЯТЬ", "NOTHING TO UNDO YET"));
+        this.hud.setUndoEnabled(false);
+        return;
+      }
+      this.restoreEndlessSessionBoard(
+        snapshot.pieces,
         this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"),
       );
       return;
@@ -1512,6 +1478,129 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  async requestEndlessHint(): Promise<void> {
+    const session = this.endlessSession;
+    if (
+      this.mode !== PlayMode.ENDLESS ||
+      !session ||
+      !this.board ||
+      this.board.won ||
+      session.deadEnd ||
+      this.rewardedAdPending
+    ) return;
+
+    this.hud.setHintBusy(true);
+    this.rewardedAdPending = true;
+    try {
+      const analysis = this.assistance.findHint(
+        this.board.pieces(),
+        this.certifiedSolution,
+      );
+      const move = analysis.route[0];
+      if (analysis.status !== SolveStatus.SOLVED || !move || move.length === 0) {
+        this.status.setText(
+          this.uiText(
+            "ПОДСКАЗКА СЕЙЧАС НЕДОСТУПНА",
+            "NO VERIFIED HINT AVAILABLE",
+          ),
+        );
+        return;
+      }
+
+      const rewarded = await this.assistance.confirmReward(true);
+      if (!rewarded) {
+        this.status.setText(
+          this.uiText("ПОДСКАЗКА НЕ ПОЛУЧЕНА", "HINT WAS NOT GRANTED"),
+        );
+        return;
+      }
+
+      session.markHintUsed();
+      this.clearMoveHint(false);
+      this.activeHintKeys = new Set(move.map(hexKey));
+      this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
+        this.hintTimer = undefined;
+        this.activeHintKeys.clear();
+        this.render();
+      });
+      this.status.setText(
+        this.uiText(
+          "ПОДСВЕЧЕН ХОД, ДЛЯ КОТОРОГО НАЙДЕН ПУТЬ ДО ПОЛНОЙ ЗАЧИСТКИ",
+          "HIGHLIGHTED MOVE HAS A VERIFIED PATH TO A FULL CLEAR",
+        ),
+      );
+      this.render();
+    } finally {
+      this.rewardedAdPending = false;
+      this.hud.setHintBusy(this.busy);
+      this.render();
+    }
+  }
+
+  async requestEndlessRescue(): Promise<void> {
+    const session = this.endlessSession;
+    if (
+      this.mode !== PlayMode.ENDLESS ||
+      !session ||
+      !this.board ||
+      !session.canRescue() ||
+      this.rewardedAdPending
+    ) return;
+
+    this.hud.setHintBusy(true);
+    this.rewardedAdPending = true;
+    try {
+      const rescue = this.assistance.findRescue(
+        session.history,
+        this.board.pieces(),
+        this.certifiedSolution,
+      );
+      if (rescue.status !== SolveStatus.SOLVED) {
+        this.status.setText(
+          this.uiText(
+            "НЕ УДАЛОСЬ НАДЁЖНО НАЙТИ ТОЧКУ СПАСЕНИЯ",
+            "NO SAFE RESCUE POINT COULD BE VERIFIED",
+          ),
+        );
+        return;
+      }
+
+      const rewarded = await this.assistance.confirmReward(true);
+      if (!rewarded) {
+        this.status.setText(
+          this.uiText("СПАСЕНИЕ НЕ ПОЛУЧЕНО", "RESCUE WAS NOT GRANTED"),
+        );
+        return;
+      }
+      if (!session.markRescueUsed()) return;
+
+      session.history.splice(rescue.index);
+      this.board = new GardenBoard(rescue.snapshot.pieces);
+      this.actualDeadEnd = false;
+      this.positionSolveStatus = SolveStatus.SOLVED;
+      this.knownWinningRoute = rescue.route;
+      this.blockedMoveKey =
+        rescue.blockedMove.length > 0 ? moveKey(rescue.blockedMove) : undefined;
+      this.clearPanelHighlight(false);
+      this.clearMoveHint(false);
+      this.status.setText(
+        this.uiText(
+          "ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ",
+          "RESTORED LAST SOLVABLE POSITION",
+        ),
+      );
+      this.setBusy(false);
+      this.rebuildPieceViews();
+      this.updateEconomyUi();
+      this.layout();
+      this.render();
+    } finally {
+      this.rewardedAdPending = false;
+      this.hud.setHintBusy(this.busy);
+      this.render();
+    }
+  }
+
   useHint(type: HintTypeValue): void {
     if (
       this.busy ||
@@ -1529,6 +1618,15 @@ export class BoardScene extends Phaser.Scene {
     }
     if (type === HintType.MOVE && this.mode === PlayMode.CAMPAIGN) {
       void this.useCampaignHint();
+      return;
+    }
+    if (type === HintType.MOVE && this.mode === PlayMode.ENDLESS) {
+      if (this.endlessSession?.deadEnd) void this.requestEndlessRescue();
+      else void this.requestEndlessHint();
+      return;
+    }
+    if (type === HintType.RESCUE && this.mode === PlayMode.ENDLESS) {
+      void this.requestEndlessRescue();
       return;
     }
     if (
@@ -1600,7 +1698,6 @@ export class BoardScene extends Phaser.Scene {
       } else {
         this.attemptState = markSolverAssisted(this.attemptState);
       }
-      this.markEndlessAssisted();
       this.clearMoveHint(false);
       this.activeHintKeys = new Set(move.map(hexKey));
       this.hintTimer = this.time.delayedCall(MOVE_HINT_DURATION_MS, () => {
@@ -1625,7 +1722,6 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       if (!this.economy.consumeHint(type)) return;
-      this.markEndlessAssisted();
       this.restoreLastRemoval("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО");
       return;
     }
@@ -1663,7 +1759,6 @@ export class BoardScene extends Phaser.Scene {
       }
       if (!this.economy.consumeHint(type)) return;
       this.attemptState = markRescueUsed(this.attemptState);
-      this.markEndlessAssisted();
       this.restoreHistorySnapshot(
         rescue.index,
         this.uiText("ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ   ·   ТУПИКОВЫЙ ХОД ЗАБЛОКИРОВАН", "RESTORED LAST SOLVABLE POSITION   ·   DEAD-END MOVE BLOCKED"),
@@ -1798,10 +1893,26 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  markEndlessAssisted(): void {
-    if (this.mode === PlayMode.ENDLESS) this.endlessAssisted = true;
+  restoreEndlessSessionBoard(
+    pieces: readonly BoardPieceInput[],
+    message: string,
+    { blockedMove = [], winningRoute }: RestoreOptions = {},
+  ): void {
+    if (this.mode !== PlayMode.ENDLESS || !this.endlessSession) return;
+    this.board = new GardenBoard(pieces);
+    this.actualDeadEnd = false;
+    this.positionSolveStatus = SolveStatus.SOLVED;
+    this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
+    this.blockedMoveKey = blockedMove.length > 0 ? moveKey(blockedMove) : undefined;
+    this.clearPanelHighlight(false);
+    this.clearMoveHint(false);
+    this.status.setText(message);
+    this.setBusy(false);
+    this.rebuildPieceViews();
+    this.updateEconomyUi();
+    this.layout();
+    this.render();
   }
-
 
   restoreCampaignSessionBoard(
     message: string,
@@ -1838,14 +1949,10 @@ export class BoardScene extends Phaser.Scene {
     if (!snapshot) return;
     this.removalHistory.splice(index);
     this.board = new GardenBoard(snapshot.pieces);
-    this.endlessScoreState = Object.freeze({ ...snapshot.endlessScoreState });
     this.campaignLevelScore = snapshot.campaignLevelScore;
-    this.displayedEndlessScore = this.endlessScoreState.score;
     this.displayedCampaignScore =
       this.progress.snapshot.campaignScore + this.campaignLevelScore;
-    this.endlessScoreTween?.stop();
     this.campaignScoreTween?.stop();
-    this.endlessRunOver = false;
     this.actualDeadEnd = false;
     this.positionSolveStatus = SolveStatus.SOLVED;
     this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
@@ -2281,8 +2388,16 @@ export class BoardScene extends Phaser.Scene {
     this.hud.setHintBusy(value);
     const canUndo = this.mode === PlayMode.CAMPAIGN
       ? this.campaignSession?.canUndo === true
+      : this.mode === PlayMode.DAILY
+      ? this.dailySession?.canUndo === true
+      : this.mode === PlayMode.ENDLESS
+      ? this.endlessSession?.canUndo() === true
       : this.removalHistory.length > 0 && !this.board?.won;
     this.hud.setUndoEnabled(!value && canUndo);
+    this.hud.setEndlessDeadEndState(
+      this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true,
+      this.endlessSession?.canRescue() === true,
+    );
   }
 
   layout(): void {
@@ -2604,8 +2719,14 @@ export class BoardScene extends Phaser.Scene {
       ? this.campaignSession?.canUndo === true
       : this.mode === PlayMode.DAILY
       ? this.dailySession?.canUndo === true
+      : this.mode === PlayMode.ENDLESS
+      ? this.endlessSession?.canUndo() === true
       : this.removalHistory.length > 0 && !this.board?.won;
     this.hud.setUndoEnabled(!this.busy && canUndo);
+    this.hud.setEndlessDeadEndState(
+      this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true,
+      this.endlessSession?.canRescue() === true,
+    );
     this.updateEndlessHud();
     this.updateCampaignHud();
     this.updateEconomyUi();

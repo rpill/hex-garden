@@ -25,6 +25,8 @@ export class BoardHud {
 
   readonly #label: (russian: string, english: string) => string;
   #hintBusy = false;
+  #endlessDeadEnd = false;
+  #endlessRescueAvailable = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -77,14 +79,43 @@ export class BoardHud {
   }
 
   setUndoEnabled(enabled: boolean): void {
+    if (this.#endlessDeadEnd) {
+      this.undoButton.setEnabled(!this.#hintBusy);
+      return;
+    }
     this.undoButton.setEnabled(enabled);
   }
 
   setHintBusy(busy: boolean): void {
     this.#hintBusy = busy;
+    this.#refreshActionPresentation();
+  }
+
+  setEndlessDeadEndState(active: boolean, rescueAvailable = false): void {
+    this.#endlessDeadEnd = active;
+    this.#endlessRescueAvailable = active && rescueAvailable;
+    this.#refreshActionPresentation();
+  }
+
+  #refreshActionPresentation(): void {
+    if (this.#endlessDeadEnd) {
+      this.undoButton
+        .setLabel(this.#label("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"))
+        .setEnabled(!this.#hintBusy);
+      this.hintButton
+        .setLabel(
+          this.#hintBusy
+            ? this.#label("ИЩЕМ…", "CHECKING…")
+            : this.#label("СПАСТИ ЗАБЕГ", "RESCUE RUN"),
+        )
+        .setEnabled(this.#endlessRescueAvailable && !this.#hintBusy);
+      return;
+    }
+
+    this.undoButton.setLabel(this.#label("ОТМЕНА", "UNDO"));
     this.hintButton
-      .setLabel(busy ? this.#label("ИЩЕМ…", "CHECKING…") : this.#label("ПОДСКАЗКА", "HINT"))
-      .setEnabled(!busy);
+      .setLabel(this.#hintBusy ? this.#label("ИЩЕМ…", "CHECKING…") : this.#label("ПОДСКАЗКА", "HINT"))
+      .setEnabled(!this.#hintBusy);
   }
 
   layout(width: number, height: number): void {
