@@ -26,15 +26,12 @@ import {
   rewardedAmountForHint,
 } from "../../economy.js";
 import {
-  boardClearBaseScore,
   createEndlessScoreState,
-  nextStreakMultiplier,
   scoreClearedBoard,
   scoreRemovedAtoms,
   SCORE_PER_REMOVED_ATOM,
   streakMultiplier,
   type EndlessScoreState,
-  type ScoreAwardResult,
 } from "../../endless-score.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
 import type { ProgressionLevelDefinition } from "../../progression.js";
@@ -43,7 +40,6 @@ import {
   campaignPostCompletionDestination,
   type CampaignHomeReveal,
 } from "../../campaign-routing.js";
-import { ENDLESS_REQUIRED_COMPLETIONS } from "../../mode-access.js";
 import { BOARD_CENTER, enumerateBoardCells, hexKey, type HexCoord } from "../../hex.js";
 import {
   PANEL_METAL_TYPES,
@@ -52,6 +48,7 @@ import {
 } from "../../panel-state.js";
 import { mechanicIntroductionForLevel } from "../../mechanic-introductions.js";
 import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
+import { masteryRank, type MasteryRankValue } from "../../mastery.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEconomy } from "../economy.js";
 import { getLeaderboard } from "../leaderboard.js";
@@ -202,16 +199,7 @@ type RestoreOptions = {
 type CampaignCompletionArgs = {
   snapshot: CampaignProgressSnapshot;
   progressBefore: CampaignProgressSnapshot;
-  scoreAward: number;
-  dustAward: number;
-  dustTotal: number;
-  unlockedEndless: boolean;
-};
-
-type EndlessCompletionArgs = {
-  clearScore: Readonly<ScoreAwardResult>;
-  dustAward: number;
-  dustTotal: number;
+  clean: boolean;
 };
 
 type PositionAnalysis = Readonly<{
@@ -1012,51 +1000,16 @@ export class BoardScene extends Phaser.Scene {
         } else if (this.mode === PlayMode.CAMPAIGN) {
           const progressBefore = this.progress.snapshot;
           const alreadyCompleted = this.progress.isCompleted(this.level);
-          const shouldRecordScore =
-            this.campaignScoringActive &&
-            this.progress.snapshot.levelScores[this.level] === 0;
-          let clearAward = 0;
-          if (shouldRecordScore) {
-            clearAward = boardClearBaseScore(
-              1 + 3 * this.plateRadius * (this.plateRadius + 1),
-            );
-            this.campaignLevelScore += clearAward;
-            this.showScorePopup(
-              [],
-              `CLEAR +${formatScore(clearAward)}`,
-              "#77dc91",
-            );
-          }
-          const snapshot = this.progress.complete(this.level, {
-            score: shouldRecordScore ? this.campaignLevelScore : 0,
-          });
-          this.leaderboard.syncCampaignScore(snapshot.campaignScore);
-          const dust = this.economy.claimCampaignLevel(
-            this.level,
-            1 + 3 * this.plateRadius * (this.plateRadius + 1),
-          );
+          const clean = this.campaignSession?.cleanEligible === true;
+          const snapshot = this.progress.complete(this.level, { clean });
           this.campaignScoringActive = false;
-          this.animateCampaignScore(snapshot.campaignScore);
           if (snapshot.campaignCompleted) {
-            message = `CAMPAIGN COMPLETE   SCORE ${formatScore(snapshot.campaignScore)}`;
+            message = this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE");
           } else if (!alreadyCompleted && !this.progress.testMode) {
-            message =
-              `BOARD CLEARED - LEVEL ${this.level + 2} UNLOCKED`;
+            message = `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${this.level + 2}`;
           }
-          if (dust.award > 0) message += `   +${dust.award} ПЫЛИ`;
-          const unlockedEndless =
-            !alreadyCompleted &&
-            !this.progress.testMode &&
-            snapshot.solvedLevels.length === ENDLESS_REQUIRED_COMPLETIONS;
           completionAfterRebuild = () =>
-            this.showCampaignCompletion({
-              snapshot,
-              progressBefore,
-              scoreAward: shouldRecordScore ? this.campaignLevelScore : 0,
-              dustAward: dust.award,
-              dustTotal: dust.snapshot.dust,
-              unlockedEndless,
-            });
+            this.showCampaignCompletion({ snapshot, progressBefore, clean });
         } else if (this.mode === PlayMode.ENDLESS) {
           const clearScore = scoreClearedBoard(
             this.endlessScoreState,
@@ -1075,12 +1028,7 @@ export class BoardScene extends Phaser.Scene {
           message =
             `BOARD CLEARED   STREAK ${this.endlessScoreState.streak}   ` +
             `×${formatMultiplier(clearScore.multiplier)}   +${dust.award} ПЫЛИ`;
-          completionAfterRebuild = () =>
-            this.showEndlessCompletion({
-              clearScore,
-              dustAward: dust.award,
-              dustTotal: dust.snapshot.dust,
-            });
+          completionAfterRebuild = () => this.showEndlessCompletion();
         }
         this.setBusy(false);
       } else {
@@ -1101,108 +1049,64 @@ export class BoardScene extends Phaser.Scene {
   showCampaignCompletion({
     snapshot,
     progressBefore,
-    scoreAward,
-    dustAward,
-    dustTotal,
-    unlockedEndless,
+    clean,
   }: CampaignCompletionArgs): void {
-    const completed = snapshot.completedLevels.length;
-    const campaignComplete = snapshot.campaignCompleted;
     const firstCompletion = !progressBefore.solvedLevels.includes(this.level);
     const plannedDestination = campaignPostCompletionDestination(this.level);
     const destination =
       !firstCompletion && plannedDestination.kind === "home" && plannedDestination.reveal !== "campaign-complete"
         ? Object.freeze({ kind: "next" as const, level: this.level + 1 })
         : plannedDestination;
-    const chapterMilestone = firstCompletion && (
-      this.level === 9 ||
-      this.level === 19 ||
-      this.level === 29 ||
-      this.level === 39 ||
-      this.level === 49
-    );
-    const chapterNumber = Math.floor(this.level / 10) + 1;
-    const title = campaignComplete
-      ? this.uiText("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE")
-      : chapterMilestone
-      ? `${this.uiText("ГЛАВА", "CHAPTER")} ${chapterNumber} ${this.uiText("ЗАВЕРШЕНА", "COMPLETE")}`
-      : this.uiText("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE");
-    const revealText = destination.kind === "home"
-      ? destination.reveal === "daily"
-        ? this.uiText("DAILY ОТКРЫТ", "DAILY UNLOCKED")
-        : destination.reveal === "endless"
-        ? this.uiText("ENDLESS ОТКРЫТ", "ENDLESS UNLOCKED")
-        : this.uiText("МАСТЕРСТВО КАМПАНИИ ДОСТУПНО НА ГЛАВНОЙ", "CAMPAIGN MASTERY IS AVAILABLE FROM HOME")
-      : undefined;
+    const chapterComplete = this.level % 10 === 9;
+    const chapterStart = Math.floor(this.level / 10) * 10;
+    const chapterCleanCount = snapshot.cleanLevels.filter(
+      (level) => level >= chapterStart && level < chapterStart + 10,
+    ).length;
+    const previousRank = masteryRank(progressBefore.cleanLevels.length);
+    const currentRank = masteryRank(snapshot.cleanLevels.length);
+    const newRank: MasteryRankValue | undefined = currentRank !== previousRank ? currentRank : undefined;
+
+    const actions = destination.kind === "home"
+      ? {
+          onHome: () => this.openMainMenu(destination.reveal),
+          ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
+        }
+      : {
+          onNext: () => {
+            this.level = destination.level;
+            this.loadLevel();
+          },
+          ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
+        };
 
     this.completionOverlay.show(
       {
-        title,
-        subtitle: `${this.uiText("УРОВЕНЬ", "LEVEL")} ${String(this.level + 1).padStart(2, "0")} / ${CAMPAIGN_LEVEL_COUNT}`,
-        scoreAward,
-        totalScore: snapshot.campaignScore,
-        dustAward,
-        dustTotal,
-        progressStart: progressBefore.completedLevels.length,
-        progressEnd: completed,
-        progressMax: CAMPAIGN_LEVEL_COUNT,
-        progressText: (value) =>
-          `${this.uiText("ПРОГРЕСС КАМПАНИИ", "CAMPAIGN PROGRESS")}  ${Math.round(value)} / ${CAMPAIGN_LEVEL_COUNT}`,
-        unlockText: revealText ?? (unlockedEndless
-          ? this.uiText("ОТКРЫТ НОВЫЙ РЕЖИМ: ENDLESS", "NEW MODE UNLOCKED: ENDLESS")
-          : campaignComplete
-          ? this.uiText("ВСЕ УРОВНИ ПРОЙДЕНЫ", "ALL LEVELS COMPLETE")
-          : `${this.uiText("ОТКРЫТ УРОВЕНЬ", "LEVEL UNLOCKED")} ${Math.min(CAMPAIGN_LEVEL_COUNT, this.level + 2)}`),
-        continueLabel: destination.kind === "home"
-          ? this.uiText("НА ГЛАВНУЮ", "HOME")
-          : destination.kind === "chapter-next"
-          ? this.uiText("СЛЕДУЮЩАЯ ГЛАВА", "NEXT CHAPTER")
-          : this.uiText("СЛЕДУЮЩИЙ УРОВЕНЬ", "NEXT LEVEL"),
-        exitLabel: this.uiText("К ВЫБОРУ УРОВНЕЙ", "LEVEL SELECT"),
+        kind: "campaign",
+        level: this.level,
+        clean,
+        cleanCount: snapshot.cleanLevels.length,
+        chapterComplete,
+        chapterCleanCount,
+        ...(newRank ? { newRank } : {}),
       },
-      {
-        onContinue: () => {
-          if (destination.kind === "home") {
-            this.openMainMenu(destination.reveal);
-            return;
-          }
-          this.level = destination.level;
-          this.loadLevel();
-        },
-        onExit: () => this.openLevelSelect(),
-      },
+      actions,
     );
   }
 
-  showEndlessCompletion({ clearScore, dustAward, dustTotal }: EndlessCompletionArgs): void {
+  showEndlessCompletion(): void {
     const streak = this.endlessScoreState.streak;
-    const next = nextStreakMultiplier(streak);
-    const progressMax = next?.streak ?? Math.max(1, streak);
     this.completionOverlay.show(
       {
+        kind: "simple",
         title: this.uiText("ПОЛЕ ОЧИЩЕНО", "BOARD CLEARED"),
-        subtitle: `${this.uiText("ПОЛЕ", "BOARD")} ${String(this.level + 1).padStart(2, "0")}   ·   ${this.uiText("СЕРИЯ", "STREAK")} ${streak}`,
-        scoreAward:
-          this.endlessScoreState.score - this.endlessBoardStartScore,
-        totalScore: this.endlessScoreState.score,
-        dustAward,
-        dustTotal,
-        progressStart: Math.max(0, streak - 1),
-        progressEnd: streak,
-        progressMax,
-        progressText: (value) =>
-          next
-            ? `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)} / ${next.streak}   ${this.uiText("ДО", "TO")} ×${formatMultiplier(next.multiplier)}`
-            : `${this.uiText("СЕРИЯ", "STREAK")}  ${Math.round(value)}   ·   ${this.uiText("МАКСИМАЛЬНЫЙ МНОЖИТЕЛЬ", "MAX MULTIPLIER")}`,
-        unlockText:
-          `${this.uiText("БОНУС ОЧИСТКИ", "CLEAR BONUS")} ×${formatMultiplier(clearScore.multiplier)}` +
-          (this.endlessAssisted ? "   ·   ASSISTED" : ""),
-        continueLabel: this.uiText("СЛЕДУЮЩЕЕ ПОЛЕ", "NEXT BOARD"),
-        exitLabel: this.uiText("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"),
+        status: `${this.uiText("ПОЛЕ", "BOARD")} ${String(this.level + 1).padStart(2, "0")} · ${this.uiText("СЕРИЯ", "STREAK")} ${streak}`,
+        detail: this.endlessAssisted ? this.uiText("С ПОМОЩЬЮ", "ASSISTED") : "",
+        primaryLabel: this.uiText("СЛЕДУЮЩЕЕ ПОЛЕ", "NEXT BOARD"),
+        homeLabel: this.uiText("ЗАВЕРШИТЬ ЗАБЕГ", "END RUN"),
       },
       {
-        onContinue: () => this.changeLevel(1),
-        onExit: () => this.openMainMenu(),
+        onNext: () => this.changeLevel(1),
+        onHome: () => this.openMainMenu(),
       },
     );
   }

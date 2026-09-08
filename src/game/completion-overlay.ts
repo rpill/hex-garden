@@ -1,463 +1,310 @@
 import type Phaser from "phaser";
-import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../art-assets.js";
+import type { MasteryRankValue } from "../mastery.js";
+import { CAMPAIGN_LEVEL_COUNT } from "../plates.js";
+import { CAMPAIGN_CHAPTERS } from "./chapter-model.js";
 import {
-  COMPLETION_DEPTHS,
-  completionActionMetrics,
-  completionCardMetrics,
-} from "./presentation-layout.js";
+  createCampaignCompletionPresentation,
+  type CampaignCompletionPresentationInput,
+} from "./completion-presentation.js";
 import {
-  makeButton,
-  makeCurrencyDisplay,
-  makePanel,
-  makeText,
-  resizeNineSlice,
-} from "./ui.js";
+  MINIMAL_UI_COLORS,
+  makeMinimalButton,
+  makeMinimalCard,
+  makeMinimalText,
+  type MinimalButton,
+} from "./minimal-ui.js";
+import { COMPLETION_DEPTHS } from "./presentation-layout.js";
 
-function formatNumber(value: number): string {
-  return Math.round(value).toLocaleString("ru-RU");
+export interface CampaignCompletionOverlayData extends CampaignCompletionPresentationInput {
+  kind: "campaign";
+  chapterCleanCount: number;
 }
 
-
-export interface CompletionOverlayData {
+export interface SimpleCompletionOverlayData {
+  kind: "simple";
   title: string;
-  subtitle: string;
-  scoreAward: number;
-  totalScore: number;
-  dustAward: number;
-  dustTotal: number;
-  progressStart: number;
-  progressEnd: number;
-  progressMax: number;
-  progressText: (value: number) => string;
-  unlockText?: string;
-  continueLabel: string;
-  exitLabel: string;
-  compactTransition?: boolean;
+  status: string;
+  detail?: string;
+  primaryLabel: string;
+  homeLabel?: string;
 }
+
+export type CompletionOverlayData = CampaignCompletionOverlayData | SimpleCompletionOverlayData;
 
 export interface CompletionOverlayActions {
-  onContinue: () => void;
-  onExit: () => void;
+  onNext?: () => void;
+  onTryClean?: () => void;
+  onHome?: () => void;
 }
 
 type CompletionScene = Phaser.Scene & { english?: boolean };
 
+type RankLabel = Readonly<{ ru: string; en: string }>;
+
+const RANK_LABELS: Readonly<Record<MasteryRankValue, RankLabel>> = Object.freeze({
+  novice: Object.freeze({ ru: "НОВИЧОК", en: "NOVICE" }),
+  apprentice: Object.freeze({ ru: "УЧЕНИК", en: "APPRENTICE" }),
+  adept: Object.freeze({ ru: "ЗНАТОК", en: "ADEPT" }),
+  strategist: Object.freeze({ ru: "СТРАТЕГ", en: "STRATEGIST" }),
+  expert: Object.freeze({ ru: "ЭКСПЕРТ", en: "EXPERT" }),
+  master: Object.freeze({ ru: "МАСТЕР", en: "MASTER" }),
+});
+
 export class CompletionOverlay {
   readonly scene: CompletionScene;
-  visible: boolean;
+  visible = false;
   data: CompletionOverlayData | undefined;
-  counter: { score: number; dust: number; progress: number };
-  readonly graphics: Phaser.GameObjects.Graphics;
-  readonly card: ReturnType<typeof makePanel>;
-  readonly progressGraphics: Phaser.GameObjects.Graphics;
+  readonly dim: Phaser.GameObjects.Graphics;
+  readonly card: Phaser.GameObjects.Graphics;
   readonly hitZone: Phaser.GameObjects.Zone;
-  readonly icon: Phaser.GameObjects.Image;
   readonly title: Phaser.GameObjects.Text;
-  readonly subtitle: Phaser.GameObjects.Text;
-  readonly score: Phaser.GameObjects.Text;
-  readonly total: Phaser.GameObjects.Text;
-  readonly dust: ReturnType<typeof makeCurrencyDisplay>;
-  readonly dustBalance: Phaser.GameObjects.Text;
-  readonly progress: Phaser.GameObjects.Text;
-  readonly unlock: Phaser.GameObjects.Text;
-  readonly continueButton: ReturnType<typeof makeButton>;
-  readonly exitButton: ReturnType<typeof makeButton>;
-  onContinue: (() => void) | undefined;
-  onExit: (() => void) | undefined;
-  fadeTween: Phaser.Tweens.Tween | undefined;
-  countTween: Phaser.Tweens.Tween | undefined;
-  buttonTween: Phaser.Tweens.Tween | undefined;
-  revealTimer: Phaser.Time.TimerEvent | undefined;
-  cardWidth = 0;
-  cardHeight = 0;
-  cardX = 0;
-  cardY = 0;
+  readonly status: Phaser.GameObjects.Text;
+  readonly detail: Phaser.GameObjects.Text;
+  readonly mastery: Phaser.GameObjects.Text;
+  readonly rank: Phaser.GameObjects.Text;
+  readonly primaryButton: MinimalButton;
+  readonly secondaryButton: MinimalButton;
+
+  #onNext: (() => void) | undefined;
+  #onTryClean: (() => void) | undefined;
+  #onHome: (() => void) | undefined;
+
   constructor(scene: CompletionScene) {
     this.scene = scene;
-    this.visible = false;
-    this.data = undefined;
-    this.counter = { score: 0, dust: 0, progress: 0 };
-    this.graphics = scene.add.graphics().setDepth(COMPLETION_DEPTHS.dim).setVisible(false);
-    this.card = makePanel(scene, UI_FRAMES.panelMainMedium, COMPLETION_DEPTHS.card).setVisible(false);
-    this.progressGraphics = scene.add.graphics().setDepth(COMPLETION_DEPTHS.progress).setVisible(false);
+    this.dim = scene.add.graphics().setDepth(COMPLETION_DEPTHS.dim).setVisible(false);
+    this.card = makeMinimalCard(scene, 420, 300).setDepth(COMPLETION_DEPTHS.card).setVisible(false);
     this.hitZone = scene.add.zone(0, 0, 1, 1).setDepth(COMPLETION_DEPTHS.card + 1).setVisible(false);
-    this.icon = scene.add
-      .image(0, 0, GAMEPLAY_UI_FRAMES.success)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false);
-    this.title = makeText(scene, "", 24, "#eef3f8")
+    this.title = makeMinimalText(scene, "", 23)
       .setOrigin(0.5)
       .setFontStyle("bold")
       .setDepth(COMPLETION_DEPTHS.content)
       .setVisible(false);
-    this.subtitle = makeText(scene, "", 11, "#9aa7b5")
+    this.status = makeMinimalText(scene, "", 18)
       .setOrigin(0.5)
       .setDepth(COMPLETION_DEPTHS.content)
       .setVisible(false);
-    this.score = makeText(scene, "", 22, "#77dc91")
+    this.detail = makeMinimalText(scene, "", 13, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5)
+      .setDepth(COMPLETION_DEPTHS.content)
+      .setVisible(false);
+    this.mastery = makeMinimalText(scene, "", 14, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5)
+      .setDepth(COMPLETION_DEPTHS.content)
+      .setVisible(false);
+    this.rank = makeMinimalText(scene, "", 13)
       .setOrigin(0.5)
       .setFontStyle("bold")
       .setDepth(COMPLETION_DEPTHS.content)
       .setVisible(false);
-    this.total = makeText(scene, "", 12, "#9aa7b5")
-      .setOrigin(0.5)
+    this.primaryButton = makeMinimalButton(scene, "", () => this.activatePrimary())
       .setDepth(COMPLETION_DEPTHS.content)
       .setVisible(false);
-    this.dust = makeCurrencyDisplay(
-      scene,
-      GAMEPLAY_UI_FRAMES.dust,
-      0,
-      { iconSize: 23, fontSize: 16, color: "#f3c94f" },
-    )
+    this.secondaryButton = makeMinimalButton(scene, "", () => this.activateSecondary())
       .setDepth(COMPLETION_DEPTHS.content)
       .setVisible(false);
-    this.dustBalance = makeText(scene, "", 12, "#9aa7b5")
-      .setOrigin(0, 0.5)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false);
-    this.progress = makeText(scene, "", 12, "#eef3f8")
-      .setOrigin(0.5)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false);
-    this.unlock = makeText(scene, "", 12, "#f3c94f")
-      .setOrigin(0.5)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false);
-    this.continueButton = makeButton(scene, "ДАЛЬШЕ", () => this.continue(), 14)
-      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false)
-      .disableInteractive();
-    this.exitButton = makeButton(scene, "К УРОВНЯМ", () => this.exit(), 12)
-      .setIcon(GAMEPLAY_UI_FRAMES.back, 18)
-      .setDepth(COMPLETION_DEPTHS.content)
-      .setVisible(false)
-      .disableInteractive();
   }
 
-  show(data: CompletionOverlayData, { onContinue, onExit }: CompletionOverlayActions): void {
+  show(data: CompletionOverlayData, actions: CompletionOverlayActions): void {
     this.hide();
     this.visible = true;
     this.data = data;
-    this.onContinue = onContinue;
-    this.onExit = onExit;
-    this.counter = {
-      score: 0,
-      dust: 0,
-      progress: data.progressStart,
-    };
+    this.#onNext = actions.onNext;
+    this.#onTryClean = actions.onTryClean;
+    this.#onHome = actions.onHome;
 
-    const compactTransition = data.compactTransition === true;
-    this.graphics.setVisible(true).setAlpha(0);
-    this.progressGraphics.setVisible(!compactTransition).setAlpha(0);
-    this.card.setVisible(true).setAlpha(0);
-    this.icon.setVisible(true).setAlpha(0);
+    this.dim.setVisible(true);
+    this.card.setVisible(true);
     this.hitZone.setVisible(true).setInteractive();
-
-    const resultItems = [
-      this.subtitle,
-      this.score,
-      this.total,
-      this.dust,
-      this.dustBalance,
-      this.progress,
-      this.unlock,
-    ];
-    this.title.setVisible(true).setAlpha(0).setText(data.title);
-    for (const item of resultItems) {
-      item.setVisible(!compactTransition).setAlpha(0);
+    for (const text of [this.title, this.status, this.detail, this.mastery, this.rank]) {
+      text.setVisible(true);
     }
-    this.subtitle.setText(data.subtitle);
-    this.unlock.setText(data.unlockText ?? "");
-    this.continueButton
-      .setText(data.continueLabel)
-      .setVisible(true)
-      .setAlpha(0)
-      .disableInteractive();
-    this.exitButton
-      .setText(data.exitLabel)
-      .setVisible(!compactTransition)
-      .setAlpha(0)
-      .disableInteractive();
 
-    if (!compactTransition) this.updateText();
+    if (data.kind === "campaign") this.applyCampaignCopy(data);
+    else this.applySimpleCopy(data);
+
+    const hasPrimary = Boolean(this.#onNext ?? this.#onHome);
+    this.primaryButton.setVisible(hasPrimary).setEnabled(hasPrimary);
+    const showTryClean = data.kind === "campaign"
+      ? createCampaignCompletionPresentation(data).showTryClean && Boolean(this.#onTryClean)
+      : false;
+    const showHomeSecondary = data.kind === "simple" && Boolean(this.#onNext && this.#onHome);
+    const hasSecondary = showTryClean || showHomeSecondary;
+    this.secondaryButton.setVisible(hasSecondary).setEnabled(hasSecondary);
+
+    if (showTryClean) {
+      this.secondaryButton.setLabel(this.label("ПОПРОБОВАТЬ ЧИСТО", "TRY CLEAN"));
+    } else if (showHomeSecondary) {
+      this.secondaryButton.setLabel(data.kind === "simple" && data.homeLabel
+        ? data.homeLabel
+        : this.label("НА ГЛАВНУЮ", "HOME"));
+    }
+
     this.layout(this.scene.scale.width, this.scene.scale.height);
-    this.draw();
-
-    const fadeTargets = compactTransition
-      ? [this.graphics, this.card, this.icon, this.title]
-      : [
-          this.graphics,
-          this.progressGraphics,
-          this.card,
-          this.icon,
-          this.title,
-          ...resultItems,
-        ];
-    this.fadeTween = this.scene.tweens.add({
-      targets: fadeTargets,
-      alpha: 1,
-      duration: compactTransition ? 180 : 240,
-      ease: "Cubic.Out",
-    });
-
-    if (!compactTransition) {
-      this.countTween = this.scene.tweens.add({
-        targets: this.counter,
-        score: data.scoreAward,
-        dust: data.dustAward,
-        progress: data.progressEnd,
-        duration: 900,
-        ease: "Cubic.Out",
-        onUpdate: () => {
-          this.updateText();
-          this.draw();
-        },
-        onComplete: () => {
-          this.counter.score = data.scoreAward;
-          this.counter.dust = data.dustAward;
-          this.counter.progress = data.progressEnd;
-          this.updateText();
-          this.draw();
-        },
-      });
-    }
-
-    this.revealTimer = this.scene.time.delayedCall(
-      compactTransition ? 260 : 850,
-      () => {
-        if (!this.visible) return;
-        this.continueButton.setInteractive({ useHandCursor: true });
-        if (!compactTransition) {
-          this.exitButton.setInteractive({ useHandCursor: true });
-        }
-        const buttonTargets = compactTransition
-          ? [this.continueButton]
-          : [this.continueButton, this.exitButton];
-        this.buttonTween = this.scene.tweens.add({
-          targets: buttonTargets,
-          alpha: 1,
-          duration: 220,
-          ease: "Cubic.Out",
-        });
-      },
-    );
-  }
-
-  updateText(): void {
-    if (!this.data || this.data.compactTransition) return;
-    const english = this.scene.english;
-    const scoreAward = Math.round(this.counter.score);
-    const dustAward = Math.round(this.counter.dust);
-    const totalStart = this.data.totalScore - this.data.scoreAward;
-    const dustStart = this.data.dustTotal - this.data.dustAward;
-    this.score.setText(
-      this.data.scoreAward > 0
-        ? `+${formatNumber(scoreAward)}`
-        : english
-        ? "SCORE ALREADY CLAIMED"
-        : "ОЧКИ УЖЕ ЗАСЧИТАНЫ",
-    );
-    this.total.setText(
-      `${english ? "TOTAL SCORE" : "ОБЩИЙ СЧЁТ"}  ${formatNumber(
-        totalStart + scoreAward,
-      )}`,
-    );
-    if (this.data.dustAward > 0) {
-      this.dust.setSignedValue(dustAward);
-      this.dustBalance.setText(`→ ${formatNumber(dustStart + dustAward)}`);
-    } else {
-      this.dust.setValue(this.data.dustTotal);
-      this.dustBalance.setText("");
-    }
-    this.progress.setText(this.data.progressText(this.counter.progress));
   }
 
   layout(width: number, height: number): void {
     if (!this.visible || !this.data) return;
-    const compactTransition = this.data.compactTransition === true;
-    if (compactTransition) {
-      this.cardWidth = Math.min(width - 24, 440);
-      this.cardHeight = Math.min(height - 20, 230);
-      this.cardX = (width - this.cardWidth) / 2;
-      this.cardY = (height - this.cardHeight) / 2;
-      const centerX = width / 2;
-      const y = this.cardY;
-      this.hitZone.setPosition(width / 2, height / 2).setSize(width, height);
-      if (this.hitZone.input?.hitArea) {
-        this.hitZone.input.hitArea.setTo(0, 0, width, height);
-      }
-      resizeNineSlice(this.card, this.cardWidth, this.cardHeight);
-      this.card.setPosition(centerX, y + this.cardHeight / 2);
-      this.icon.setDisplaySize(52, 52).setPosition(centerX, y + 52);
-      this.title.setFontSize(width < 560 ? 20 : 24).setPosition(centerX, y + 105);
-      this.continueButton
-        .setFontSize(width < 560 ? 12 : 14)
-        .setFixedSize(Math.min(this.cardWidth - 52, 330), 46)
-        .setPosition(centerX, y + 174);
-      this.exitButton.setVisible(false).disableInteractive();
-      this.draw();
-      return;
-    }
-
-    const metrics = completionCardMetrics(width, height, {
-      hasUnlock: Boolean(this.data.unlockText),
-    });
-    const compact = metrics.compact;
-    const short = metrics.short;
-    this.cardWidth = metrics.width;
-    this.cardHeight = metrics.height;
-    this.cardX = (width - this.cardWidth) / 2;
-    this.cardY = (height - this.cardHeight) / 2;
+    const compact = width < 560;
+    const cardWidth = Math.min(width - 24, compact ? 430 : 480);
+    const hasSecondary = this.secondaryButton.visible;
+    const cardHeight = Math.min(height - 20, hasSecondary ? 350 : 306);
     const centerX = width / 2;
-    const y = this.cardY;
-    const hasUnlock = Boolean(this.data.unlockText);
+    const centerY = height / 2;
+    const top = centerY - cardHeight / 2;
 
-    this.hitZone.setPosition(width / 2, height / 2).setSize(width, height);
-    if (this.hitZone.input?.hitArea) {
-      this.hitZone.input.hitArea.setTo(0, 0, width, height);
-    }
-    resizeNineSlice(this.card, this.cardWidth, this.cardHeight);
-    this.card.setPosition(centerX, y + this.cardHeight / 2);
+    this.dim
+      .clear()
+      .fillStyle(0x000000, 0.74)
+      .fillRect(0, 0, width, height);
+    this.card
+      .clear()
+      .fillStyle(MINIMAL_UI_COLORS.surface, 1)
+      .fillRoundedRect(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight, 12)
+      .lineStyle(1, MINIMAL_UI_COLORS.border, 1)
+      .strokeRoundedRect(-cardWidth / 2 + 0.5, -cardHeight / 2 + 0.5, cardWidth - 1, cardHeight - 1, 12)
+      .setPosition(centerX, centerY);
+    this.hitZone.setPosition(centerX, centerY).setSize(width, height);
+    if (this.hitZone.input?.hitArea) this.hitZone.input.hitArea.setTo(0, 0, width, height);
 
-    const iconSize = short ? 42 : 50;
-    this.icon
-      .setDisplaySize(iconSize, iconSize)
-      .setPosition(centerX, y + (short ? 32 : 36));
+    const textWidth = Math.max(160, cardWidth - 48);
     this.title
-      .setFontSize(short ? 18 : compact ? 20 : 23)
-      .setPosition(centerX, y + (short ? 65 : 74));
-    this.subtitle
-      .setFontSize(short ? 9 : 11)
-      .setPosition(centerX, y + (short ? 87 : 98));
-    this.score
-      .setFontSize(short ? 18 : 23)
-      .setPosition(centerX, y + (short ? 118 : 132));
-    this.total
-      .setFontSize(short ? 10 : 12)
-      .setPosition(centerX, y + (short ? 146 : 162));
+      .setFontSize(compact ? 20 : 23)
+      .setFixedSize(textWidth, 0)
+      .setPosition(centerX, top + 44);
+    this.status
+      .setFontSize(compact ? 16 : 18)
+      .setFixedSize(textWidth, 0)
+      .setPosition(centerX, top + 88);
+    this.detail
+      .setFontSize(compact ? 12 : 13)
+      .setFixedSize(textWidth, 0)
+      .setPosition(centerX, top + 126);
+    this.mastery
+      .setFontSize(compact ? 12 : 14)
+      .setFixedSize(textWidth, 0)
+      .setPosition(centerX, top + 164);
+    this.rank
+      .setFontSize(compact ? 12 : 13)
+      .setFixedSize(textWidth, 0)
+      .setPosition(centerX, top + 198);
 
-    const rewardY = y + (short ? 176 : 194);
-    this.dust.setFontSize(short ? 13 : 16).setPosition(centerX - 18, rewardY);
-    this.dustBalance
-      .setFontSize(short ? 10 : 12)
-      .setPosition(centerX + 38, rewardY);
-    this.progress
-      .setFontSize(short ? 10 : 12)
-      .setPosition(centerX, y + (short ? 207 : 226));
-    this.unlock
-      .setFontSize(short ? 9 : 11)
-      .setWordWrapWidth(this.cardWidth - 56)
-      .setPosition(centerX, y + (short ? 246 : 268))
-      .setVisible(hasUnlock);
-
-    const primaryHeight = short ? 34 : 40;
-    const secondaryHeight = short ? 30 : 34;
-    const actions = completionActionMetrics(this.cardHeight, {
-      primaryHeight,
-      secondaryHeight,
-      gap: short ? 10 : 12,
-      bottomPadding: short ? 14 : 18,
-    });
-    this.continueButton
-      .setFontSize(short ? 11 : 13)
-      .setFixedSize(Math.min(this.cardWidth - 52, 330), primaryHeight)
-      .setPosition(centerX, y + actions.primaryY);
-    this.exitButton
-      .setFontSize(short ? 10 : 11)
-      .setFixedSize(Math.min(this.cardWidth - 90, 250), secondaryHeight)
-      .setPosition(centerX, y + actions.secondaryY);
-    this.draw();
-  }
-
-  draw(): void {
-    if (!this.visible || !this.data) return;
-    const { width, height } = this.scene.scale;
-    if (this.data.compactTransition) {
-      this.graphics.clear();
-      this.graphics.fillStyle(0x000000, 0.72).fillRect(0, 0, width, height);
-      this.progressGraphics.clear().setVisible(false);
-      return;
-    }
-    const barWidth = this.cardWidth - 86;
-    const barHeight = 9;
-    const barX = (width - barWidth) / 2;
-    const barY = this.progress.y + 19;
-    const range = Math.max(1, this.data.progressMax);
-    const ratio = Math.max(0, Math.min(1, this.counter.progress / range));
-    this.graphics.clear();
-    this.graphics.fillStyle(0x000000, 0.72).fillRect(0, 0, width, height);
-    this.progressGraphics.clear();
-    this.progressGraphics.fillStyle(0x0b0f14, 1).fillRoundedRect(
-      barX,
-      barY,
-      barWidth,
-      barHeight,
-      5,
-    );
-    this.progressGraphics.lineStyle(1, 0x4a5664, 0.8).strokeRoundedRect(
-      barX,
-      barY,
-      barWidth,
-      barHeight,
-      5,
-    );
-    if (ratio > 0) {
-      this.progressGraphics.fillStyle(0x68cf75, 1).fillRoundedRect(
-        barX,
-        barY,
-        barWidth * ratio,
-        barHeight,
-        5,
-      );
-    }
+    const buttonWidth = Math.min(cardWidth - 52, 330);
+    const primaryY = top + (hasSecondary ? cardHeight - 92 : cardHeight - 54);
+    this.primaryButton
+      .setPosition(centerX, primaryY)
+      .setSize(buttonWidth, 48);
+    this.secondaryButton
+      .setPosition(centerX, top + cardHeight - 36)
+      .setSize(Math.min(buttonWidth, 280), 40);
   }
 
   continue(): void {
-    if (!this.visible || this.continueButton.alpha < 1) return;
-    const callback = this.onContinue;
-    this.hide();
-    callback?.();
+    this.activatePrimary();
   }
 
   exit(): void {
-    if (!this.visible || this.exitButton.alpha < 1) return;
-    const callback = this.onExit;
+    if (!this.visible || !this.#onHome) return;
+    const callback = this.#onHome;
     this.hide();
-    callback?.();
+    callback();
   }
 
   hide(): void {
-    this.fadeTween?.stop();
-    this.countTween?.stop();
-    this.buttonTween?.stop();
-    this.revealTimer?.remove(false);
-    this.fadeTween = undefined;
-    this.countTween = undefined;
-    this.buttonTween = undefined;
-    this.revealTimer = undefined;
     this.visible = false;
     this.data = undefined;
-    this.graphics.clear().setVisible(false);
-    this.progressGraphics.clear().setVisible(false);
-    this.card.setVisible(false);
-    this.icon.setVisible(false);
+    this.#onNext = undefined;
+    this.#onTryClean = undefined;
+    this.#onHome = undefined;
+    this.dim.clear().setVisible(false);
+    this.card.clear().setVisible(false);
     this.hitZone.setVisible(false).disableInteractive();
     for (const item of [
       this.title,
-      this.subtitle,
-      this.score,
-      this.total,
-      this.dust,
-      this.dustBalance,
-      this.progress,
-      this.unlock,
-      this.continueButton,
-      this.exitButton,
+      this.status,
+      this.detail,
+      this.mastery,
+      this.rank,
+      this.primaryButton,
+      this.secondaryButton,
     ]) {
       item.setVisible(false);
     }
-    this.continueButton.disableInteractive();
-    this.exitButton.disableInteractive();
+    this.primaryButton.setEnabled(false);
+    this.secondaryButton.setEnabled(false);
+  }
+
+  private applyCampaignCopy(data: CampaignCompletionOverlayData): void {
+    const presentation = createCampaignCompletionPresentation(data);
+    const chapter = CAMPAIGN_CHAPTERS[presentation.chapterNumber - 1];
+    const chapterTitle = chapter
+      ? this.scene.english ? chapter.titleEn : chapter.titleRu
+      : `${this.label("ГЛАВА", "CHAPTER")} ${presentation.chapterNumber}`;
+
+    this.title.setText(
+      presentation.campaignComplete
+        ? this.label("КАМПАНИЯ ЗАВЕРШЕНА", "CAMPAIGN COMPLETE")
+        : data.chapterComplete
+          ? `${this.label("ГЛАВА", "CHAPTER")} ${presentation.chapterNumber} · ${chapterTitle}`
+          : this.label("УРОВЕНЬ ПРОЙДЕН", "LEVEL COMPLETE"),
+    );
+    this.status
+      .setText(data.clean
+        ? this.label("◆ ЧИСТОЕ РЕШЕНИЕ", "◆ CLEAN SOLUTION")
+        : this.label("ПРОЙДЕНО С ПОМОЩЬЮ", "SOLVED WITH HELP"))
+      .setColor(data.clean ? MINIMAL_UI_COLORS.text : MINIMAL_UI_COLORS.textMuted);
+    this.detail.setText(
+      data.chapterComplete
+        ? `10 / 10 ${this.label("ПРОЙДЕНО", "SOLVED")} · ◆ ${data.chapterCleanCount} / 10 ${this.label("ЧИСТО", "CLEAN")}`
+        : `${this.label("УРОВЕНЬ", "LEVEL")} ${String(data.level + 1).padStart(2, "0")} / ${CAMPAIGN_LEVEL_COUNT}`,
+    );
+    this.mastery.setText(`◆ ${this.label("ЧИСТО", "CLEAN")} ${data.cleanCount} / ${CAMPAIGN_LEVEL_COUNT}`);
+    this.rank.setText(data.newRank
+      ? `${this.label("НОВЫЙ РАНГ", "NEW RANK")}: ${this.rankLabel(data.newRank)}`
+      : "");
+
+    if (this.#onNext) {
+      this.primaryButton.setLabel(data.chapterComplete
+        ? this.label("СЛЕДУЮЩАЯ ГЛАВА", "NEXT CHAPTER")
+        : this.label("ДАЛЬШЕ", "NEXT"));
+    } else {
+      this.primaryButton.setLabel(this.label("НА ГЛАВНУЮ", "HOME"));
+    }
+  }
+
+  private applySimpleCopy(data: SimpleCompletionOverlayData): void {
+    this.title.setText(data.title);
+    this.status.setText(data.status).setColor(MINIMAL_UI_COLORS.text);
+    this.detail.setText(data.detail ?? "");
+    this.mastery.setText("");
+    this.rank.setText("");
+    this.primaryButton.setLabel(data.primaryLabel);
+  }
+
+  private activatePrimary(): void {
+    if (!this.visible) return;
+    const callback = this.#onNext ?? this.#onHome;
+    if (!callback) return;
+    this.hide();
+    callback();
+  }
+
+  private activateSecondary(): void {
+    if (!this.visible || !this.data) return;
+    const presentation = this.data.kind === "campaign"
+      ? createCampaignCompletionPresentation(this.data)
+      : undefined;
+    const callback = presentation?.showTryClean ? this.#onTryClean : this.#onHome;
+    if (!callback) return;
+    this.hide();
+    callback();
+  }
+
+  private label(russian: string, english: string): string {
+    return this.scene.english ? english : russian;
+  }
+
+  private rankLabel(rank: MasteryRankValue): string {
+    const label = RANK_LABELS[rank];
+    return this.scene.english ? label.en : label.ru;
   }
 }
