@@ -219,5 +219,6 @@ test("Home stays asset-free and omits legacy meta destinations", async () => {
   assert.doesNotMatch(source, /art-assets|scene-background|preloadUiAssets|makePanel|NineSlice/);
   assert.doesNotMatch(source, /getEconomy|getLeaderboard|makeCurrencyDisplay|makeCartIconButton/);
   assert.doesNotMatch(source, /scene\.start\("shop"|scene\.start\("leaderboard"/);
-  assert.doesNotMatch(source, /PlayMode\.DAILY|PlayMode\.ENDLESS/);
+  assert.match(source, /PlayMode\.DAILY/);
+  assert.doesNotMatch(source, /PlayMode\.ENDLESS/);
 });
