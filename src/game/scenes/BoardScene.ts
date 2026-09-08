@@ -83,6 +83,11 @@ import { BoardAssistance } from "../board/BoardAssistance.js";
 import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
 import {
+  MINIMAL_UI_COLORS,
+  makeMinimalButton,
+  makeMinimalText,
+} from "../minimal-ui.js";
+import {
   createAttemptState,
   markRescueUsed,
   markSolverAssisted,
@@ -186,7 +191,7 @@ type RemovalHistoryEntry = {
 };
 
 type RestoreOptions = {
-  blockedMove?: readonly BoardPieceInput[];
+  blockedMove?: readonly HexCoord[];
   winningRoute?: readonly (readonly HexCoord[])[];
 };
 
@@ -267,6 +272,8 @@ export class BoardScene extends Phaser.Scene {
   actualDeadEnd = false;
   blockedMoveKey: string | undefined;
   pauseMenuVisible = false;
+  campaignDeadEndVisible = false;
+  campaignRescueUnavailable = false;
   hoveredPieceKey: string | undefined;
   busy = false;
   english = false;
@@ -314,6 +321,10 @@ export class BoardScene extends Phaser.Scene {
   pauseRestartButton!: ReturnType<typeof makeButton>;
   pauseLevelsButton!: ReturnType<typeof makeButton>;
   pauseExitButton!: ReturnType<typeof makeButton>;
+  campaignDeadEndGraphics!: Phaser.GameObjects.Graphics;
+  campaignDeadEndTitle!: Phaser.GameObjects.Text;
+  campaignDeadEndRestartButton!: ReturnType<typeof makeMinimalButton>;
+  campaignDeadEndRescueButton!: ReturnType<typeof makeMinimalButton>;
   completionOverlay!: CompletionOverlay;
   status!: Phaser.GameObjects.Text;
   hintButtons!: Map<HintTypeValue, ReturnType<typeof makeButton>>;
@@ -365,6 +376,8 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.attemptState = createAttemptState();
     this.pauseMenuVisible = false;
+    this.campaignDeadEndVisible = false;
+    this.campaignRescueUnavailable = false;
     this.hoveredPieceKey = undefined;
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
@@ -554,6 +567,25 @@ export class BoardScene extends Phaser.Scene {
       .setDepth(41)
       .setVisible(false)
       .disableInteractive();
+
+    this.campaignDeadEndGraphics = this.add.graphics().setDepth(34).setVisible(false);
+    this.campaignDeadEndTitle = makeMinimalText(
+      this,
+      this.uiText("ХОДОВ НЕТ", "NO MOVES"),
+      22,
+      MINIMAL_UI_COLORS.text,
+    ).setOrigin(0.5).setFontStyle("bold").setDepth(35).setVisible(false);
+    this.campaignDeadEndRestartButton = makeMinimalButton(
+      this,
+      this.uiText("ЗАНОВО", "RESTART"),
+      () => this.restartCampaignFromDeadEnd(),
+    ).setDepth(35).setVisible(false).setEnabled(false);
+    this.campaignDeadEndRescueButton = makeMinimalButton(
+      this,
+      this.uiText("СПАСТИ ПОПЫТКУ", "RESCUE ATTEMPT"),
+      () => void this.requestCampaignRescue(),
+    ).setDepth(35).setVisible(false).setEnabled(false);
+
     this.completionOverlay = new CompletionOverlay(this);
 
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
@@ -599,6 +631,7 @@ export class BoardScene extends Phaser.Scene {
     }
     this.campaignSession = undefined;
     this.removalHistory = [];
+    this.hideCampaignDeadEndState();
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
     this.actualDeadEnd = false;
@@ -813,6 +846,7 @@ export class BoardScene extends Phaser.Scene {
       this.pauseMenuVisible ||
       this.initialPieces.length === 0
     ) return;
+    this.hideCampaignDeadEndState();
     if (this.mode === PlayMode.ENDLESS) {
       this.submitEndlessResult();
       this.endlessScoreTween?.stop();
@@ -886,6 +920,7 @@ export class BoardScene extends Phaser.Scene {
       this.economyModalVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
+      this.campaignDeadEndVisible ||
       this.endlessRunOver ||
       !this.board
     ) {
@@ -1047,6 +1082,7 @@ export class BoardScene extends Phaser.Scene {
         this.analyzeCurrentPosition();
         if (this.actualDeadEnd) {
           message = this.uiText("ХОДОВ НЕТ", "NO MOVES");
+          if (this.mode === PlayMode.CAMPAIGN) this.enterCampaignDeadEndState();
         }
       }
       this.status.setText(message);
@@ -1409,12 +1445,25 @@ export class BoardScene extends Phaser.Scene {
       this.mechanicCardVisible ||
       this.economyModalVisible ||
       this.pauseMenuVisible ||
+      this.campaignDeadEndVisible ||
       !this.board
     ) {
       return;
     }
     if (type === HintType.MOVE && this.mode === PlayMode.CAMPAIGN) {
       void this.useCampaignHint();
+      return;
+    }
+    if (type === HintType.RESCUE && this.mode === PlayMode.CAMPAIGN) {
+      if (this.campaignDeadEndVisible) void this.requestCampaignRescue();
+      else {
+        this.status.setText(
+          this.uiText(
+            "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО КОГДА НЕ ОСТАЛОСЬ ХОДОВ",
+            "RESCUE IS AVAILABLE ONLY WHEN NO MOVES REMAIN",
+          ),
+        );
+      }
       return;
     }
     if (
@@ -1533,11 +1582,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
       if (!this.economy.consumeHint(type)) return;
-      if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
-        this.campaignSession.markRescueUsed();
-      } else {
-        this.attemptState = markRescueUsed(this.attemptState);
-      }
+      this.attemptState = markRescueUsed(this.attemptState);
       this.markEndlessAssisted();
       this.restoreHistorySnapshot(
         rescue.index,
@@ -1550,12 +1595,122 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  enterCampaignDeadEndState(): void {
+    const session = this.campaignSession;
+    if (this.mode !== PlayMode.CAMPAIGN || !session?.actualDeadEnd) return;
+    this.campaignDeadEndVisible = true;
+    this.campaignRescueUnavailable = false;
+    this.hud.setUndoEnabled(false);
+    this.hud.hintButton.setEnabled(false);
+    this.refreshCampaignDeadEndActions();
+  }
+
+  hideCampaignDeadEndState(): void {
+    this.campaignDeadEndVisible = false;
+    this.campaignRescueUnavailable = false;
+    this.campaignDeadEndGraphics?.clear().setVisible(false);
+    this.campaignDeadEndTitle?.setVisible(false);
+    this.campaignDeadEndRestartButton?.setVisible(false).setEnabled(false);
+    this.campaignDeadEndRescueButton?.setVisible(false).setEnabled(false);
+  }
+
+  refreshCampaignDeadEndActions(): void {
+    if (!this.campaignDeadEndVisible) return;
+    const session = this.campaignSession;
+    const rescueVisible = session?.canRescue === true && !this.campaignRescueUnavailable;
+    this.campaignDeadEndRestartButton
+      .setLabel(this.uiText("ЗАНОВО", "RESTART"))
+      .setVisible(true)
+      .setEnabled(!this.rewardedAdPending);
+    this.campaignDeadEndRescueButton
+      .setLabel(this.uiText("СПАСТИ ПОПЫТКУ", "RESCUE ATTEMPT"))
+      .setVisible(rescueVisible)
+      .setEnabled(rescueVisible && !this.rewardedAdPending);
+    this.campaignDeadEndTitle
+      .setText(
+        this.campaignRescueUnavailable
+          ? this.uiText("ХОДОВ НЕТ · СПАСЕНИЕ НЕ НАЙДЕНО", "NO MOVES · NO VERIFIED RESCUE")
+          : this.uiText("ХОДОВ НЕТ", "NO MOVES"),
+      )
+      .setVisible(true);
+  }
+
+  restartCampaignFromDeadEnd(): void {
+    if (!this.campaignDeadEndVisible || this.rewardedAdPending) return;
+    this.hideCampaignDeadEndState();
+    this.restartLevel();
+  }
+
+  async requestCampaignRescue(): Promise<void> {
+    const session = this.campaignSession;
+    if (
+      !session ||
+      !this.campaignDeadEndVisible ||
+      !session.canRescue ||
+      this.rewardedAdPending
+    ) return;
+
+    const policy = assistancePolicy(PlayMode.CAMPAIGN, this.level);
+    this.campaignDeadEndRescueButton
+      .setLabel(this.uiText("ИЩЕМ…", "CHECKING…"))
+      .setEnabled(false);
+    this.campaignDeadEndRestartButton.setEnabled(false);
+    this.rewardedAdPending = policy.rewardRequired;
+    try {
+      const result = await session.requestRescue(
+        this.assistance,
+        policy.rewardRequired,
+        this.certifiedSolution,
+      );
+      if (result.kind === "not-eligible") {
+        this.campaignRescueUnavailable = true;
+        this.refreshCampaignDeadEndActions();
+        return;
+      }
+      if (result.kind === "unavailable") {
+        this.campaignRescueUnavailable = true;
+        this.status.setText(
+          this.uiText(
+            "НЕ УДАЛОСЬ НАДЁЖНО НАЙТИ ТОЧКУ СПАСЕНИЯ",
+            "NO SAFE RESCUE POINT COULD BE VERIFIED",
+          ),
+        );
+        this.refreshCampaignDeadEndActions();
+        return;
+      }
+      if (result.kind === "reward-denied") {
+        this.status.setText(
+          this.uiText("СПАСЕНИЕ НЕ ПОЛУЧЕНО", "RESCUE WAS NOT GRANTED"),
+        );
+        return;
+      }
+
+      this.hideCampaignDeadEndState();
+      this.restoreCampaignSessionBoard(
+        this.uiText(
+          "ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ",
+          "RESTORED LAST SOLVABLE POSITION",
+        ),
+        {
+          blockedMove: result.blockedMove,
+          winningRoute: result.route,
+        },
+      );
+    } finally {
+      this.rewardedAdPending = false;
+      if (this.campaignDeadEndVisible) this.refreshCampaignDeadEndActions();
+    }
+  }
+
   markEndlessAssisted(): void {
     if (this.mode === PlayMode.ENDLESS) this.endlessAssisted = true;
   }
 
 
-  restoreCampaignSessionBoard(message: string): void {
+  restoreCampaignSessionBoard(
+    message: string,
+    { blockedMove = [], winningRoute }: RestoreOptions = {},
+  ): void {
     const session = this.campaignSession;
     if (!session) return;
     this.board = session.board;
@@ -1565,8 +1720,8 @@ export class BoardScene extends Phaser.Scene {
     this.campaignScoreTween?.stop();
     this.actualDeadEnd = false;
     this.positionSolveStatus = SolveStatus.SOLVED;
-    this.knownWinningRoute = this.analyzeCurrentPosition().route;
-    this.blockedMoveKey = undefined;
+    this.knownWinningRoute = winningRoute ?? this.analyzeCurrentPosition().route;
+    this.blockedMoveKey = blockedMove.length > 0 ? moveKey(blockedMove) : undefined;
     this.clearPanelHighlight(false);
     this.clearMoveHint(false);
     this.status.setText(message);
@@ -2131,7 +2286,38 @@ export class BoardScene extends Phaser.Scene {
     this.layoutMechanicCard(width, height, compact);
     this.layoutEconomyModal(width, height, compact);
     this.layoutPauseMenu(width, height);
+    this.layoutCampaignDeadEnd(width, height);
     this.completionOverlay.layout(width, height);
+  }
+
+  layoutCampaignDeadEnd(width: number, height: number): void {
+    this.campaignDeadEndGraphics.clear();
+    if (!this.campaignDeadEndVisible) {
+      this.campaignDeadEndGraphics.setVisible(false);
+      this.campaignDeadEndTitle.setVisible(false);
+      this.campaignDeadEndRestartButton.setVisible(false);
+      this.campaignDeadEndRescueButton.setVisible(false);
+      return;
+    }
+
+    const compact = width < 560;
+    const buttonWidth = Math.min(width - 48, 320);
+    const centerY = height / 2;
+    this.campaignDeadEndGraphics
+      .setVisible(true)
+      .fillStyle(MINIMAL_UI_COLORS.background, 0.9)
+      .fillRect(0, 0, width, height);
+    this.campaignDeadEndTitle
+      .setFontSize(compact ? 18 : 22)
+      .setPosition(width / 2, centerY - 78)
+      .setVisible(true);
+    this.campaignDeadEndRestartButton
+      .setPosition(width / 2, centerY - 8)
+      .setSize(buttonWidth, 52);
+    this.campaignDeadEndRescueButton
+      .setPosition(width / 2, centerY + 58)
+      .setSize(buttonWidth, 52);
+    this.refreshCampaignDeadEndActions();
   }
 
   layoutPauseMenu(width: number, height: number): void {

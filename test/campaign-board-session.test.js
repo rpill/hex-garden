@@ -161,3 +161,221 @@ test("declined rewarded hint keeps campaign attempt Clean", async () => {
   assert.equal(rewardCalls, 1);
   assert.equal(session.cleanEligible, true);
 });
+
+test("campaign rescue is not even searched before a true visible dead end", async () => {
+  const level = getCampaignLevel(0);
+  const session = new CampaignBoardSession(level);
+  session.recordBeforeRemoval();
+  let solverCalls = 0;
+  let rewardCalls = 0;
+  const assistance = {
+    findRescue() {
+      solverCalls += 1;
+      return { status: SolveStatus.DEAD_END };
+    },
+    async confirmReward() {
+      rewardCalls += 1;
+      return true;
+    },
+  };
+
+  assert.ok(session.board.legalMoves().length > 0);
+  assert.equal(session.actualDeadEnd, false);
+
+  const result = await session.requestRescue(assistance, true, level.solution);
+
+  assert.equal(result.kind, "not-eligible");
+  assert.equal(solverCalls, 0);
+  assert.equal(rewardCalls, 0);
+  assert.equal(session.cleanEligible, true);
+  assert.equal(session.rescueUsed, false);
+});
+
+test("verified campaign rescue restores the solver snapshot only after reward", async () => {
+  const base = getCampaignLevel(0);
+  const level = {
+    ...base,
+    pieces: [
+      { q: -3, r: 0, type: Atom.SALT },
+      { q: 3, r: 0, type: Atom.SALT },
+      { q: 0, r: -3, type: Atom.AIR },
+      { q: 0, r: 3, type: Atom.FIRE },
+    ],
+  };
+  const session = new CampaignBoardSession(level);
+  session.recordBeforeRemoval();
+  const snapshot = session.history[0];
+  assert.ok(snapshot);
+  session.board.select({ q: -3, r: 0 });
+  const removal = session.board.select({ q: 3, r: 0 });
+  assert.equal(removal.kind, "removed");
+  assert.equal(session.actualDeadEnd, true);
+  assert.equal(session.canRescue, true);
+
+  let rewardCalls = 0;
+  const rescueRoute = [[
+    { q: -3, r: 0, type: Atom.SALT },
+    { q: 0, r: -3, type: Atom.AIR },
+  ]];
+  const assistance = {
+    findRescue(history, currentPieces) {
+      assert.equal(history.length, 1);
+      assert.deepEqual(normalizedPieces(currentPieces), normalizedPieces(session.board.pieces()));
+      return {
+        status: SolveStatus.SOLVED,
+        index: 0,
+        snapshot,
+        blockedMove: [
+          { q: -3, r: 0, type: Atom.SALT },
+          { q: 3, r: 0, type: Atom.SALT },
+        ],
+        route: rescueRoute,
+      };
+    },
+    async confirmReward(required) {
+      rewardCalls += 1;
+      assert.equal(required, true);
+      return true;
+    },
+  };
+
+  const result = await session.requestRescue(assistance, true, level.solution);
+
+  assert.equal(result.kind, "restored");
+  assert.equal(rewardCalls, 1);
+  assert.deepEqual(normalizedPieces(session.board.pieces()), normalizedPieces(snapshot.pieces));
+  assert.equal(session.history.length, 0);
+  assert.equal(session.cleanEligible, false);
+  assert.equal(session.rescueUsed, true);
+  assert.equal(session.canRescue, false);
+  assert.deepEqual(result.blockedMove.map(({ q, r }) => ({ q, r })), [
+    { q: -3, r: 0 },
+    { q: 3, r: 0 },
+  ]);
+  assert.deepEqual(result.route[0].map(({ q, r }) => ({ q, r })), [
+    { q: -3, r: 0 },
+    { q: 0, r: -3 },
+  ]);
+});
+
+test("unverified or unrewarded campaign rescue leaves board history and attempt untouched", async () => {
+  const base = getCampaignLevel(0);
+  const level = {
+    ...base,
+    pieces: [
+      { q: -3, r: 0, type: Atom.SALT },
+      { q: 3, r: 0, type: Atom.SALT },
+      { q: 0, r: -3, type: Atom.AIR },
+      { q: 0, r: 3, type: Atom.FIRE },
+    ],
+  };
+
+  for (const scenario of ["unknown", "reward-denied"]) {
+    const session = new CampaignBoardSession(level);
+    session.recordBeforeRemoval();
+    const snapshot = session.history[0];
+    assert.ok(snapshot);
+    session.board.select({ q: -3, r: 0 });
+    session.board.select({ q: 3, r: 0 });
+    assert.equal(session.actualDeadEnd, true);
+
+    const beforePieces = normalizedPieces(session.board.pieces());
+    const beforeHistory = session.history.map((entry) => normalizedPieces(entry.pieces));
+    const beforeAttempt = { ...session.attempt };
+    let rewardCalls = 0;
+    const assistance = {
+      findRescue() {
+        if (scenario === "unknown") return { status: SolveStatus.UNKNOWN };
+        return {
+          status: SolveStatus.SOLVED,
+          index: 0,
+          snapshot,
+          blockedMove: [
+            { q: -3, r: 0, type: Atom.SALT },
+            { q: 3, r: 0, type: Atom.SALT },
+          ],
+          route: [],
+        };
+      },
+      async confirmReward() {
+        rewardCalls += 1;
+        return false;
+      },
+    };
+
+    const result = await session.requestRescue(assistance, true, level.solution);
+
+    assert.equal(result.kind, scenario === "unknown" ? "unavailable" : "reward-denied");
+    assert.equal(rewardCalls, scenario === "unknown" ? 0 : 1);
+    assert.deepEqual(normalizedPieces(session.board.pieces()), beforePieces);
+    assert.deepEqual(session.history.map((entry) => normalizedPieces(entry.pieces)), beforeHistory);
+    assert.deepEqual(session.attempt, beforeAttempt);
+  }
+});
+
+test("successful campaign rescue is one-use even after another visible dead end", async () => {
+  const base = getCampaignLevel(0);
+  const level = {
+    ...base,
+    pieces: [
+      { q: -3, r: 0, type: Atom.SALT },
+      { q: 3, r: 0, type: Atom.SALT },
+      { q: 0, r: -3, type: Atom.AIR },
+      { q: 0, r: 3, type: Atom.FIRE },
+    ],
+  };
+  const session = new CampaignBoardSession(level);
+  session.recordBeforeRemoval();
+  const snapshot = session.history[0];
+  assert.ok(snapshot);
+  session.board.select({ q: -3, r: 0 });
+  session.board.select({ q: 3, r: 0 });
+
+  const assistance = {
+    findRescue() {
+      return {
+        status: SolveStatus.SOLVED,
+        index: 0,
+        snapshot,
+        blockedMove: [
+          { q: -3, r: 0, type: Atom.SALT },
+          { q: 3, r: 0, type: Atom.SALT },
+        ],
+        route: [],
+      };
+    },
+    async confirmReward() {
+      return true;
+    },
+  };
+
+  assert.equal((await session.requestRescue(assistance, false, level.solution)).kind, "restored");
+  session.recordBeforeRemoval();
+  session.board.select({ q: -3, r: 0 });
+  session.board.select({ q: 3, r: 0 });
+  assert.equal(session.actualDeadEnd, true);
+  assert.equal(session.canRescue, false);
+
+  let calls = 0;
+  const second = await session.requestRescue({
+    findRescue() {
+      calls += 1;
+      return { status: SolveStatus.DEAD_END };
+    },
+    async confirmReward() {
+      calls += 1;
+      return true;
+    },
+  }, false, level.solution);
+  assert.equal(second.kind, "not-eligible");
+  assert.equal(calls, 0);
+});
+
+test("BoardScene exposes contextual campaign dead-end Restart and one-use Rescue actions", async () => {
+  const source = await readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8");
+  assert.match(source, /enterCampaignDeadEndState\(\)/);
+  assert.match(source, /requestCampaignRescue\(\)/);
+  assert.match(source, /campaignDeadEndRestartButton/);
+  assert.match(source, /campaignDeadEndRescueButton/);
+  assert.match(source, /session\.canRescue/);
+});

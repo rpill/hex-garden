@@ -1,7 +1,12 @@
 import { GardenBoard, type BoardPieceInput } from "../../board.js";
 import type { CampaignLevelRecord } from "../../campaign-levels.js";
 import type { HexCoord } from "../../hex.js";
-import { SolveStatus, type SolveStatusValue, type WinningRouteResult } from "../../solver.js";
+import {
+  SolveStatus,
+  type RescueResult,
+  type SolveStatusValue,
+  type WinningRouteResult,
+} from "../../solver.js";
 import {
   canRescueAttempt,
   createAttemptState,
@@ -28,6 +33,33 @@ export interface CampaignHintAssistance {
   ): WinningRouteResult;
   confirmReward(required: boolean): Promise<boolean>;
 }
+
+
+export interface CampaignRescueAssistance {
+  findRescue<T extends BoardHistorySnapshot>(
+    history: readonly T[],
+    pieces: readonly BoardPieceInput[],
+    preferredSolution?: readonly (readonly HexCoord[])[],
+  ): RescueResult<T>;
+  confirmReward(required: boolean): Promise<boolean>;
+}
+
+export type CampaignRescueRequestResult =
+  | Readonly<{
+      kind: "not-eligible";
+    }>
+  | Readonly<{
+      kind: "unavailable";
+      solverStatus: SolveStatusValue;
+    }>
+  | Readonly<{
+      kind: "reward-denied";
+    }>
+  | Readonly<{
+      kind: "restored";
+      blockedMove: readonly HexCoord[];
+      route: readonly (readonly HexCoord[])[];
+    }>;
 
 export type CampaignHintRequestResult =
   | Readonly<{
@@ -111,6 +143,49 @@ export class CampaignBoardSession {
     return Object.freeze({
       kind: "revealed" as const,
       move: Object.freeze(firstMove.map(({ q, r }) => Object.freeze({ q, r }))),
+    });
+  }
+
+  async requestRescue(
+    assistance: CampaignRescueAssistance,
+    rewardRequired: boolean,
+    preferredSolution: readonly (readonly HexCoord[])[] = [],
+  ): Promise<CampaignRescueRequestResult> {
+    if (!this.canRescue) {
+      return Object.freeze({ kind: "not-eligible" as const });
+    }
+
+    const result = assistance.findRescue(
+      this.history,
+      this.board.pieces(),
+      preferredSolution,
+    );
+    if (result.status !== SolveStatus.SOLVED) {
+      return Object.freeze({
+        kind: "unavailable" as const,
+        solverStatus: result.status,
+      });
+    }
+
+    const confirmed = await assistance.confirmReward(rewardRequired);
+    if (!confirmed) {
+      return Object.freeze({ kind: "reward-denied" as const });
+    }
+
+    this.board = new GardenBoard(result.snapshot.pieces);
+    this.history.splice(result.index);
+    this.attempt = markAttemptRescueUsed(this.attempt);
+
+    return Object.freeze({
+      kind: "restored" as const,
+      blockedMove: Object.freeze(
+        result.blockedMove.map(({ q, r }) => Object.freeze({ q, r })),
+      ),
+      route: Object.freeze(
+        result.route.map((move) =>
+          Object.freeze(move.map(({ q, r }) => Object.freeze({ q, r }))),
+        ),
+      ),
     });
   }
 
