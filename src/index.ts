@@ -222,3 +222,11 @@ export {
   type DailyWeekDay,
   type DailyWeekSummary,
 } from "./daily-progress.js";
+
+export {
+  dailyDifficultyProfile,
+  generateDailyPuzzle,
+  type DailyDifficultyBand,
+  type DailyDifficultyProfile,
+  type DailyPuzzle,
+} from "./daily.js";

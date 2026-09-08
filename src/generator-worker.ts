@@ -1,3 +1,4 @@
+import { generateDailyPuzzle } from "./daily.js";
 import { generateEndlessRunLevel } from "./endless-run.js";
 import { generateProgressionLevel } from "./progression.js";
 import { generatePuzzleCandidate, type PuzzleCandidateOptions } from "./puzzle-generation.js";
@@ -22,6 +23,7 @@ interface WorkerRequestBase {
 }
 
 type GeneratorWorkerRequest =
+  | { requestId: number; kind: "daily"; dateKey: string }
   | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
   | (WorkerRequestBase & { kind: "progression" })
   | (WorkerRequestBase & { kind: "endless-run" });
@@ -31,6 +33,11 @@ function parseRequest(value: unknown): GeneratorWorkerRequest {
     throw new TypeError("Invalid generator worker request");
   }
   const requestId = value.requestId as number;
+
+  if (value.kind === "daily") {
+    if (typeof value.dateKey !== "string") throw new TypeError("Invalid Daily worker request");
+    return { requestId, kind: "daily", dateKey: value.dateKey };
+  }
 
   if (value.kind === "puzzle-candidate") {
     if (!isRecord(value.options)) throw new TypeError("Invalid puzzle candidate worker request");
@@ -60,6 +67,9 @@ port.addEventListener("message", (event) => {
     const request = parseRequest(event.data);
     requestId = request.requestId;
     const generated = (() => {
+      if (request.kind === "daily") {
+        return generateDailyPuzzle(request.dateKey);
+      }
       if (request.kind === "puzzle-candidate") {
         return generatePuzzleCandidate(request.options);
       }
