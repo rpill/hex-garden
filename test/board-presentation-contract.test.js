@@ -98,7 +98,7 @@ test("BoardScene wires the minimal HUD without permanent shop, settings, or rest
 
   assert.match(boardSource, /onBack:/);
   assert.match(boardSource, /onUndo:\s*\(\) => this\.undoLastRemoval\(\)/);
-  assert.match(boardSource, /onHint:\s*\(\) => this\.useHint\(HintType\.MOVE\)/);
+  assert.match(boardSource, /onHint:\s*\(\) => this\.usePrimaryHint\(\)/);
   assert.match(boardSource, /onOverflow:\s*\(\) => this\.openPauseMenu\(\)/);
   assert.match(boardSource, /this\.hud\.layout\(width, height\)/);
   assert.doesNotMatch(boardSource, /this\.(?:shopButton|settingsButton|restartButton|dustHud|headerPanel)/);
@@ -139,7 +139,7 @@ test("mechanic cards show the real glyphs for every introduced atom", async () =
   assert.match(source, /layoutMechanicCardGlyphs/);
 });
 
-test("spiral reveal keeps inventory and consumables visible but disables all board actions", async () => {
+test("spiral reveal keeps atom inventory visible but disables board interaction", async () => {
   const boardSource = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
@@ -163,18 +163,8 @@ test("spiral reveal keeps inventory and consumables visible but disables all boa
   );
   assert.match(inventorySource, /setPresentationVisible\(visible: boolean, controlsEnabled = visible\)/);
   assert.match(inventorySource, /if \(visible && controlsEnabled\)[\s\S]{0,300}setInteractive/);
-  assert.match(
-    inventorySource,
-    /if \(!visible\)[\s\S]{0,220}button\.setVisible\(false\)\.disableInteractive\(\)/,
-  );
-  assert.match(
-    inventorySource,
-    /else if \(!controlsEnabled\)[\s\S]{0,260}button\.disableInteractive\(\)/,
-  );
-  assert.doesNotMatch(
-    inventorySource,
-    /if \(!controlsEnabled\)[\s\S]{0,220}button\.setVisible\(false\)/,
-  );
+  assert.match(inventorySource, /else \{\s*view\.hitZone\.disableInteractive\(\)/);
+  assert.doesNotMatch(inventorySource, /hintButtons|HintType|ХОД \+|ОТМЕНА \+|СПАСТИ \+/);
 });
 
 test("spiral reveal derives live inventory counts from revealed board pieces", async () => {
@@ -220,5 +210,5 @@ test("Home stays asset-free and omits legacy meta destinations", async () => {
   assert.doesNotMatch(source, /getEconomy|getLeaderboard|makeCurrencyDisplay|makeCartIconButton/);
   assert.doesNotMatch(source, /scene\.start\("shop"|scene\.start\("leaderboard"/);
   assert.match(source, /PlayMode\.DAILY/);
-  assert.doesNotMatch(source, /PlayMode\.ENDLESS/);
+  assert.match(source, /PlayMode\.ENDLESS/);
 });

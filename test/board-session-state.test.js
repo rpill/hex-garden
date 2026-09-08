@@ -56,7 +56,6 @@ test("BoardScene exposes only visible dead-end state, not solver doom", async ()
   );
 
   assert.doesNotMatch(source, /positionDeadEnd/);
-  assert.match(source, /isRescueEligible\(/);
   assert.match(source, /actualDeadEnd/);
 });
 

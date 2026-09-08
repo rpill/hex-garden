@@ -21,16 +21,16 @@ function fakeScene(key = "board") {
 
 test("opening utility scene brings it above board before pausing board", () => {
   const scene = fakeScene("board");
-  openUtilityScene(scene, "shop", { returnScene: "board" });
+  openUtilityScene(scene, "settings", { returnScene: "board" });
   assert.deepEqual(scene.calls, [
-    ["launch", "shop", { returnScene: "board" }],
-    ["bringToTop", "shop"],
+    ["launch", "settings", { returnScene: "board" }],
+    ["bringToTop", "settings"],
     ["pause", "board"],
   ]);
 });
 
 test("closing utility scene stops it then resumes board", () => {
-  const scene = fakeScene("shop");
+  const scene = fakeScene("settings");
   closeUtilityScene(scene, "board");
-  assert.deepEqual(scene.calls, [["stop", "shop"], ["resume", "board"], ["bringToTop", "board"]]);
+  assert.deepEqual(scene.calls, [["stop", "settings"], ["resume", "board"], ["bringToTop", "board"]]);
 });

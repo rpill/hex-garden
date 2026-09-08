@@ -132,20 +132,6 @@ export {
   type EndlessRunLevel,
 } from "./endless-run.js";
 export {
-  ECONOMY_STORAGE_KEY,
-  HINT_PRODUCTS,
-  REWARDED_AD_COOLDOWN_MS,
-  REWARDED_HINT_AMOUNTS,
-  STARTING_DUST,
-  EconomyStore,
-  HintType,
-  dustRewardForPlate,
-  endlessDustReward,
-  normalizeEconomy,
-  productForHint,
-  rewardedAmountForHint,
-} from "./economy.js";
-export {
   RewardedAdStatus,
   YandexGamesAdapter,
   getYandexGamesAdapter,

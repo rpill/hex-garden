@@ -14,13 +14,6 @@ import { BrowserLevelGenerator } from "../../browser.js";
 import { dailyDateKey } from "../../daily-calendar.js";
 import { DailyProgressStore } from "../../daily-progress.js";
 import {
-  HintType,
-  type HintTypeValue,
-  type HintProduct,
-  productForHint,
-  rewardedAmountForHint,
-} from "../../economy.js";
-import {
   scoreRemovedAtoms,
   SCORE_PER_REMOVED_ATOM,
 } from "../../endless-score.js";
@@ -42,17 +35,13 @@ import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
 import { masteryRank, type MasteryRankValue } from "../../mastery.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEndlessProgress } from "../endless-progress.js";
-import { getEconomy } from "../economy.js";
 import { getLeaderboard } from "../leaderboard.js";
 import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
-import {
-  RewardedAdStatus,
-  getYandexGamesAdapter,
-} from "../../platform/yandex-games.js";
+import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 import { getTrustedClock } from "../../platform/trusted-clock.js";
 import { PlayMode, type PlayModeValue } from "../modes.js";
-import { isActualDeadEnd, isRescueEligible } from "../board-session-state.js";
+import { isActualDeadEnd } from "../board-session-state.js";
 import {
   pieceFeedbackKind,
   pieceFilterEmphasis,
@@ -69,7 +58,6 @@ import {
   SolveStatus,
   type SolveStatusValue,
   type WinningRouteResult,
-  findLastSolvableSnapshot,
   findWinningRoute,
   moveKey,
 } from "../../solver.js";
@@ -92,8 +80,6 @@ import {
 } from "../minimal-ui.js";
 import {
   createAttemptState,
-  markRescueUsed,
-  markSolverAssisted,
   restartAttempt,
 } from "../board/attempt-state.js";
 import {
@@ -249,8 +235,6 @@ export class BoardScene extends Phaser.Scene {
   removalHistory: RemovalHistoryEntry[] = [];
   activeHintKeys = new Set<string>();
   hintTimer: Phaser.Time.TimerEvent | undefined;
-  economyModalVisible = false;
-  economyModalProduct: HintProduct | undefined;
   rewardedAdPending = false;
   certifiedSolution: readonly (readonly HexCoord[])[] = [];
   knownWinningRoute: readonly (readonly HexCoord[])[] = [];
@@ -266,7 +250,6 @@ export class BoardScene extends Phaser.Scene {
   progress!: ReturnType<typeof getCampaignProgress>;
   endlessProgress!: ReturnType<typeof getEndlessProgress>;
   dailyProgress!: DailyProgressStore;
-  economy!: ReturnType<typeof getEconomy>;
   leaderboard!: ReturnType<typeof getLeaderboard>;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
   generator!: BrowserLevelGenerator;
@@ -292,15 +275,6 @@ export class BoardScene extends Phaser.Scene {
   mechanicCardHint!: Phaser.GameObjects.Text;
   mechanicCardHitZone!: Phaser.GameObjects.Zone;
   mechanicCardGlyphs: Phaser.GameObjects.Image[] = [];
-  economyModalGraphics!: Phaser.GameObjects.Graphics;
-  economyModalPanel!: ReturnType<typeof makePanel>;
-  economyModalHitZone!: Phaser.GameObjects.Zone;
-  economyModalTitle!: Phaser.GameObjects.Text;
-  economyModalBody!: Phaser.GameObjects.Text;
-  economyModalMessage!: Phaser.GameObjects.Text;
-  economyModalBuy!: ReturnType<typeof makeButton>;
-  economyModalAd!: ReturnType<typeof makeButton>;
-  economyModalClose!: ReturnType<typeof makeButton>;
   pauseMenuGraphics!: Phaser.GameObjects.Graphics;
   pauseMenuPanel!: ReturnType<typeof makePanel>;
   pauseMenuHitZone!: Phaser.GameObjects.Zone;
@@ -315,7 +289,6 @@ export class BoardScene extends Phaser.Scene {
   campaignDeadEndRescueButton!: ReturnType<typeof makeMinimalButton>;
   completionOverlay!: CompletionOverlay;
   status!: Phaser.GameObjects.Text;
-  hintButtons!: Map<HintTypeValue, ReturnType<typeof makeButton>>;
   attemptState = createAttemptState();
   boardCenterX = 0;
   boardCenterY = 0;
@@ -350,8 +323,6 @@ export class BoardScene extends Phaser.Scene {
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
-    this.economyModalVisible = false;
-    this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
@@ -412,8 +383,6 @@ export class BoardScene extends Phaser.Scene {
     this.removalHistory = [];
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
-    this.economyModalVisible = false;
-    this.economyModalProduct = undefined;
     this.rewardedAdPending = false;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
@@ -430,7 +399,6 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.economy = getEconomy(this);
     this.leaderboard = getLeaderboard(this);
     this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.platform = getYandexGamesAdapter();
@@ -446,7 +414,6 @@ export class BoardScene extends Phaser.Scene {
       this,
       {
         onSelectType: (type) => this.selectPanelType(type),
-        onHint: (type) => this.useHint(type),
       },
       {
         labelForType: (type) => ATOM_LABELS[type],
@@ -457,7 +424,6 @@ export class BoardScene extends Phaser.Scene {
     this.inventoryPanel = this.inventory.panel;
     this.panelGraphics = this.inventory.graphics;
     this.panelViews = this.inventory.views;
-    this.hintButtons = this.inventory.hintButtons;
     this.tutorialUi = new BoardTutorial(this);
     this.tutorialGraphics = this.tutorialUi.graphics;
     this.tutorialText = this.tutorialUi.text;
@@ -470,7 +436,7 @@ export class BoardScene extends Phaser.Scene {
           else this.openMainMenu();
         },
         onUndo: () => this.undoLastRemoval(),
-        onHint: () => this.useHint(HintType.MOVE),
+        onHint: () => this.usePrimaryHint(),
         onOverflow: () => this.openPauseMenu(),
       },
       { english: this.english },
@@ -478,12 +444,6 @@ export class BoardScene extends Phaser.Scene {
     this.status = makeText(this, "", 12, "#9aa7b5").setOrigin(0.5).setDepth(10);
     this.mechanicCardGraphics = this.add.graphics().setDepth(20);
     this.mechanicCardPanel = makePanel(this, UI_FRAMES.panelMainMedium, 20)
-      .setVisible(false);
-    this.economyModalGraphics = this.add.graphics().setDepth(30);
-    this.economyModalPanel = makePanel(this, UI_FRAMES.panelMainMedium, 30)
-      .setVisible(false);
-    this.economyModalHitZone = this.add.zone(0, 0, 1, 1)
-      .setDepth(30)
       .setVisible(false);
     this.pauseMenuGraphics = this.add.graphics().setDepth(40);
     this.pauseMenuPanel = makePanel(this, UI_FRAMES.panelMainMedium, 40)
@@ -504,28 +464,6 @@ export class BoardScene extends Phaser.Scene {
     this.mechanicCardHitZone = this.add.zone(0, 0, 1, 1).setDepth(22);
     this.mechanicCardHitZone.on("pointerdown", () => this.dismissMechanicCard());
 
-    this.economyModalTitle = makeText(this, "", 19, "#eef3f8")
-      .setOrigin(0.5)
-      .setDepth(31)
-      .setVisible(false);
-    this.economyModalBody = makeText(this, "", 13, "#9aa7b5")
-      .setOrigin(0.5)
-      .setAlign("center")
-      .setDepth(31)
-      .setVisible(false);
-    this.economyModalMessage = makeText(this, "", 12, "#77dc91")
-      .setOrigin(0.5)
-      .setDepth(31)
-      .setVisible(false);
-    this.economyModalBuy = makeButton(this, this.uiText("КУПИТЬ", "BUY"), () =>
-      this.purchaseEconomyModalProduct(),
-    ).setIcon(GAMEPLAY_UI_FRAMES.dust, 20).setDepth(31).setVisible(false).disableInteractive();
-    this.economyModalAd = makeButton(this, this.uiText("РЕКЛАМА", "AD"), () =>
-      this.showRewardedForEconomyModal(),
-    ).setIcon(GAMEPLAY_UI_FRAMES.badgeReward, 20).setDepth(31).setVisible(false).disableInteractive();
-    this.economyModalClose = makeButton(this, this.uiText("ЗАКРЫТЬ", "CLOSE"), () =>
-      this.closeEconomyModal(),
-    ).setIcon(GAMEPLAY_UI_FRAMES.back, 18).setDepth(31).setVisible(false).disableInteractive();
 
     this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
       .setOrigin(0.5)
@@ -589,8 +527,7 @@ export class BoardScene extends Phaser.Scene {
         this.completionOverlay.exit();
         return;
       }
-      if (this.economyModalVisible) this.closeEconomyModal();
-      else this.openPauseMenu();
+      this.openPauseMenu();
     });
 
     this.scale.on("resize", this.layout, this);
@@ -760,8 +697,7 @@ export class BoardScene extends Phaser.Scene {
   openUtilityScene(key: UtilitySceneKey): void {
     if (
       this.rewardedAdPending ||
-      this.completionOverlay?.visible ||
-      this.economyModalVisible
+      this.completionOverlay?.visible
     ) return;
     if (this.pauseMenuVisible) this.closePauseMenu();
     openCoveredUtilityScene(this, key, { returnScene: "board" });
@@ -771,8 +707,7 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.pauseMenuVisible ||
       this.rewardedAdPending ||
-      this.completionOverlay?.visible ||
-      this.economyModalVisible
+      this.completionOverlay?.visible
     ) return;
     this.pauseMenuVisible = true;
     this.pauseMenuHitZone.setVisible(true).setInteractive();
@@ -904,7 +839,6 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.mechanicCardVisible ||
-      this.economyModalVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
@@ -1241,38 +1175,6 @@ export class BoardScene extends Phaser.Scene {
     // Campaign progress lives on Home/Chapters, not on the board chrome.
   }
 
-  updateEconomyUi(): void {
-    if (!this.economy || !this.hintButtons) return;
-    const snapshot = this.economy.snapshot;
-    const visible =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.ENDLESS;
-    const labels = {
-      [HintType.MOVE]: this.uiText("ХОД", "HINT"),
-      [HintType.UNDO]: this.uiText("ОТМЕНА", "UNDO"),
-      [HintType.RESCUE]: this.uiText("СПАСТИ", "RESCUE"),
-    };
-    for (const [type, button] of this.hintButtons) {
-      const typeVisible = visible &&
-        (type !== HintType.RESCUE || this.mode === PlayMode.ENDLESS);
-      const count = snapshot.hints[type];
-      const rescueEligible = isRescueEligible({
-        mode: this.mode,
-        actualDeadEnd: this.actualDeadEnd,
-      });
-      const actionAvailable =
-        type === HintType.MOVE
-          ? !this.board?.won
-          : type === HintType.UNDO
-          ? this.removalHistory.length > 0 && !this.board?.won
-          : rescueEligible;
-      button
-        .setText(`${labels[type]} ${count > 0 ? `×${count}` : "+"}`)
-        .setVisible(typeVisible)
-        .setAlpha(actionAvailable ? 1 : 0.42);
-      if (typeVisible) button.setInteractive({ useHandCursor: true });
-      else button.disableInteractive();
-    }
-  }
 
   wouldCompleteBlockedMove(piece: BoardPiece): boolean {
     if (!this.blockedMoveKey || !this.board?.isFree(piece)) return false;
@@ -1318,7 +1220,6 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.mechanicCardVisible ||
-      this.economyModalVisible ||
       this.pauseMenuVisible ||
       !this.board ||
       this.board.won
@@ -1593,7 +1494,6 @@ export class BoardScene extends Phaser.Scene {
       );
       this.setBusy(false);
       this.rebuildPieceViews();
-      this.updateEconomyUi();
       this.layout();
       this.render();
     } finally {
@@ -1603,102 +1503,43 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  useHint(type: HintTypeValue): void {
+  usePrimaryHint(): void {
     if (
       this.busy ||
       this.mechanicCardVisible ||
-      this.economyModalVisible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
       !this.board
     ) {
       return;
     }
-    if (type === HintType.MOVE && this.mode === PlayMode.DAILY) {
+    if (this.mode === PlayMode.DAILY) {
       void this.useDailyHint();
       return;
     }
-    if (type === HintType.MOVE && this.mode === PlayMode.CAMPAIGN) {
+    if (this.mode === PlayMode.CAMPAIGN) {
       void this.useCampaignHint();
       return;
     }
-    if (type === HintType.MOVE && this.mode === PlayMode.ENDLESS) {
+    if (this.mode === PlayMode.ENDLESS) {
       if (this.endlessSession?.deadEnd) void this.requestEndlessRescue();
       else void this.requestEndlessHint();
       return;
     }
-    if (type === HintType.RESCUE && this.mode === PlayMode.ENDLESS) {
-      void this.requestEndlessRescue();
-      return;
+    if (this.mode === PlayMode.TUTORIAL) {
+      void this.useTutorialHint();
     }
-    if (
-      type === HintType.RESCUE &&
-      (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY)
-    ) {
-      if (this.campaignDeadEndVisible) void this.requestCampaignRescue();
-      else {
-        this.status.setText(
-          this.uiText(
-            "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО КОГДА НЕ ОСТАЛОСЬ ХОДОВ",
-            "RESCUE IS AVAILABLE ONLY WHEN NO MOVES REMAIN",
-          ),
-        );
-      }
-      return;
-    }
-    if (
-      type === HintType.RESCUE &&
-      !isRescueEligible({ mode: this.mode, actualDeadEnd: this.actualDeadEnd })
-    ) {
-      this.status.setText(
-        this.uiText(
-          "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО КОГДА В ENDLESS НЕ ОСТАЛОСЬ ХОДОВ",
-          "RESCUE IS AVAILABLE ONLY WHEN ENDLESS HAS NO MOVES LEFT",
-        ),
-      );
-      return;
-    }
-    if (type === HintType.RESCUE && this.removalHistory.length === 0) {
-      this.status.setText(
-        this.uiText(
-          "ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН",
-          "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT",
-        ),
-      );
-      return;
-    }
-    if (this.economy.snapshot.hints[type] <= 0) {
-      this.openEconomyModal(type);
-      return;
-    }
+  }
 
-    if (type === HintType.MOVE) {
-      if (this.board.won) return;
-      const analysis =
-        this.positionSolveStatus === SolveStatus.SOLVED &&
-        this.knownWinningRoute.length > 0
-          ? { status: SolveStatus.SOLVED, route: this.knownWinningRoute }
-          : this.analyzeCurrentPosition({ maxMilliseconds: 180 });
-      if (
-        analysis.status !== SolveStatus.SOLVED ||
-        analysis.route.length === 0
-      ) {
-        this.status.setText(
-          this.uiText(
-            "ПОДСКАЗКА НЕ НАЙДЕНА — БУСТ НЕ СПИСАН",
-            "NO HINT FOUND — BOOSTER NOT SPENT",
-          ),
-        );
-        this.updateEconomyUi();
+  async useTutorialHint(): Promise<void> {
+    if (!this.board || this.board.won || this.rewardedAdPending) return;
+    this.hud.setHintBusy(true);
+    try {
+      const result = this.assistance.findHint(this.board.pieces(), this.certifiedSolution);
+      const move = result.route[0];
+      if (result.status !== SolveStatus.SOLVED || !move || move.length === 0) {
+        this.status.setText(this.uiText("ПОДСКАЗКА СЕЙЧАС НЕДОСТУПНА", "NO VERIFIED HINT AVAILABLE"));
         return;
-      }
-      const move = analysis.route[0];
-      if (!move) return;
-      if (!this.economy.consumeHint(type)) return;
-      if (this.mode === PlayMode.CAMPAIGN && this.campaignSession) {
-        this.campaignSession.markHintUsed();
-      } else {
-        this.attemptState = markSolverAssisted(this.attemptState);
       }
       this.clearMoveHint(false);
       this.activeHintKeys = new Set(move.map(hexKey));
@@ -1714,61 +1555,8 @@ export class BoardScene extends Phaser.Scene {
         ),
       );
       this.render();
-      this.updateEconomyUi();
-      return;
-    }
-
-    if (type === HintType.UNDO) {
-      if (this.removalHistory.length === 0 || this.board.won) {
-        this.status.setText("ПОКА НЕЧЕГО ОТМЕНЯТЬ");
-        return;
-      }
-      if (!this.economy.consumeHint(type)) return;
-      this.restoreLastRemoval("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО");
-      return;
-    }
-
-    if (type === HintType.RESCUE) {
-      if (!isRescueEligible({ mode: this.mode, actualDeadEnd: this.actualDeadEnd })) {
-        this.status.setText(
-          this.uiText(
-            "СПАСЕНИЕ ДОСТУПНО ТОЛЬКО КОГДА В ENDLESS НЕ ОСТАЛОСЬ ХОДОВ",
-            "RESCUE IS AVAILABLE ONLY WHEN ENDLESS HAS NO MOVES LEFT",
-          ),
-        );
-        return;
-      }
-      if (this.removalHistory.length === 0) {
-        this.status.setText(this.uiText("ВОССТАНОВИТЬ НЕЧЕГО — БУСТ НЕ СПИСАН", "NOTHING CAN BE RESTORED — BOOSTER NOT SPENT"));
-        return;
-      }
-      const rescue = findLastSolvableSnapshot(
-        this.removalHistory,
-        this.board.pieces(),
-        {
-          preferredSolution: this.certifiedSolution,
-          maxMilliseconds: 240,
-          maxVisited: 160_000,
-        },
-      );
-      if (rescue.status !== SolveStatus.SOLVED) {
-        this.status.setText(
-          rescue.status === SolveStatus.UNKNOWN
-            ? this.uiText("НЕ УДАЛОСЬ НАДЁЖНО НАЙТИ ТОЧКУ СПАСЕНИЯ — БУСТ НЕ СПИСАН", "NO SAFE RESCUE POINT COULD BE VERIFIED — BOOSTER NOT SPENT")
-            : this.uiText("В ЭТОМ ЗАБЕГЕ НЕТ РАЗРЕШИМОЙ ТОЧКИ ВОЗВРАТА — БУСТ НЕ СПИСАН", "THIS RUN HAS NO SOLVABLE RESTORE POINT — BOOSTER NOT SPENT"),
-        );
-        return;
-      }
-      if (!this.economy.consumeHint(type)) return;
-      this.attemptState = markRescueUsed(this.attemptState);
-      this.restoreHistorySnapshot(
-        rescue.index,
-        this.uiText("ВОЗВРАТ К ПОСЛЕДНЕЙ РАЗРЕШИМОЙ ПОЗИЦИИ   ·   ТУПИКОВЫЙ ХОД ЗАБЛОКИРОВАН", "RESTORED LAST SOLVABLE POSITION   ·   DEAD-END MOVE BLOCKED"),
-        {
-          blockedMove: rescue.blockedMove,
-          winningRoute: rescue.route,
-        },
-      );
+    } finally {
+      this.hud.setHintBusy(this.busy);
     }
   }
 
@@ -1911,7 +1699,6 @@ export class BoardScene extends Phaser.Scene {
     this.status.setText(message);
     this.setBusy(false);
     this.rebuildPieceViews();
-    this.updateEconomyUi();
     this.layout();
     this.render();
   }
@@ -1938,7 +1725,6 @@ export class BoardScene extends Phaser.Scene {
     this.status.setText(message);
     this.setBusy(false);
     this.rebuildPieceViews();
-    this.updateEconomyUi();
     this.layout();
   }
 
@@ -1964,7 +1750,6 @@ export class BoardScene extends Phaser.Scene {
     this.status.setText(message);
     this.setBusy(false);
     this.rebuildPieceViews();
-    this.updateEconomyUi();
     this.layout();
   }
 
@@ -1975,153 +1760,6 @@ export class BoardScene extends Phaser.Scene {
     if (render) this.render();
   }
 
-  openEconomyModal(type: HintTypeValue): void {
-    const product = productForHint(type);
-    if (!product) return;
-    this.economyModalVisible = true;
-    this.economyModalProduct = product;
-    this.economyModalMessage.setText("").setVisible(true);
-    this.economyModalTitle
-      .setText(this.english ? product.titleEn : product.title)
-      .setVisible(true);
-    this.economyModalBody.setVisible(true);
-    this.economyModalBuy
-      .setVisible(true)
-      .setInteractive({ useHandCursor: true });
-    this.economyModalAd
-      .setVisible(true)
-      .setInteractive({ useHandCursor: true });
-    this.economyModalClose
-      .setVisible(true)
-      .setInteractive({ useHandCursor: true });
-    this.economyModalHitZone.setVisible(true).setInteractive();
-    this.refreshEconomyModal();
-    this.layout();
-  }
-
-  refreshEconomyModal(): void {
-    const product = this.economyModalProduct;
-    if (!product || !this.economyModalVisible) return;
-    const snapshot = this.economy.snapshot;
-    this.economyModalBody.setText(
-      `${this.english ? product.descriptionEn : product.description}\n\n` +
-      `${this.uiText("В ИНВЕНТАРЕ", "OWNED")}: ${snapshot.hints[product.hint]}\n` +
-      `${this.uiText("БАЛАНС", "BALANCE")}: ${formatScore(snapshot.dust)} ${this.uiText("ПЫЛИ", "DUST")}`,
-    );
-    this.economyModalBuy
-      .setText(`${this.uiText("КУПИТЬ", "BUY")} ×${product.amount}  /  ${product.price} ${this.uiText("ПЫЛИ", "DUST")}`)
-      .setAlpha(snapshot.dust >= product.price ? 1 : 0.62);
-    const rewardedAmount = rewardedAmountForHint(product.hint);
-    const waitSeconds = Math.ceil(this.economy.rewardedWaitMs() / 1000);
-    this.economyModalAd
-      .setText(
-        waitSeconds > 0
-          ? `${this.uiText("РЕКЛАМА ЧЕРЕЗ", "AD IN")} ${waitSeconds}${this.uiText("с", "s")}`
-          : `${this.uiText("СМОТРЕТЬ РЕКЛАМУ", "WATCH AD")}  /  +${rewardedAmount}`,
-      )
-      .setAlpha(waitSeconds > 0 ? 0.48 : 1);
-  }
-
-  purchaseEconomyModalProduct(): void {
-    if (this.rewardedAdPending) return;
-    const product = this.economyModalProduct;
-    if (!product) return;
-    const result = this.economy.purchase(product.id);
-    this.economyModalMessage
-      .setText(
-        result.ok
-          ? `${this.uiText("КУПЛЕНО", "PURCHASED")}: +${product.amount}`
-          : `${this.uiText("НЕ ХВАТАЕТ", "NEED")} ${product.price - result.snapshot.dust} ${this.uiText("ПЫЛИ", "DUST")}`,
-      )
-      .setColor(result.ok ? "#77dc91" : "#ff6b67");
-    this.updateEconomyUi();
-    this.refreshEconomyModal();
-  }
-
-  async showRewardedForEconomyModal() {
-    if (this.rewardedAdPending || !this.economyModalProduct) return;
-    const waitMs = this.economy.rewardedWaitMs();
-    if (waitMs > 0) {
-      this.economyModalMessage
-        .setText(
-          `${this.uiText("СЛЕДУЮЩАЯ РЕКЛАМА ЧЕРЕЗ", "NEXT AD IN")} ${Math.ceil(waitMs / 1000)}${this.uiText("с", "s")}`,
-        )
-        .setColor("#ff6b67");
-      this.refreshEconomyModal();
-      return;
-    }
-    const product = this.economyModalProduct;
-    const amount = rewardedAmountForHint(product.hint);
-    this.rewardedAdPending = true;
-    this.economyModalMessage
-      .setText(
-        this.platform.isSimulated
-          ? this.uiText("ТЕСТОВАЯ РЕКЛАМА...", "TEST AD...")
-          : this.uiText("ЗАГРУЗКА РЕКЛАМЫ...", "LOADING AD..."),
-      )
-      .setColor("#f3c94f");
-    this.economyModalBuy.disableInteractive().setAlpha(0.4);
-    this.economyModalAd.disableInteractive().setAlpha(0.4);
-    this.economyModalClose.disableInteractive().setAlpha(0.4);
-
-    const result = await this.platform.showRewarded();
-    this.rewardedAdPending = false;
-    if (result.status === RewardedAdStatus.REWARDED) {
-      const grant = this.economy.grantRewardedHint(product.hint, { amount });
-      if (grant.ok) {
-        this.updateEconomyUi();
-        this.closeEconomyModal();
-        this.status.setText(
-          `${this.uiText("ПОЛУЧЕНО", "RECEIVED")}: ${this.english ? product.titleEn : product.title} +${amount}`,
-        );
-        return;
-      }
-      this.economyModalMessage
-        .setText(this.uiText("РЕКЛАМНАЯ НАГРАДА УЖЕ ПОЛУЧЕНА", "AD REWARD ALREADY CLAIMED"))
-        .setColor("#ff6b67");
-    } else if (result.status === RewardedAdStatus.CLOSED) {
-      this.economyModalMessage
-        .setText(this.uiText("НАГРАДА НЕ ПОЛУЧЕНА", "NO REWARD RECEIVED"))
-        .setColor("#ff6b67");
-    } else if (result.status === RewardedAdStatus.BUSY) {
-      this.economyModalMessage
-        .setText(this.uiText("РЕКЛАМА УЖЕ ОТКРЫТА", "AD IS ALREADY OPEN"))
-        .setColor("#ff6b67");
-    } else {
-      this.economyModalMessage
-        .setText(this.uiText("РЕКЛАМА СЕЙЧАС НЕДОСТУПНА", "AD IS CURRENTLY UNAVAILABLE"))
-        .setColor("#ff6b67");
-    }
-    if (!this.economyModalVisible) return;
-    this.economyModalBuy.setInteractive({ useHandCursor: true });
-    this.economyModalAd.setInteractive({ useHandCursor: true }).setAlpha(1);
-    this.economyModalClose.setInteractive({ useHandCursor: true }).setAlpha(1);
-    this.updateEconomyUi();
-    this.refreshEconomyModal();
-  }
-
-  closeEconomyModal(): void {
-    if (this.rewardedAdPending) return;
-    this.economyModalVisible = false;
-    this.economyModalProduct = undefined;
-    this.economyModalGraphics.clear();
-    this.economyModalPanel.setVisible(false);
-    this.economyModalHitZone.setVisible(false).disableInteractive();
-    for (const item of [
-      this.economyModalTitle,
-      this.economyModalBody,
-      this.economyModalMessage,
-      this.economyModalBuy,
-      this.economyModalAd,
-      this.economyModalClose,
-    ]) {
-      item.setVisible(false);
-    }
-    this.economyModalBuy.disableInteractive();
-    this.economyModalAd.disableInteractive();
-    this.economyModalClose.disableInteractive();
-    this.render();
-  }
 
   rebuildPieceViews(): void {
     this.clearPieceViews();
@@ -2192,7 +1830,6 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.mechanicCardVisible ||
-      this.economyModalVisible ||
       this.pauseMenuVisible ||
       !this.board
     ) return;
@@ -2427,7 +2064,6 @@ export class BoardScene extends Phaser.Scene {
       .setFontSize(compact ? 10 : 12)
       .setWordWrapWidth(Math.max(240, contentWidth - 32))
       .setPosition(contentCenter, height - (compact ? 116 : 112));
-    this.updateEconomyUi();
 
     this.layoutPanel(contentLeft, contentWidth, width, height, compact || portrait);
     const panelTop = this.panelLayout?.top ?? height - 110;
@@ -2489,7 +2125,6 @@ export class BoardScene extends Phaser.Scene {
     }
     this.render();
     this.layoutMechanicCard(width, height, compact);
-    this.layoutEconomyModal(width, height, compact);
     this.layoutPauseMenu(width, height);
     this.layoutCampaignDeadEnd(width, height);
     this.completionOverlay.layout(width, height);
@@ -2575,48 +2210,6 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
-  layoutEconomyModal(width: number, height: number, compact: boolean): void {
-    this.economyModalGraphics.clear();
-    if (!this.economyModalVisible) {
-      this.economyModalPanel.setVisible(false);
-      return;
-    }
-    this.economyModalHitZone
-      .setPosition(width / 2, height / 2)
-      .setSize(width, height);
-    if (this.economyModalHitZone.input?.hitArea) {
-      this.economyModalHitZone.input.hitArea.setTo(0, 0, width, height);
-    }
-    const cardWidth = Math.min(width - 28, 500);
-    const cardHeight = compact ? 300 : 320;
-    const x = (width - cardWidth) / 2;
-    const y = (height - cardHeight) / 2;
-    this.economyModalGraphics.fillStyle(0x000000, 0.78);
-    this.economyModalGraphics.fillRect(0, 0, width, height);
-    resizeNineSlice(this.economyModalPanel, cardWidth, cardHeight);
-    this.economyModalPanel
-      .setPosition(width / 2, y + cardHeight / 2)
-      .setVisible(true);
-    this.economyModalTitle
-      .setFontSize(compact ? 16 : 19)
-      .setPosition(width / 2, y + 38);
-    this.economyModalBody
-      .setFontSize(compact ? 11 : 13)
-      .setWordWrapWidth(cardWidth - 36)
-      .setPosition(width / 2, y + 112);
-    this.economyModalMessage.setPosition(width / 2, y + 174);
-    this.economyModalAd
-      .setFontSize(compact ? 10 : 13)
-      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
-      .setPosition(width / 2, y + cardHeight - 116);
-    this.economyModalBuy
-      .setFontSize(compact ? 10 : 13)
-      .setFixedSize(Math.min(cardWidth - 36, 330), 38)
-      .setPosition(width / 2, y + cardHeight - 70);
-    this.economyModalClose
-      .setFontSize(compact ? 10 : 12)
-      .setPosition(width / 2, y + cardHeight - 27);
-  }
 
   layoutMechanicCard(width: number, height: number, compact: boolean): void {
     this.mechanicCardHitZone.setPosition(width / 2, height / 2).setSize(width, height);
@@ -2731,7 +2324,6 @@ export class BoardScene extends Phaser.Scene {
     );
     this.updateEndlessHud();
     this.updateCampaignHud();
-    this.updateEconomyUi();
 
     const introActive = this.introAnimator?.active === true;
     const inventoryVisible =
@@ -2739,9 +2331,6 @@ export class BoardScene extends Phaser.Scene {
     const boardActionsEnabled = inventoryVisible && !introActive;
     this.renderPanel(introActive);
     this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
-    for (const button of this.hintButtons.values()) {
-      button.setVisible(false).disableInteractive();
-    }
 
     const primitiveMetrics = boardPrimitiveMetrics(this.hexSize);
     this.cellGraphics.clear();

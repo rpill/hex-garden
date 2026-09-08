@@ -8,12 +8,10 @@ import {
 import { Language } from "../../settings.js";
 import { applySettings, getSettings } from "../settings.js";
 import { layoutSceneHeader } from "../navigation-layout.js";
-import { closeUtilityScene, openUtilityScene } from "../utility-navigation.js";
+import { closeUtilityScene } from "../utility-navigation.js";
 import type { UtilitySceneKey } from "../presentation-model.js";
 import {
   makeButton,
-  makeCartIconButton,
-  makeIconButton,
   makePanel,
   makeText,
   preloadUiAssets,
@@ -21,7 +19,7 @@ import {
 } from "../ui.js";
 
 
-const RETURN_SCENES = new Set<UtilitySceneKey>(["board", "shop", "menu", "level-select", "leaderboard"]);
+const RETURN_SCENES = new Set<UtilitySceneKey>(["board", "menu", "level-select", "leaderboard"]);
 function returnSceneFromData(data: unknown): UtilitySceneKey {
   if (typeof data !== "object" || data === null) return "menu";
   const value = (data as { returnScene?: unknown }).returnScene;
@@ -41,7 +39,6 @@ export class SettingsScene extends Phaser.Scene {
   soundButton!: ReturnType<typeof makeButton>;
   note!: Phaser.GameObjects.Text;
   backButton!: ReturnType<typeof makeButton>;
-  shopButton!: ReturnType<typeof makeCartIconButton>;
   constructor() {
     super("settings");
   }
@@ -70,12 +67,6 @@ export class SettingsScene extends Phaser.Scene {
     ).setOrigin(0.5);
     this.backButton = makeButton(this, "НАЗАД", () => this.goBack(), 14)
       .setIcon(GAMEPLAY_UI_FRAMES.back, 22);
-    this.shopButton = makeCartIconButton(
-      this,
-      () => this.openShop(),
-      { size: 46 },
-    );
-
     this.input.keyboard?.on("keydown-ESC", () => this.goBack());
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -120,9 +111,6 @@ export class SettingsScene extends Phaser.Scene {
     this.backButton.setText(english ? "BACK" : "НАЗАД");
   }
 
-  openShop(): void {
-    openUtilityScene(this, "shop", { returnScene: "settings" });
-  }
 
   goBack(): void {
     closeUtilityScene(this, this.returnScene);
@@ -136,7 +124,7 @@ export class SettingsScene extends Phaser.Scene {
       {
         title: this.title,
         backButton: this.backButton,
-        utilityButtons: [this.shopButton],
+        utilityButtons: [],
       },
       width,
       height,

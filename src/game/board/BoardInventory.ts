@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import {
   ACTIVE_ART_THEME,
-  GAMEPLAY_UI_FRAMES,
   PHYSICAL_MATERIAL_FRAMES,
   THEME_COLORS,
   UI_FRAMES,
@@ -9,16 +8,14 @@ import {
 } from "../../art-assets.js";
 import { Atom, type AtomType } from "../../atom-types.js";
 import { PHYSICAL_PIECE_UI_CANVAS_SCALE } from "../physical-asset-layout.js";
-import { HintType, type HintTypeValue } from "../../economy.js";
 import { PANEL_METAL_TYPES, type PanelState } from "../../panel-state.js";
-import { makeButton, makePanel, makeText, resizeNineSlice } from "../ui.js";
+import { makePanel, makeText, resizeNineSlice } from "../ui.js";
 import { inventoryCountOffset } from "../presentation-layout.js";
 
 const ACTIVE_COUNT_COLOR = "#f3ead8";
 
 export interface BoardInventoryActions {
   onSelectType: (type: AtomType) => void;
-  onHint: (type: HintTypeValue) => void;
 }
 
 export interface BoardInventoryPresentation {
@@ -66,7 +63,6 @@ type PanelView = {
 export class BoardInventory {
   readonly panel: ReturnType<typeof makePanel>;
   readonly graphics: Phaser.GameObjects.Graphics;
-  readonly hintButtons: Map<HintTypeValue, ReturnType<typeof makeButton>>;
   readonly views = new Map<AtomType, PanelView>();
   layoutState: BoardInventoryLayout | undefined;
 
@@ -80,11 +76,6 @@ export class BoardInventory {
     this.#presentation = presentation;
     this.panel = makePanel(scene, UI_FRAMES.panelSide, 3).setMaterialRole("walnut-tray");
     this.graphics = scene.add.graphics().setDepth(4);
-    this.hintButtons = new Map<HintTypeValue, ReturnType<typeof makeButton>>([
-      [HintType.MOVE, makeButton(scene, "ХОД +", () => actions.onHint(HintType.MOVE)).setIcon(GAMEPLAY_UI_FRAMES.hint, 20).setDepth(10)],
-      [HintType.UNDO, makeButton(scene, "ОТМЕНА +", () => actions.onHint(HintType.UNDO)).setIcon(GAMEPLAY_UI_FRAMES.undo, 20).setDepth(10)],
-      [HintType.RESCUE, makeButton(scene, "СПАСТИ +", () => actions.onHint(HintType.RESCUE)).setIcon(GAMEPLAY_UI_FRAMES.rescue, 20).setDepth(10)],
-    ]);
   }
 
   rebuild(types: readonly AtomType[]): void {
@@ -233,16 +224,6 @@ export class BoardInventory {
         view.hitZone.setInteractive({ useHandCursor: true });
       } else {
         view.hitZone.disableInteractive();
-      }
-    }
-    if (!visible) {
-      for (const button of this.hintButtons.values()) {
-        button.setVisible(false).disableInteractive();
-      }
-    } else if (!controlsEnabled) {
-      for (const button of this.hintButtons.values()) {
-        button.setAlpha(0.42);
-        button.disableInteractive();
       }
     }
   }
@@ -420,7 +401,5 @@ export class BoardInventory {
     this.clearViews();
     this.panel.destroy();
     this.graphics.destroy();
-    for (const button of this.hintButtons.values()) button.destroy();
-    this.hintButtons.clear();
   }
 }

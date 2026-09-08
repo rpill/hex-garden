@@ -13,7 +13,6 @@ import { isShortLandscape } from "../responsive-layout.js";
 import { getSettings } from "../settings.js";
 import {
   makeButton,
-  makeCartIconButton,
   makeIconButton,
   makePanel,
   makeText,
@@ -46,7 +45,6 @@ export class LeaderboardScene extends Phaser.Scene {
   subtitle!: Phaser.GameObjects.Text;
   breakdown!: Phaser.GameObjects.Text;
   backButton!: ReturnType<typeof makeButton>;
-  shopButton!: ReturnType<typeof makeCartIconButton>;
   settingsButton!: ReturnType<typeof makeIconButton>;
   constructor() {
     super("leaderboard");
@@ -78,11 +76,6 @@ export class LeaderboardScene extends Phaser.Scene {
     this.backButton = makeButton(this, this.english ? "BACK" : "НАЗАД", () => {
       this.scene.start("menu");
     }, 13).setIcon(GAMEPLAY_UI_FRAMES.back, 22);
-    this.shopButton = makeCartIconButton(
-      this,
-      () => this.scene.start("shop", { returnScene: "leaderboard" }),
-      { size: 46 },
-    );
     this.settingsButton = makeIconButton(
       this,
       GAMEPLAY_UI_FRAMES.settings,
@@ -123,7 +116,7 @@ export class LeaderboardScene extends Phaser.Scene {
       {
         title: this.title,
         backButton: this.backButton,
-        utilityButtons: [this.settingsButton, this.shopButton],
+        utilityButtons: [this.settingsButton],
       },
       width,
       height,
