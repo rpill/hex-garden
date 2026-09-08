@@ -1,5 +1,6 @@
 import { Atom, ELEMENT_TYPES, type AtomType } from "./atom-types.js";
 import { GardenBoard, type BoardPiece } from "./board.js";
+import { analyzePuzzleDifficulty } from "./difficulty.js";
 import {
   BoardVariant,
   createSeededRandom,
@@ -86,11 +87,6 @@ interface ProgressionRecord extends GeneratedProgressionBoard {
   sampledRouteWinProbability: number;
 }
 
-interface RouteState {
-  deadEnd: boolean;
-  shortestDeadEndMove: number | null;
-  winProbability: number;
-}
 
 interface ChallengeMetricInput {
   sampledRouteWinProbability: number | null;
@@ -500,92 +496,6 @@ function moveTypeSignature(move: readonly BoardPiece[]): string {
     .join("+");
 }
 
-function analyzeReachableRoutes(pieces: readonly BoardPiece[]) {
-  // Exact route analysis is intentionally limited to the compact onboarding
-  // boards. The full 55-piece chapters have far too many reachable states for
-  // this metric to belong on the synchronous generation path.
-  if (pieces.length > 24) {
-    return Object.freeze({
-      routeAnalysisComplete: false,
-      reachableStateCount: null,
-      deadEndStateCount: null,
-      shortestDeadEndMove: null,
-      randomRouteWinProbability: null,
-    });
-  }
-
-  const pieceIndex = new Map<string, number>(
-    pieces.map((piece, index) => [hexKey(piece), index]),
-  );
-  const fullMask = (1n << BigInt(pieces.length)) - 1n;
-  const memo = new Map<string, Readonly<RouteState>>();
-
-  const visit = (mask: bigint): Readonly<RouteState> => {
-    const key = mask.toString();
-    const cached = memo.get(key);
-    if (cached) return cached;
-
-    const board = new GardenBoard(
-      pieces.filter(
-        (_piece, index) => (mask & (1n << BigInt(index))) !== 0n,
-      ),
-    );
-    if (board.won) {
-      const result = Object.freeze({
-        deadEnd: false,
-        shortestDeadEndMove: null,
-        winProbability: 1,
-      });
-      memo.set(key, result);
-      return result;
-    }
-
-    const legalMoves = board.legalMoves();
-    if (legalMoves.length === 0) {
-      const result = Object.freeze({
-        deadEnd: true,
-        shortestDeadEndMove: 0,
-        winProbability: 0,
-      });
-      memo.set(key, result);
-      return result;
-    }
-
-    const children = legalMoves.map((move) => {
-      let nextMask = mask;
-      for (const piece of move) {
-        const index = pieceIndex.get(hexKey(piece));
-        if (index === undefined) throw new Error("Difficulty piece index is missing");
-        nextMask &= ~(1n << BigInt(index));
-      }
-      return visit(nextMask);
-    });
-    const deadEndDistances = children.flatMap((child) =>
-      child.shortestDeadEndMove === null ? [] : [child.shortestDeadEndMove + 1],
-    );
-    const result = Object.freeze({
-      deadEnd: false,
-      shortestDeadEndMove:
-        deadEndDistances.length > 0 ? Math.min(...deadEndDistances) : null,
-      winProbability:
-        children.reduce((sum, child) => sum + child.winProbability, 0) /
-        children.length,
-    });
-    memo.set(key, result);
-    return result;
-  };
-
-  const initial = visit(fullMask);
-  return Object.freeze({
-    routeAnalysisComplete: true,
-    reachableStateCount: memo.size,
-    deadEndStateCount: [...memo.values()].filter((state) => state.deadEnd)
-      .length,
-    shortestDeadEndMove: initial.shortestDeadEndMove,
-    randomRouteWinProbability: initial.winProbability,
-  });
-}
-
 function sampleRouteWinProbability(pieces: readonly BoardPiece[], trials = 32): number {
   const sampleSeed = pieces
     .map((piece) => `${piece.q},${piece.r},${piece.type}`)
@@ -615,88 +525,6 @@ function rolloutWinProbability(initialBoard: GardenBoard, seed: string, trials: 
   }
 
   return wins / trials;
-}
-
-function movePositionSignature(move: readonly HexCoord[]): string {
-  return move
-    .map(hexKey)
-    .sort()
-    .join("|");
-}
-
-function analyzeEarlyDecisionConsequences(pieces: readonly BoardPiece[], solution: readonly (readonly HexCoord[])[]) {
-  const board = new GardenBoard(pieces);
-  const analyzedSteps = Math.min(10, solution.length);
-  let choiceSteps = 0;
-  let alternativesAnalyzed = 0;
-  let riskyAlternativeMoves = 0;
-  let riskyDecisionSteps = 0;
-  let deceptiveRiskyMoves = 0;
-  let deceptiveDecisionSteps = 0;
-  let firstRiskyDecisionStep = null;
-  let firstDeceptiveRiskStep = null;
-
-  for (let step = 0; step < analyzedSteps; step += 1) {
-    const legalMoves = board.legalMoves();
-    const certificatePositions = solution[step];
-    if (!certificatePositions) break;
-    const certifiedMove = certificatePositions
-      .map((position) => board.pieceAt(position))
-      .filter((piece): piece is BoardPiece => piece !== undefined);
-    const certifiedPositionSignature = movePositionSignature(certifiedMove);
-    const certifiedTypeSignature = moveTypeSignature(certifiedMove);
-    const alternatives = legalMoves
-      .filter(
-        (move) => movePositionSignature(move) !== certifiedPositionSignature,
-      )
-      .sort((left, right) =>
-        movePositionSignature(left).localeCompare(movePositionSignature(right)),
-      )
-      .slice(0, 6);
-
-    if (alternatives.length > 0) choiceSteps += 1;
-    let stepHasRisk = false;
-    let stepHasDeceptiveRisk = false;
-    for (const alternative of alternatives) {
-      const branch = board.clone();
-      applyMove(branch, alternative);
-      const signature = movePositionSignature(alternative);
-      const winProbability = rolloutWinProbability(
-        branch,
-        `branch:${step}:${signature}:${pieces.length}`,
-        6,
-      );
-      alternativesAnalyzed += 1;
-      if (winProbability > 0.25) continue;
-      riskyAlternativeMoves += 1;
-      stepHasRisk = true;
-      if (moveTypeSignature(alternative) === certifiedTypeSignature) {
-        deceptiveRiskyMoves += 1;
-        stepHasDeceptiveRisk = true;
-      }
-    }
-    if (stepHasRisk) {
-      firstRiskyDecisionStep ??= step + 1;
-      riskyDecisionSteps += 1;
-    }
-    if (stepHasDeceptiveRisk) {
-      firstDeceptiveRiskStep ??= step + 1;
-      deceptiveDecisionSteps += 1;
-    }
-    applyMove(board, certificatePositions);
-  }
-
-  return Object.freeze({
-    earlyDecisionStepsAnalyzed: analyzedSteps,
-    earlyChoiceSteps: choiceSteps,
-    earlyAlternativeMovesAnalyzed: alternativesAnalyzed,
-    earlyRiskyAlternativeMoves: riskyAlternativeMoves,
-    earlyRiskyDecisionSteps: riskyDecisionSteps,
-    firstRiskyDecisionStep,
-    earlyDeceptiveRiskyMoves: deceptiveRiskyMoves,
-    earlyDeceptiveDecisionSteps: deceptiveDecisionSteps,
-    firstDeceptiveRiskStep,
-  });
 }
 
 function previewCandidate(record: ProgressionRecord) {
@@ -748,104 +576,6 @@ function previewCandidate(record: ProgressionRecord) {
   });
 }
 
-function analyzeCertificateDecisionPressure(pieces: readonly BoardPiece[], solution: readonly (readonly HexCoord[])[]) {
-  if (pieces.length > 24) {
-    return Object.freeze({
-      firstMixedDecisionStep: null,
-      mixedDecisionSteps: null,
-      losingMovesAlongCertificate: null,
-      firstDeceptiveDecisionStep: null,
-      deceptiveDecisionSteps: null,
-      deceptiveLosingMovesAlongCertificate: null,
-    });
-  }
-
-  const pieceIndex = new Map<string, number>(
-    pieces.map((piece, index) => [hexKey(piece), index]),
-  );
-  const fullMask = (1n << BigInt(pieces.length)) - 1n;
-  const solvableMemo = new Map<string, boolean>();
-  const boardForMask = (mask: bigint): GardenBoard =>
-    new GardenBoard(
-      pieces.filter(
-        (_piece, index) => (mask & (1n << BigInt(index))) !== 0n,
-      ),
-    );
-  const removeMove = (mask: bigint, move: readonly HexCoord[]): bigint => {
-    let nextMask = mask;
-    for (const piece of move) {
-      const index = pieceIndex.get(hexKey(piece));
-      if (index === undefined) throw new Error("Certificate piece index is missing");
-      nextMask &= ~(1n << BigInt(index));
-    }
-    return nextMask;
-  };
-  const isSolvable = (mask: bigint): boolean => {
-    const key = mask.toString();
-    if (solvableMemo.has(key)) return solvableMemo.get(key) ?? false;
-    const board = boardForMask(mask);
-    if (board.won) {
-      solvableMemo.set(key, true);
-      return true;
-    }
-    const solvable = board
-      .legalMoves()
-      .some((move) => isSolvable(removeMove(mask, move)));
-    solvableMemo.set(key, solvable);
-    return solvable;
-  };
-
-  let mask = fullMask;
-  let firstMixedDecisionStep = null;
-  let mixedDecisionSteps = 0;
-  let losingMovesAlongCertificate = 0;
-  let firstDeceptiveDecisionStep = null;
-  let deceptiveDecisionSteps = 0;
-  let deceptiveLosingMovesAlongCertificate = 0;
-
-  solution.forEach((certificateMove, step) => {
-    const legalMoves = boardForMask(mask).legalMoves();
-    const winningMoveCount = legalMoves.filter((move) =>
-      isSolvable(removeMove(mask, move)),
-    ).length;
-    const losingMoveCount = legalMoves.length - winningMoveCount;
-    if (winningMoveCount > 0 && losingMoveCount > 0) {
-      firstMixedDecisionStep ??= step + 1;
-      mixedDecisionSteps += 1;
-      losingMovesAlongCertificate += losingMoveCount;
-    }
-    const movesBySignature = new Map<string, { winning: number; losing: number }>();
-    for (const move of legalMoves) {
-      const signature = moveTypeSignature(move);
-      const state = movesBySignature.get(signature) ?? {
-        winning: 0,
-        losing: 0,
-      };
-      if (isSolvable(removeMove(mask, move))) state.winning += 1;
-      else state.losing += 1;
-      movesBySignature.set(signature, state);
-    }
-    const deceptiveLosingMoveCount = [...movesBySignature.values()]
-      .filter((state) => state.winning > 0 && state.losing > 0)
-      .reduce((sum, state) => sum + state.losing, 0);
-    if (deceptiveLosingMoveCount > 0) {
-      firstDeceptiveDecisionStep ??= step + 1;
-      deceptiveDecisionSteps += 1;
-      deceptiveLosingMovesAlongCertificate += deceptiveLosingMoveCount;
-    }
-    mask = removeMove(mask, certificateMove);
-  });
-
-  return Object.freeze({
-    firstMixedDecisionStep,
-    mixedDecisionSteps,
-    losingMovesAlongCertificate,
-    firstDeceptiveDecisionStep,
-    deceptiveDecisionSteps,
-    deceptiveLosingMovesAlongCertificate,
-  });
-}
-
 function challengeScoreForMetrics(metrics: ChallengeMetricInput, definition: Readonly<ProgressionLevelDefinition>): number {
   const progress = definition.level / Math.max(1, PROGRESSION_LEVEL_COUNT - 1);
   const targetWinProbability = 0.58 - progress * 0.38;
@@ -871,63 +601,26 @@ function challengeScoreForMetrics(metrics: ChallengeMetricInput, definition: Rea
 }
 
 export function analyzeProgressionDifficulty(record: ProgressionRecord) {
-  const board = new GardenBoard(record.pieces);
-  const snapshots = [];
-
-  for (const move of record.solution) {
-    const freeCount = board.pieces().filter((piece) => board.isFree(piece)).length;
-    const legalMoves = board.legalMoves();
-    const legalMoveCount = legalMoves.length;
-    const meaningfulMoveCount = new Set(legalMoves.map(moveTypeSignature)).size;
-    snapshots.push({ freeCount, legalMoveCount, meaningfulMoveCount });
-    applyMove(board, move);
-  }
-
-  const legalCounts = snapshots.map(({ legalMoveCount }) => legalMoveCount);
-  const freeCounts = snapshots.map(({ freeCount }) => freeCount);
-  const meaningfulCounts = snapshots.map(
-    ({ meaningfulMoveCount }) => meaningfulMoveCount,
-  );
-  const routeAnalysis = analyzeReachableRoutes(record.pieces);
-  const decisionPressure = analyzeCertificateDecisionPressure(
-    record.pieces,
-    record.solution,
-  );
-  const earlyConsequences = analyzeEarlyDecisionConsequences(
-    record.pieces,
-    record.solution,
-  );
+  const generic = analyzePuzzleDifficulty({
+    pieces: record.pieces,
+    solution: record.solution,
+    plateCells: record.plateCells,
+    sampleSeed: record.seed,
+  });
   const metrics = {
     tier: record.definition.chapterNumber,
-    pieceCount: record.pieces.length,
-    moveCount: record.solution.length,
-    plateFill: record.pieces.length / record.plateCells.length,
-    initialFreeCount: freeCounts[0] ?? 0,
-    initialLegalMoveCount: legalCounts[0] ?? 0,
-    minimumLegalMoveCount: Math.min(...legalCounts),
-    maximumLegalMoveCount: Math.max(...legalCounts),
-    averageLegalMoveCount:
-      legalCounts.reduce((sum, count) => sum + count, 0) / legalCounts.length,
-    forcedCertificateSteps: legalCounts.filter((count) => count === 1).length,
-    initialMeaningfulMoveCount: meaningfulCounts[0] ?? 0,
-    minimumMeaningfulMoveCount: Math.min(...meaningfulCounts),
-    maximumMeaningfulMoveCount: Math.max(...meaningfulCounts),
-    averageMeaningfulMoveCount:
-      meaningfulCounts.reduce((sum, count) => sum + count, 0) /
-      meaningfulCounts.length,
+    ...generic,
+    // Preserve the precomputed value used by candidate preview/ranking while
+    // the legacy progression generator still exists. The generic analyzer
+    // computes the same deterministic route sample for direct consumers.
     sampledRouteWinProbability:
-      record.sampledRouteWinProbability ??
-      routeAnalysis.randomRouteWinProbability,
-    ...decisionPressure,
-    ...routeAnalysis,
-    ...earlyConsequences,
+      record.sampledRouteWinProbability ?? generic.sampledRouteWinProbability,
   };
   const challengeScore = challengeScoreForMetrics(metrics, record.definition);
   return Object.freeze({
     ...metrics,
     challengeScore,
     challengeQualified:
-      metrics.sampledRouteWinProbability !== null &&
       metrics.sampledRouteWinProbability >= 0.03 &&
       metrics.sampledRouteWinProbability <= 0.8 &&
       metrics.earlyChoiceSteps >= 3 &&

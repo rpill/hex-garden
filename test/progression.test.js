@@ -59,6 +59,17 @@ test("every selected progression level is deterministic and certificate-solvable
     assert.ok(first.difficulty.minimumLegalMoveCount >= 1);
     assert.equal(first.difficulty.challengeQualified, true);
     assert.ok(first.difficulty.earlyRiskyDecisionSteps >= 1);
+    assert.ok(first.difficulty.consequenceDepthSamples >= 0);
+    assert.ok(
+      first.difficulty.consequenceDepthMedian === null ||
+        first.difficulty.consequenceDepthMedian >= 1,
+    );
+    assert.ok(
+      first.difficulty.consequenceDepthMax === null ||
+        (first.difficulty.consequenceDepthMedian !== null &&
+          first.difficulty.consequenceDepthMax >=
+            first.difficulty.consequenceDepthMedian),
+    );
     assert.ok(first.difficulty.candidatePoolSize >= 6);
   }
 });

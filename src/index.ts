@@ -8,6 +8,8 @@ export {
   isMetal,
 } from "./atom-types.js";
 export { GardenBoard } from "./board.js";
+export { analyzePuzzleDifficulty } from "./difficulty.js";
+export type { DifficultyInput, DifficultyMetrics } from "./difficulty.js";
 export {
   CAMPAIGN_LEVEL_COUNT,
   CAMPAIGN_PLATE_SCHEDULE,
