@@ -1,53 +1,86 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  BoardVariant,
+  CAMPAIGN_LEVEL_COUNT,
+  CAMPAIGN_LEVELS,
+  campaignPlateSize,
+  getCampaignLevel,
   generateCampaignLevel,
+  hexKey,
+  plateSpec,
   replaySolution,
 } from "../src/index.js";
 import { BrowserLevelGenerator } from "../src/browser.js";
 
-test("campaign levels are unlimited, deterministic, and independently addressable", () => {
-  const options = { campaignSeed: "release-1" };
-  const level = generateCampaignLevel(123_456, options);
-  assert.deepEqual(level.pieces, generateCampaignLevel(123_456, options).pieces);
-  assert.notDeepEqual(level.pieces, generateCampaignLevel(123_457, options).pieces);
-  assert.equal(replaySolution(level.board, level.solution), true);
-});
-
-test("a sequence of standard and quintessence campaign levels is solvable", () => {
-  for (let level = 0; level < 20; level += 1) {
-    const variant = level % 5 === 4 ? BoardVariant.QUINTESSENCE : BoardVariant.STANDARD;
-    const record = generateCampaignLevel(level, {
-      campaignSeed: "mixed-campaign",
-      variant,
-    });
+test("campaign is fifty fixed certificate-solvable levels", () => {
+  assert.equal(CAMPAIGN_LEVELS.length, CAMPAIGN_LEVEL_COUNT);
+  for (let level = 0; level < CAMPAIGN_LEVEL_COUNT; level += 1) {
+    const record = getCampaignLevel(level);
+    const expected = plateSpec(campaignPlateSize(level));
+    assert.equal(record.level, level);
+    assert.equal(record.plateRadius, expected.radius);
+    assert.equal(record.plateCells.length, expected.cellCount);
     assert.equal(replaySolution(record.pieces, record.solution), true);
+    const plate = new Set(record.plateCells.map(hexKey));
+    assert.equal(record.pieces.every((piece) => plate.has(hexKey(piece))), true);
+    assert.deepEqual(getCampaignLevel(level).pieces, record.pieces);
   }
 });
 
-test("browser worker facade reconstructs a playable board", async () => {
+test("campaign fixed-data access rejects levels outside 0..49", () => {
+  assert.throws(() => getCampaignLevel(-1), RangeError);
+  assert.throws(() => getCampaignLevel(CAMPAIGN_LEVEL_COUNT), RangeError);
+});
+
+
+test("frozen campaign records are available without a Worker global", () => {
+  const workerDescriptor = Object.getOwnPropertyDescriptor(globalThis, "Worker");
+  try {
+    Object.defineProperty(globalThis, "Worker", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+    const record = getCampaignLevel(0);
+    assert.equal(record.level, 0);
+    assert.equal(replaySolution(record.pieces, record.solution), true);
+  } finally {
+    if (workerDescriptor) {
+      Object.defineProperty(globalThis, "Worker", workerDescriptor);
+    } else {
+      delete globalThis.Worker;
+    }
+  }
+});
+
+test("browser campaign facade resolves frozen data without posting to the worker", async () => {
   const listeners = new Map();
+  let postCount = 0;
   const fakeWorker = {
     addEventListener(type, listener) {
       listeners.set(type, listener);
     },
     postMessage(message) {
+      postCount += 1;
+      const { board: _board, ...result } = generateCampaignLevel(message.level);
       queueMicrotask(() => {
-        const { board: _board, ...result } = generateCampaignLevel(message.level, {
-          campaignSeed: message.campaignSeed,
-          variant: message.variant,
-        });
-        listeners.get("message")({
+        listeners.get("message")?.({
           data: { requestId: message.requestId, result },
         });
       });
     },
     terminate() {},
   };
+
   const generator = new BrowserLevelGenerator({ workerFactory: () => fakeWorker });
-  const record = await generator.generate(42, { campaignSeed: "browser" });
-  assert.equal(record.board.size, 55);
+  const record = await generator.generate(0, {
+    campaignSeed: "ignored-seed",
+    variant: "daily",
+  });
+
+  assert.equal(postCount, 0);
+  assert.equal(record.shape, "canonical");
+  assert.equal(record.variant, "standard");
   assert.equal(replaySolution(record.board, record.solution), true);
   generator.terminate();
 });

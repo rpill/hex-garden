@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "yandex:dev": "node scripts/yandex-dev.mjs",
+    "dev:yandex": "npm run yandex:dev",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --import tsx --test",
@@ -14,7 +16,9 @@
     "check:campaign": "node --import tsx scripts/check-campaign.mjs",
     "context": "node scripts/chatgpt-context.mjs",
     "context:last": "node scripts/chatgpt-context.mjs --last-commit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "author:campaign": "node --import tsx scripts/generate-campaign-shortlist.mjs",
+    "freeze:campaign": "node --import tsx scripts/freeze-campaign.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -27,12 +27,13 @@ test("premium renderer uses NineSlice material surfaces and a tiled felt backgro
   assert.match(background, /PHYSICAL_MATERIAL_FRAMES\.feltTable/);
 });
 
-test("board pieces and inventory share the dedicated physical piece family", async () => {
+test("live board ignores premium pieces while legacy inventory can still reuse them", async () => {
   const art = await read("src/art-assets.ts");
   const board = await read("src/game/scenes/BoardScene.ts");
   const inventory = await read("src/game/board/BoardInventory.ts");
   assert.match(art, /PHYSICAL_PIECE_FRAMES_BY_TYPE/);
-  assert.match(board, /physicalPieceFrameForType\(piece\.type\)/);
+  assert.doesNotMatch(board, /physicalPieceFrameForType\(piece\.type\)/);
+  assert.match(board, /ATOM_LABELS\[piece\.type\]/);
   assert.match(inventory, /physicalPieceFrameForType\(type\)/);
 });
 

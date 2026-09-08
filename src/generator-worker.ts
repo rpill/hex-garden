@@ -1,6 +1,4 @@
-import { generateCampaignLevel } from "./campaign.js";
 import { generateEndlessRunLevel } from "./endless-run.js";
-import { BoardVariant, type BoardVariantValue } from "./generator.js";
 import { generateProgressionLevel } from "./progression.js";
 import { generatePuzzleCandidate, type PuzzleCandidateOptions } from "./puzzle-generation.js";
 import { isRecord } from "./persistence.js";
@@ -26,8 +24,7 @@ interface WorkerRequestBase {
 type GeneratorWorkerRequest =
   | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
   | (WorkerRequestBase & { kind: "progression" })
-  | (WorkerRequestBase & { kind: "endless-run" })
-  | (WorkerRequestBase & { kind?: undefined; variant?: BoardVariantValue });
+  | (WorkerRequestBase & { kind: "endless-run" });
 
 function parseRequest(value: unknown): GeneratorWorkerRequest {
   if (!isRecord(value) || !Number.isSafeInteger(value.requestId)) {
@@ -52,10 +49,7 @@ function parseRequest(value: unknown): GeneratorWorkerRequest {
   const base = campaignSeed === undefined ? { requestId, level } : { requestId, level, campaignSeed };
   if (value.kind === "progression") return { ...base, kind: "progression" };
   if (value.kind === "endless-run") return { ...base, kind: "endless-run" };
-  const variant = Object.values(BoardVariant).includes(value.variant as BoardVariantValue)
-    ? (value.variant as BoardVariantValue)
-    : undefined;
-  return variant === undefined ? base : { ...base, variant };
+  throw new TypeError("Invalid generator worker request kind");
 }
 
 const port = asWorkerPort(globalThis);
@@ -73,13 +67,7 @@ port.addEventListener("message", (event) => {
       if (request.kind === "progression") {
         return generateProgressionLevel(request.level, campaignSeedOptions);
       }
-      if (request.kind === "endless-run") {
-        return generateEndlessRunLevel(request.level, campaignSeedOptions);
-      }
-      return generateCampaignLevel(request.level, {
-        ...campaignSeedOptions,
-        ...(request.variant === undefined ? {} : { variant: request.variant }),
-      });
+      return generateEndlessRunLevel(request.level, campaignSeedOptions);
     })();
     const { board: _board, ...result } = generated;
     port.postMessage({ requestId: request.requestId, result });

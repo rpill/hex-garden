@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  boardActionRowMetrics,
   completionCardMetrics,
   chapterGridMetrics,
   shopGridMetrics,
 } from "../src/game/presentation-layout.js";
-import { boardFloatingMetrics } from "../src/game/responsive-layout.js";
+import { boardFloatingMetrics, boardHudMetrics } from "../src/game/responsive-layout.js";
 
 test("desktop chapters use one ten-level row per chapter", () => {
   const layout = chapterGridMetrics(1280, 800, 92);
@@ -58,10 +59,33 @@ test("floating board metrics reserve space without a top-bar height contract", (
 
   assert.equal(desktop.contentLeft, 0);
   assert.equal(portrait.contentLeft, 0);
-  assert.equal(landscape.actionRail, true);
-  assert.ok(landscape.contentLeft > 0);
+  assert.equal(landscape.actionRail, false);
+  assert.equal(landscape.contentLeft, 0);
   for (const metrics of [desktop, portrait, landscape]) {
     assert.ok(metrics.contentWidth > 0);
     assert.ok(metrics.topInset > 0);
+  }
+});
+
+
+test("minimal board HUD keeps two reachable bottom actions on portrait and desktop", () => {
+  const portrait = boardHudMetrics(390, 844);
+  const desktop = boardHudMetrics(1280, 800);
+
+  assert.equal(portrait.actionCount, 2);
+  assert.ok(portrait.actionY > 844 * 0.8);
+  assert.ok(portrait.actionHeight >= 48);
+  assert.ok(portrait.actionWidth >= 150);
+
+  assert.equal(desktop.actionCount, 2);
+  assert.ok(desktop.actionWidth <= 220);
+  assert.ok(desktop.topControlSize >= 40);
+});
+
+test("board action row always fits inside the viewport", () => {
+  for (const width of [320, 390, 844, 1280]) {
+    const row = boardActionRowMetrics(width);
+    assert.equal(row.count, 2);
+    assert.ok(row.width * 2 + row.gap <= width - row.sidePadding * 2 + 0.001);
   }
 });

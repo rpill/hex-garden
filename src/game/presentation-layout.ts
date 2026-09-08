@@ -88,3 +88,51 @@ export interface CompletionActionOptions { primaryHeight?:number; secondaryHeigh
 export function completionActionMetrics(cardHeight:number,{primaryHeight=40,secondaryHeight=34,gap=12,bottomPadding=20}:CompletionActionOptions={}):Readonly<{primaryY:number;secondaryY:number;gap:number}>{
   const secondaryY=cardHeight-bottomPadding-secondaryHeight/2; const primaryY=secondaryY-secondaryHeight/2-gap-primaryHeight/2; return Object.freeze({primaryY,secondaryY,gap});
 }
+
+export interface BoardActionRowMetrics {
+  count: 2;
+  sidePadding: number;
+  gap: number;
+  width: number;
+  height: number;
+}
+
+export function boardActionRowMetrics(width: number): Readonly<BoardActionRowMetrics> {
+  const compact = width < 560;
+  const sidePadding = compact ? 14 : 22;
+  const gap = compact ? 10 : 12;
+  const available = Math.max(2, width - sidePadding * 2 - gap);
+  const actionWidth = Math.min(compact ? 188 : 220, available / 2);
+  return Object.freeze({
+    count: 2,
+    sidePadding,
+    gap,
+    width: Math.max(1, actionWidth),
+    height: compact ? 54 : 52,
+  });
+}
+
+export interface BoardPrimitiveMetrics {
+  slotRadius: number;
+  tokenRadius: number;
+  hitDiameter: number;
+  slotAlpha: number;
+  slotLineWidth: number;
+}
+
+export function boardPrimitiveMetrics(hexSize: number): Readonly<BoardPrimitiveMetrics> {
+  const size = Math.max(1, hexSize);
+  return Object.freeze({
+    slotRadius: size * 0.78,
+    tokenRadius: Math.max(5.5, size * 0.66),
+    hitDiameter: Math.max(42, size * 1.56),
+    slotAlpha: 0.13,
+    slotLineWidth: Math.max(1, size * 0.035),
+  });
+}
+
+export function boardSlotKeys(
+  plateCells: readonly Readonly<{ q: number; r: number }>[],
+): readonly string[] {
+  return Object.freeze(plateCells.map(({ q, r }) => `${q},${r}`));
+}

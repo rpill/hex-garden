@@ -1,10 +1,20 @@
 import Phaser from "phaser";
-import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
+import {
+  ACTIVE_ART_THEME,
+  GAMEPLAY_UI_FRAMES,
+  PHYSICAL_MATERIAL_FRAMES,
+  THEME_COLORS,
+  UI_FRAMES,
+  physicalPieceFrameForType,
+} from "../../art-assets.js";
 import { Atom, type AtomType } from "../../atom-types.js";
+import { PHYSICAL_PIECE_UI_CANVAS_SCALE } from "../physical-asset-layout.js";
 import { HintType, type HintTypeValue } from "../../economy.js";
 import { PANEL_METAL_TYPES, type PanelState } from "../../panel-state.js";
 import { makeButton, makePanel, makeText, resizeNineSlice } from "../ui.js";
 import { inventoryCountOffset } from "../presentation-layout.js";
+
+const ACTIVE_COUNT_COLOR = "#f3ead8";
 
 export interface BoardInventoryActions {
   onSelectType: (type: AtomType) => void;
@@ -44,6 +54,7 @@ export interface BoardInventoryLayout {
 
 type PanelView = {
   type: AtomType;
+  tokenBase?: Phaser.GameObjects.Image;
   glyph?: Phaser.GameObjects.Image;
   label?: Phaser.GameObjects.Text;
   count: Phaser.GameObjects.Text;
@@ -67,7 +78,7 @@ export class BoardInventory {
     this.#scene = scene;
     this.#actions = actions;
     this.#presentation = presentation;
-    this.panel = makePanel(scene, UI_FRAMES.panelSide, 3);
+    this.panel = makePanel(scene, UI_FRAMES.panelSide, 3).setMaterialRole("walnut-tray");
     this.graphics = scene.add.graphics().setDepth(4);
     this.hintButtons = new Map<HintTypeValue, ReturnType<typeof makeButton>>([
       [HintType.MOVE, makeButton(scene, "ХОД +", () => actions.onHint(HintType.MOVE)).setIcon(GAMEPLAY_UI_FRAMES.hint, 20).setDepth(10)],
@@ -81,15 +92,35 @@ export class BoardInventory {
     this.layoutState = undefined;
     for (const type of types) {
       const glyphFrame = this.#presentation.glyphFrameForType(type);
-      const glyph = glyphFrame && this.#scene.textures.exists(glyphFrame)
-        ? this.#scene.add.image(0, 0, glyphFrame).setDepth(6)
+      const premiumPieceFrame = physicalPieceFrameForType(type);
+      const premiumFallbackBall =
+        ACTIVE_ART_THEME === "premium" && this.#scene.textures.exists(PHYSICAL_MATERIAL_FRAMES.pieceBall);
+      const tokenFrame = premiumPieceFrame && this.#scene.textures.exists(premiumPieceFrame)
+        ? premiumPieceFrame
+        : premiumFallbackBall
+        ? PHYSICAL_MATERIAL_FRAMES.pieceBall
         : undefined;
-      const label = glyph
+      const tokenBase = tokenFrame
+        ? this.#scene.add
+            .image(0, 0, tokenFrame)
+            .setDepth(5)
+        : undefined;
+      const activeGlyphFrame = ACTIVE_ART_THEME === "premium" ? undefined : glyphFrame;
+      const glyph = activeGlyphFrame && this.#scene.textures.exists(activeGlyphFrame)
+        ? this.#scene.add.image(0, 0, activeGlyphFrame).setDepth(6)
+        : undefined;
+      const label = premiumPieceFrame || glyph
         ? undefined
-        : makeText(this.#scene, this.#presentation.labelForType(type), 14, "#eef3f8")
+        : makeText(
+            this.#scene,
+            this.#presentation.labelForType(type),
+            14,
+            ACTIVE_ART_THEME === "premium" ? THEME_COLORS.ink : THEME_COLORS.text,
+          )
             .setOrigin(0.5)
+            .setFontStyle("bold")
             .setDepth(6);
-      const count = makeText(this.#scene, "", 10, "#eef3f8")
+      const count = makeText(this.#scene, "", 10, THEME_COLORS.ivory === THEME_COLORS.chrome ? THEME_COLORS.text : "#f5eedc")
         .setOrigin(0.5)
         .setFontStyle("bold")
         .setDepth(6);
@@ -100,7 +131,14 @@ export class BoardInventory {
       );
       if (hitZone.input) hitZone.input.cursor = "pointer";
       hitZone.on("pointerdown", () => this.#actions.onSelectType(type));
-      this.views.set(type, { type, ...(glyph ? { glyph } : {}), ...(label ? { label } : {}), count, hitZone });
+      this.views.set(type, {
+        type,
+        ...(tokenBase ? { tokenBase } : {}),
+        ...(glyph ? { glyph } : {}),
+        ...(label ? { label } : {}),
+        count,
+        hitZone,
+      });
     }
   }
 
@@ -114,11 +152,11 @@ export class BoardInventory {
     const useTwoRows = compact && types.length > 9;
     const columns = useTwoRows ? Math.ceil(types.length / 2) : types.length;
     const rows = Math.ceil(types.length / columns);
-    const desiredWidth = columns * (compact ? 48 : 54);
+    const desiredWidth = columns * (compact ? 50 : 60);
     const panelWidth = Math.min(contentWidth - 16, compact ? 560 : 820, Math.max(116, desiredWidth));
     const left = contentLeft + (contentWidth - panelWidth) / 2;
     const step = panelWidth / columns;
-    const radius = Math.max(12, Math.min(compact ? 18 : 20, step * 0.34));
+    const radius = Math.max(13, Math.min(compact ? 19 : 22, step * 0.36));
     const rowHeight = Math.max(38, radius * 2 + 8);
     const panelHeight = rows * rowHeight + 16;
     const top = height - panelHeight - 8;
@@ -148,8 +186,12 @@ export class BoardInventory {
       const view = this.views.get(type);
       if (!view) continue;
       const hitDiameter = Math.max(40, radius * 2.25);
+      view.tokenBase?.setPosition(x, y).setDisplaySize(
+        radius * 2.12 * PHYSICAL_PIECE_UI_CANVAS_SCALE,
+        radius * 2.12 * PHYSICAL_PIECE_UI_CANVAS_SCALE,
+      );
       view.label?.setPosition(x, y).setFontSize(Math.max(10, Math.floor(radius * 0.78)));
-      view.glyph?.setPosition(x, y).setDisplaySize(radius * 1.7, radius * 1.7);
+      view.glyph?.setPosition(x, y - radius * 0.03).setDisplaySize(radius * 1.34, radius * 1.34);
       const countOffset = inventoryCountOffset(radius);
       view.count.setPosition(x + countOffset.x, y + countOffset.y).setFontSize(Math.max(11, Math.floor(radius * 0.68)));
       view.hitZone.setPosition(x, y).setSize(hitDiameter, hitDiameter);
@@ -169,8 +211,9 @@ export class BoardInventory {
     for (const entry of layout.entries) {
       const view = this.views.get(entry.type);
       if (!view) continue;
+      view.tokenBase?.setPosition(entry.x, entry.y);
       view.label?.setPosition(entry.x, entry.y);
-      view.glyph?.setPosition(entry.x, entry.y);
+      view.glyph?.setPosition(entry.x, entry.y - layout.radius * 0.03);
       const countOffset = inventoryCountOffset(layout.radius);
       view.count.setPosition(entry.x + countOffset.x, entry.y + countOffset.y);
       view.hitZone.setPosition(entry.x, entry.y);
@@ -181,6 +224,7 @@ export class BoardInventory {
     this.panel.setVisible(visible && this.layoutState !== undefined);
     this.graphics.setVisible(visible);
     for (const view of this.views.values()) {
+      view.tokenBase?.setVisible(visible);
       view.glyph?.setVisible(visible);
       view.label?.setVisible(visible);
       view.count.setVisible(visible);
@@ -227,7 +271,7 @@ export class BoardInventory {
       const after = entries[boundary];
       if (!before || !after || before.row !== after.row) continue;
       const x = (before.x + after.x) / 2;
-      this.graphics.lineStyle(1, 0x686868, 0.8);
+      this.graphics.lineStyle(1, THEME_COLORS.brassSoft, 0.42);
       this.graphics.lineBetween(x, before.y - radius, x, before.y + radius);
     }
     for (let index = 0; index < types.length - 1; index += 1) {
@@ -241,9 +285,9 @@ export class BoardInventory {
       const fromX = from.x + radius + 2;
       const toX = to.x - radius - 2;
       if (toX <= fromX) continue;
-      this.graphics.lineStyle(1, 0x777777, 0.8);
+      this.graphics.lineStyle(1, THEME_COLORS.brassSoft, 0.42);
       this.graphics.lineBetween(fromX, from.y, toX, to.y);
-      this.graphics.fillStyle(0x777777, 0.8);
+      this.graphics.fillStyle(THEME_COLORS.brassSoft, 0.42);
       this.graphics.fillTriangle(toX, to.y, toX - 4, to.y - 3, toX - 4, to.y + 3);
     }
     state.entries.forEach((entry, index) => {
@@ -271,19 +315,27 @@ export class BoardInventory {
       const alpha = baseAlpha * revealAlpha;
       const displayRadius = radius * revealScale;
 
-      if (!view.glyph) {
+      if (!view.glyph && !view.tokenBase) {
         this.graphics.fillStyle(this.#presentation.colorForType(entry.type), alpha);
         this.graphics.fillCircle(x, y, displayRadius);
+      }
+      if (entry.selected || entry.current || (!view.glyph && !view.tokenBase)) {
         this.graphics.lineStyle(
           entry.selected ? 3 : entry.current ? 2 : 1,
           entry.selected ? 0xffffff : entry.current ? 0xf3c94f : 0x101010,
           alpha,
         );
-        this.graphics.strokeCircle(x, y, displayRadius);
+        this.graphics.strokeCircle(x, y, displayRadius * (view.tokenBase ? 1.05 : 1));
       }
+      view.tokenBase
+        ?.setAlpha(alpha * 0.96)
+        .setDisplaySize(
+          radius * 2.12 * PHYSICAL_PIECE_UI_CANVAS_SCALE * revealScale,
+          radius * 2.12 * PHYSICAL_PIECE_UI_CANVAS_SCALE * revealScale,
+        );
       view.glyph
         ?.setAlpha(alpha)
-        .setDisplaySize(radius * 1.7 * revealScale, radius * 1.7 * revealScale);
+        .setDisplaySize(radius * 1.34 * revealScale, radius * 1.34 * revealScale);
       view.label?.setAlpha(alpha).setScale(revealScale);
 
       if (reveal) {
@@ -348,13 +400,14 @@ export class BoardInventory {
         : alpha;
       view.count
         .setText(countText)
-        .setColor(entry.warning ? "#ffb0a4" : "#ffffff")
+        .setColor(entry.warning ? THEME_COLORS.danger : ACTIVE_COUNT_COLOR)
         .setAlpha(countAlpha);
     });
   }
 
   clearViews(): void {
     for (const view of this.views.values()) {
+      view.tokenBase?.destroy();
       view.glyph?.destroy();
       view.label?.destroy();
       view.count.destroy();

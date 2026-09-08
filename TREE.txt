@@ -298,6 +298,7 @@ garden-js/
 │   ├── presentation-layout.test.js
 │   ├── presentation-model.test.js
 │   ├── progression.test.js
+│   ├── removal-feedback-contract.test.js
 │   ├── rules.test.js
 │   ├── settings.test.js
 │   ├── solver.test.js

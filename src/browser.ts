@@ -2,6 +2,7 @@ import { GardenBoard } from "./board.js";
 import { GardenDatabase } from "./database.js";
 import { BoardVariant, type BoardVariantValue } from "./generator.js";
 import { DEFAULT_CAMPAIGN_SEED, type CampaignLevel } from "./campaign.js";
+import { getCampaignLevel } from "./campaign-levels.js";
 import { DEFAULT_PROGRESSION_SEED, generateProgressionLevel } from "./progression.js";
 import { generateEndlessRunLevel, type EndlessRunLevel } from "./endless-run.js";
 import type { GeneratedPuzzleCandidate, PuzzleCandidateOptions } from "./puzzle-generation.js";
@@ -21,7 +22,6 @@ export async function fetchBoardDatabase(
 type ProgressionLevel = ReturnType<typeof generateProgressionLevel>;
 type SerializedResult<T extends { board: GardenBoard }> = Omit<T, "board">;
 type WorkerResult =
-  | SerializedResult<CampaignLevel>
   | SerializedResult<ProgressionLevel>
   | SerializedResult<EndlessRunLevel>
   | SerializedResult<GeneratedPuzzleCandidate>;
@@ -86,11 +86,30 @@ export class BrowserLevelGenerator {
     });
   }
 
+  /**
+   * @deprecated Campaign content is frozen and should be read with
+   * getCampaignLevel(level). This facade remains while BoardScene callers are
+   * migrated; it never posts Campaign work to the generator worker.
+   */
   generate(
     level: number,
-    { campaignSeed = DEFAULT_CAMPAIGN_SEED, variant = BoardVariant.STANDARD }: { campaignSeed?: string; variant?: BoardVariantValue } = {},
+    _options: { campaignSeed?: string; variant?: BoardVariantValue } = {},
   ): Promise<BrowserResult<CampaignLevel>> {
-    return this.#request({ level, campaignSeed, variant });
+    const record = getCampaignLevel(level);
+    const plateCells = record.plateCells.map((cell) => ({ ...cell }));
+    const pieces = record.pieces.map((piece) => ({ ...piece }));
+    const solution = record.solution.map((move) =>
+      move.map((cell) => ({ ...cell })),
+    );
+    return Promise.resolve({
+      ...record,
+      plateCells,
+      pieces,
+      solution,
+      variant: BoardVariant.STANDARD,
+      shape: "canonical",
+      board: new GardenBoard(pieces),
+    });
   }
 
   generateProgression(

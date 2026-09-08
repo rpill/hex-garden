@@ -156,8 +156,8 @@ test("BoardScene uses fresh intro for new fields and restart profile for reset",
   assert.match(source, /startBoardIntro\("restart"\)/);
   assert.match(source, /pendingBoardIntroProfile/);
   assert.match(source, /entranceProgress\(key, this\.time\.now\)/);
-  assert.match(source, /const glyphScale = view\.tokenBase \? 1\.28 : 1\.78/);
-  assert.match(source, /radius \* glyphScale \* visualState\.scale \* introScale/);
-  assert.match(source, /0\.16 \* introProgress/);
+  assert.match(source, /view\.container[\s\S]{0,180}\.setScale\(visualState\.scale \* introScale\)/);
+  assert.match(source, /view\.container[\s\S]{0,220}\.setAlpha\(alpha\)/);
+  assert.doesNotMatch(source, /view\.tokenBase|filterGlow/);
   assert.match(source, /override update\(\): void \{[\s\S]{0,160}introAnimator\?\.active[\s\S]{0,160}render\(\)/);
 });

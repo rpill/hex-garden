@@ -16,8 +16,10 @@ Phaser + TypeScript стенд для проверки правил, генер�
 
 ```powershell
 pnpm install
-pnpm dev
+pnpm yandex:dev
 ```
+
+`pnpm yandex:dev` — основной локальный запуск: Vite стартует как upstream, а игра открывается через официальный `@yandex-games/sdk-dev-proxy` с `--dev-mode=true`. В этом режиме SDK, rewarded-реклама, авторизация и player data работают через официальные Yandex mocks. Обычный `pnpm dev` оставлен только как низкоуровневый Vite-запуск без гарантированного SDK.
 
 Проверка типов, тестов и production-сборка:
 

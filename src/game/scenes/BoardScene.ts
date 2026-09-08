@@ -1,19 +1,12 @@
 import Phaser from "phaser";
 import {
   ACTIVE_ART_THEME,
-  GAMEPLAY_FRAMES,
   GAMEPLAY_UI_FRAMES,
   PHYSICAL_MATERIAL_FRAMES,
-  THEME_COLORS,
   UI_FRAMES,
   atomGlyphFrame,
-  hexFrameForState,
   physicalPieceFrameForType,
 } from "../../art-assets.js";
-import {
-  createPaperBackground,
-  layoutPaperBackground,
-} from "../../scene-background.js";
 import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
 import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
 import { getCampaignLevel } from "../../campaign-levels.js";
@@ -60,10 +53,17 @@ import {
 } from "../../platform/yandex-games.js";
 import { PlayMode, type PlayModeValue } from "../modes.js";
 import { isActualDeadEnd, isRescueEligible } from "../board-session-state.js";
-import { pieceFilterEmphasis, resolvePieceVisualState } from "../piece-visual-state.js";
+import {
+  pieceFeedbackKind,
+  pieceFilterEmphasis,
+  resolvePieceVisualState,
+} from "../piece-visual-state.js";
 import { openUtilityScene as openCoveredUtilityScene } from "../utility-navigation.js";
 import { boardFloatingMetrics } from "../responsive-layout.js";
-import { inventoryAnchorMetrics } from "../presentation-layout.js";
+import {
+  boardPrimitiveMetrics,
+  inventoryAnchorMetrics,
+} from "../presentation-layout.js";
 import { tutorialPresentationStep, type UtilitySceneKey } from "../presentation-model.js";
 import {
   SolveStatus,
@@ -101,8 +101,6 @@ import {
 } from "../board/BoardInventory.js";
 import { BoardTutorial } from "../board/BoardTutorial.js";
 import {
-  PHYSICAL_BOARD_CANVAS_SCALE,
-  PHYSICAL_PIECE_CANVAS_SCALE,
   PHYSICAL_PIECE_UI_CANVAS_SCALE,
 } from "../physical-asset-layout.js";
 import {
@@ -176,10 +174,9 @@ const LOCKED_ATOM_NAMES: Readonly<Partial<Record<AtomType, string>>> = Object.fr
 
 type PieceView = {
   piece: BoardPiece;
-  tokenBase: Phaser.GameObjects.Image | undefined;
-  glyph: Phaser.GameObjects.Image | undefined;
-  label: Phaser.GameObjects.Text | undefined;
-  filterGlow: Phaser.GameObjects.Image | undefined;
+  container: Phaser.GameObjects.Container;
+  circle: Phaser.GameObjects.Graphics;
+  label: Phaser.GameObjects.Text;
   hitZone: Phaser.GameObjects.Zone;
 };
 
@@ -233,7 +230,6 @@ export class BoardScene extends Phaser.Scene {
   boardShape: string | undefined;
   board: GardenBoard | undefined;
   pieceViews = new Map<string, PieceView>();
-  cellViews = new Map<string, Phaser.GameObjects.Image>();
   panelTypes: AtomType[] = [];
   activePanelType: AtomType | null = null;
   panelHighlightTimer: Phaser.Time.TimerEvent | undefined;
@@ -287,7 +283,7 @@ export class BoardScene extends Phaser.Scene {
   tutorialGraphics!: BoardTutorial["graphics"];
   tutorialText!: BoardTutorial["text"];
   tutorialNeighbourLabels!: BoardTutorial["neighbourLabels"];
-  backgroundImage!: ReturnType<typeof createPaperBackground>;
+  backgroundGraphics!: Phaser.GameObjects.Graphics;
   cellGraphics!: Phaser.GameObjects.Graphics;
   atomGraphics!: Phaser.GameObjects.Graphics;
   mechanicCardGraphics!: Phaser.GameObjects.Graphics;
@@ -336,7 +332,6 @@ export class BoardScene extends Phaser.Scene {
     this.levelGeometryReady = false;
     this.levelDefinition = undefined;
     this.pieceViews = new Map();
-    this.cellViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
     this.activePanelType = null;
@@ -443,11 +438,10 @@ export class BoardScene extends Phaser.Scene {
     this.platform = getYandexGamesAdapter();
     this.assistance = new BoardAssistance(this.platform);
     this.pieceViews = new Map();
-    this.cellViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
     this.generator = new BrowserLevelGenerator();
-    this.backgroundImage = createPaperBackground(this).setDepth(-3);
+    this.backgroundGraphics = this.add.graphics().setDepth(-3);
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics().setDepth(1);
     this.inventory = new BoardInventory(
@@ -606,7 +600,6 @@ export class BoardScene extends Phaser.Scene {
       this.scale.off("resize", this.layout, this);
       this.generator.terminate();
       this.introAnimator?.stop();
-      this.clearCellViews();
       this.pieceViews.clear();
       this.panelViews.clear();
     });
@@ -1835,42 +1828,23 @@ export class BoardScene extends Phaser.Scene {
   rebuildPieceViews(): void {
     this.clearPieceViews();
     if (!this.board) return;
+
     for (const piece of this.board.pieces()) {
-      const glyphFrame = atomGlyphFrame(piece.type);
-      const premiumPieceFrame = physicalPieceFrameForType(piece.type);
-      const premiumFallbackBall =
-        ACTIVE_ART_THEME === "premium" && this.textures.exists(PHYSICAL_MATERIAL_FRAMES.pieceBall);
-      const tokenFrame = premiumPieceFrame && this.textures.exists(premiumPieceFrame)
-        ? premiumPieceFrame
-        : premiumFallbackBall
-        ? PHYSICAL_MATERIAL_FRAMES.pieceBall
-        : undefined;
-      const tokenBase = tokenFrame
-        ? this.add
-            .image(0, 0, tokenFrame)
-            .setDepth(1.25)
-            .setVisible(false)
-        : undefined;
-      const activeGlyphFrame = ACTIVE_ART_THEME === "premium" ? undefined : glyphFrame;
-      const glyph = activeGlyphFrame && this.textures.exists(activeGlyphFrame)
-        ? this.add.image(0, 0, activeGlyphFrame).setDepth(2).setVisible(false)
-        : undefined;
-      const filterGlow = activeGlyphFrame && this.textures.exists(activeGlyphFrame)
-        ? this.add.image(0, 0, activeGlyphFrame).setDepth(1.5).setAlpha(0).setVisible(false)
-        : undefined;
-      const label = premiumPieceFrame || glyph
-        ? undefined
-        : makeText(
-            this,
-            ATOM_LABELS[piece.type],
-            16,
-            ACTIVE_ART_THEME === "premium" ? THEME_COLORS.ink : "#eef3f8",
-          )
-            .setOrigin(0.5)
-            .setFontStyle("bold")
-            .setDepth(2)
-            .setVisible(false);
-      const hitZone = this.add.zone(0, 0, 56, 56).setDepth(3).setVisible(false);
+      const circle = this.add.graphics();
+      const label = makeMinimalText(
+        this,
+        ATOM_LABELS[piece.type],
+        16,
+        MINIMAL_UI_COLORS.text,
+      )
+        .setOrigin(0.5)
+        .setFontStyle("bold")
+        .setStroke("#171a1f", 2);
+      const container = this.add
+        .container(0, 0, [circle, label])
+        .setDepth(2)
+        .setVisible(false);
+      const hitZone = this.add.zone(0, 0, 56, 56).setDepth(6).setVisible(false);
       hitZone.setInteractive(
         new Phaser.Geom.Circle(28, 28, 28),
         Phaser.Geom.Circle.Contains,
@@ -1890,16 +1864,19 @@ export class BoardScene extends Phaser.Scene {
         this.hoveredPieceKey = undefined;
         this.render();
       });
-      this.pieceViews.set(hexKey(piece), { piece, tokenBase, glyph, label, filterGlow, hitZone });
+      this.pieceViews.set(hexKey(piece), {
+        piece,
+        container,
+        circle,
+        label,
+        hitZone,
+      });
     }
   }
 
   clearPieceViews(): void {
     for (const view of this.pieceViews.values()) {
-      view.tokenBase?.destroy();
-      view.glyph?.destroy();
-      view.filterGlow?.destroy();
-      view.label?.destroy();
+      view.container.destroy(true);
       view.hitZone.destroy();
     }
     this.pieceViews.clear();
@@ -2135,7 +2112,10 @@ export class BoardScene extends Phaser.Scene {
     const margin = compact ? 10 : 18;
     const contentCenter = contentLeft + contentWidth / 2;
 
-    layoutPaperBackground(this.backgroundImage, width, height, { bands: false });
+    this.backgroundGraphics
+      .clear()
+      .fillStyle(MINIMAL_UI_COLORS.background, 1)
+      .fillRect(0, 0, width, height);
     this.hud.layout(width, height);
     this.status
       .setFontSize(compact ? 10 : 12)
@@ -2182,19 +2162,22 @@ export class BoardScene extends Phaser.Scene {
       );
     }
 
+    const primitiveMetrics = boardPrimitiveMetrics(this.hexSize);
     for (const view of this.pieceViews.values()) {
       const position = this.hexToScreen(view.piece);
-      const hitDiameter = Math.max(42, this.hexSize * 1.56);
+      view.container.setPosition(position.x, position.y);
       view.label
-        ?.setPosition(position.x, position.y)
+        .setPosition(0, 0)
         .setFontSize(Math.max(11, Math.floor(this.hexSize * 0.57)));
-      view.hitZone.setPosition(position.x, position.y).setSize(hitDiameter, hitDiameter);
+      view.hitZone
+        .setPosition(position.x, position.y)
+        .setSize(primitiveMetrics.hitDiameter, primitiveMetrics.hitDiameter);
       const hitArea = view.hitZone.input?.hitArea;
       if (hitArea instanceof Phaser.Geom.Circle) {
         hitArea.setTo(
-          hitDiameter / 2,
-          hitDiameter / 2,
-          hitDiameter / 2,
+          primitiveMetrics.hitDiameter / 2,
+          primitiveMetrics.hitDiameter / 2,
+          primitiveMetrics.hitDiameter / 2,
         );
       }
     }
@@ -2404,104 +2387,6 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
-  clearCellViews(): void {
-    for (const image of this.cellViews.values()) image.destroy();
-    this.cellViews.clear();
-  }
-
-  renderPhysicalCells(): boolean {
-    const frame = PHYSICAL_MATERIAL_FRAMES.boardCell;
-    if (!this.textures.exists(frame)) {
-      this.clearCellViews();
-      return false;
-    }
-
-    const wanted = new Set(this.plateCells.map(hexKey));
-    for (const [key, image] of this.cellViews) {
-      if (wanted.has(key)) continue;
-      image.destroy();
-      this.cellViews.delete(key);
-    }
-
-    for (const cell of this.plateCells) {
-      const key = hexKey(cell);
-      let image = this.cellViews.get(key);
-      if (!image) {
-        image = this.add.image(0, 0, frame).setDepth(0);
-        this.cellViews.set(key, image);
-      }
-      const position = this.hexToScreen(cell);
-      image
-        .setPosition(position.x, position.y)
-        .setTexture(frame)
-        .setDisplaySize(
-          this.hexSize * PHYSICAL_BOARD_CANVAS_SCALE,
-          this.hexSize * PHYSICAL_BOARD_CANVAS_SCALE,
-        )
-        .setVisible(true);
-    }
-    return true;
-  }
-
-  renderAtlasCells(): boolean {
-    const requiredFrames = Object.values(GAMEPLAY_FRAMES);
-    if (!requiredFrames.every((frame) => this.textures.exists(frame))) {
-      this.clearCellViews();
-      return false;
-    }
-
-    const wanted = new Set(this.plateCells.map(hexKey));
-    for (const [key, image] of this.cellViews) {
-      if (wanted.has(key)) continue;
-      image.destroy();
-      this.cellViews.delete(key);
-    }
-
-    const selected = new Set(this.board?.selected.map(hexKey));
-    for (const cell of this.plateCells) {
-      const key = hexKey(cell);
-      let image = this.cellViews.get(key);
-      if (!image) {
-        const created: Phaser.GameObjects.Image = this.add
-          .image(0, 0, GAMEPLAY_FRAMES.hexIdle)
-          .setDepth(0);
-        this.cellViews.set(key, created);
-        image = created;
-      }
-      const position = this.hexToScreen(cell);
-      const frame = hexFrameForState({
-        selected: selected.has(key),
-        hovered: this.hoveredPieceKey === key,
-      });
-      image
-        .setPosition(position.x, position.y)
-        .setTexture(frame)
-        .setDisplaySize(this.hexSize * 2, this.hexSize * 2);
-    }
-    return true;
-  }
-
-  drawHex(graphics: Phaser.GameObjects.Graphics, x: number, y: number, radius: number, fillColor: number, lineColor: number, lineWidth = 1): void {
-    const points = [];
-    for (let i = 0; i < 6; i += 1) {
-      const angle = Phaser.Math.DegToRad(60 * i - 30);
-      points.push(
-        new Phaser.Geom.Point(
-          x + radius * Math.cos(angle),
-          y + radius * Math.sin(angle),
-        ),
-      );
-    }
-    if (ACTIVE_ART_THEME === "premium") {
-      graphics.fillStyle(fillColor, 0.72).fillPoints(points, true);
-      graphics.lineStyle(Math.max(1, lineWidth * 1.65), 0x0b1d17, 0.72).strokePoints(points, true);
-      graphics.lineStyle(Math.max(0.8, lineWidth * 0.72), lineColor, 0.82).strokePoints(points, true);
-      return;
-    }
-    graphics.fillStyle(fillColor, 1).fillPoints(points, true);
-    graphics.lineStyle(lineWidth, lineColor, 1).strokePoints(points, true);
-  }
-
   render(): void {
     const count = this.board?.size ?? 0;
     const levelLabel =
@@ -2539,27 +2424,22 @@ export class BoardScene extends Phaser.Scene {
     for (const button of this.hintButtons.values()) {
       button.setVisible(false).disableInteractive();
     }
+
+    const primitiveMetrics = boardPrimitiveMetrics(this.hexSize);
     this.cellGraphics.clear();
     if (this.levelGeometryReady) {
-      const physicalCellsRendered =
-        ACTIVE_ART_THEME === "premium" && this.renderPhysicalCells();
-      if (!physicalCellsRendered) {
-        if (this.cellViews.size > 0) this.clearCellViews();
-        for (const cell of this.plateCells) {
-          const position = this.hexToScreen(cell);
-          this.drawHex(
-            this.cellGraphics,
-            position.x,
-            position.y,
-            this.hexSize * 0.95,
-            THEME_COLORS.cellFillNumber,
-            THEME_COLORS.cellLineNumber,
-            Math.max(1, this.hexSize * 0.025),
-          );
-        }
+      for (const cell of this.plateCells) {
+        const position = this.hexToScreen(cell);
+        this.cellGraphics
+          .fillStyle(MINIMAL_UI_COLORS.surface, primitiveMetrics.slotAlpha)
+          .fillCircle(position.x, position.y, primitiveMetrics.slotRadius)
+          .lineStyle(
+            primitiveMetrics.slotLineWidth,
+            MINIMAL_UI_COLORS.border,
+            0.28,
+          )
+          .strokeCircle(position.x, position.y, primitiveMetrics.slotRadius);
       }
-    } else if (this.cellViews.size > 0) {
-      this.clearCellViews();
     }
 
     this.atomGraphics.clear();
@@ -2572,46 +2452,46 @@ export class BoardScene extends Phaser.Scene {
             .filter((piece) => this.introRevealedKeys.has(hexKey(piece))),
         )
       : undefined;
+
     for (const view of this.pieceViews.values()) {
       const key = hexKey(view.piece);
       if (this.mechanicCardVisible) {
         view.hitZone.setVisible(false).disableInteractive();
-        view.tokenBase?.setVisible(false);
-        view.glyph?.setVisible(false);
-        view.label?.setVisible(false);
-        view.filterGlow?.setVisible(false);
+        view.container.setVisible(false);
         continue;
       }
+
       const revealed = !introActive || this.introRevealedKeys.has(key);
       view.hitZone.setVisible(revealed);
-      view.tokenBase?.setVisible(revealed);
-      view.glyph?.setVisible(revealed);
-      view.label?.setVisible(revealed);
-      view.filterGlow?.setVisible(revealed);
+      view.container.setVisible(revealed);
       if (!revealed) {
         view.hitZone.disableInteractive();
         continue;
       }
+
       if (introActive) {
         view.hitZone.disableInteractive();
       } else if (!view.hitZone.input?.enabled) {
-        const hitDiameter = Math.max(42, this.hexSize * 1.56);
         view.hitZone.setInteractive(
-          new Phaser.Geom.Circle(hitDiameter / 2, hitDiameter / 2, hitDiameter / 2),
+          new Phaser.Geom.Circle(
+            primitiveMetrics.hitDiameter / 2,
+            primitiveMetrics.hitDiameter / 2,
+            primitiveMetrics.hitDiameter / 2,
+          ),
           Phaser.Geom.Circle.Contains,
         );
         if (view.hitZone.input) view.hitZone.input.cursor = "pointer";
       }
+
       const position = this.hexToScreen(view.piece);
       const free = introBoard
         ? introBoard.isFree(view.piece)
         : this.board.isFree(view.piece);
       const isPanelMatch = this.activePanelType === view.piece.type;
-      const isHinted = this.activeHintKeys.has(hexKey(view.piece));
+      const isHinted = this.activeHintKeys.has(key);
       const isBlocked =
         this.blockedMoveKey !== undefined &&
-        this.blockedMoveKey.split("|").includes(hexKey(view.piece));
-      const radius = this.hexSize * 0.7;
+        this.blockedMoveKey.split("|").includes(key);
       const introProgress = introActive
         ? this.introAnimator?.entranceProgress(key, this.time.now) ?? 1
         : 1;
@@ -2620,103 +2500,72 @@ export class BoardScene extends Phaser.Scene {
         free,
         selected: selected.has(key),
         hovered: this.hoveredPieceKey === key,
+      });
+      const feedback = pieceFeedbackKind({
         hinted: isHinted,
         blocked: isBlocked,
-        now: this.time.now,
       });
       const filter = pieceFilterEmphasis({
         filterActive: this.activePanelType !== null,
         matchesFilter: isPanelMatch,
       });
       const alpha = visualState.alpha * filter.alphaMultiplier * introProgress;
+      const tokenRadius = primitiveMetrics.tokenRadius;
+
+      view.circle.clear();
+      view.circle
+        .fillStyle(ATOM_COLORS[view.piece.type], 1)
+        .fillCircle(0, 0, tokenRadius);
+      const outlineWidth = visualState.kind === "selected"
+        ? Math.max(2, this.hexSize * 0.075)
+        : Math.max(1, this.hexSize * 0.04);
+      view.circle
+        .lineStyle(
+          outlineWidth,
+          visualState.kind === "selected"
+            ? MINIMAL_UI_COLORS.borderActive
+            : MINIMAL_UI_COLORS.border,
+          visualState.kind === "locked" ? 0.55 : 0.9,
+        )
+        .strokeCircle(0, 0, tokenRadius);
+
+      view.container
+        .setPosition(position.x, position.y)
+        .setScale(visualState.scale * introScale)
+        .setAlpha(alpha)
+        .setDepth(visualState.depth);
+      view.label
+        .setPosition(0, 0)
+        .setFontSize(Math.max(10, Math.floor(tokenRadius * 0.62)))
+        .setColor(MINIMAL_UI_COLORS.text);
 
       if (filter.positiveMatch) {
-        this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], 0.14 * introProgress);
-        this.atomGraphics.fillCircle(position.x, position.y, radius * 1.12 * introScale);
-      }
-
-      if (!view.glyph && !view.tokenBase) {
-        this.atomGraphics.fillStyle(0x050806, free ? 0.48 : 0.25);
-        this.atomGraphics.fillCircle(
-          position.x,
-          position.y + Math.max(1, this.hexSize * 0.08),
-          radius * 1.08 * introScale,
-        );
-        this.atomGraphics.fillStyle(0x182231, alpha);
-        this.atomGraphics.fillCircle(position.x, position.y, radius * 1.04 * introScale);
-        this.atomGraphics.fillStyle(ATOM_COLORS[view.piece.type], alpha);
-        this.atomGraphics.fillCircle(position.x, position.y, radius * 0.9 * introScale);
-        if (free) {
-          this.atomGraphics.fillStyle(0xffffff, 0.12);
-          this.atomGraphics.fillEllipse(
-            position.x - radius * 0.22,
-            position.y - radius * 0.27,
-            radius * 0.62,
-            radius * 0.3,
+        this.atomGraphics
+          .lineStyle(
+            Math.max(1, this.hexSize * 0.04),
+            ATOM_COLORS[view.piece.type],
+            0.48 * introProgress,
+          )
+          .strokeCircle(
+            position.x,
+            position.y,
+            tokenRadius * 1.12 * introScale,
           );
-        }
-        this.atomGraphics.lineStyle(
-          Math.max(1, this.hexSize * 0.045),
-          0x657080,
-          1,
-        );
-        this.atomGraphics.strokeCircle(position.x, position.y, radius * 1.02);
       }
 
-      if (visualState.haloAlpha > 0) {
-        const feedbackColor =
-          visualState.kind === "blocked"
-            ? 0xef5a50
-            : visualState.kind === "hinted"
-            ? 0x68cf75
-            : visualState.kind === "selected"
-            ? 0xf3c94f
-            : 0xe4edf6;
-        this.atomGraphics.lineStyle(
-          Math.max(1, this.hexSize * (visualState.haloWidth === 1 ? 0.035 : 0.055)),
-          feedbackColor,
-          visualState.haloAlpha,
-        );
-        this.atomGraphics.strokeCircle(
-          position.x,
-          position.y,
-          radius * 1.1 * visualState.scale,
-        );
+      if (feedback !== null) {
+        this.atomGraphics
+          .lineStyle(
+            Math.max(2, this.hexSize * 0.065),
+            feedback === "blocked" ? 0xef5a50 : 0x68cf75,
+            0.92 * introProgress,
+          )
+          .strokeCircle(
+            position.x,
+            position.y,
+            tokenRadius * 1.16 * visualState.scale * introScale,
+          );
       }
-
-      view.tokenBase
-        ?.setPosition(position.x, position.y)
-        .setDisplaySize(
-          this.hexSize * PHYSICAL_PIECE_CANVAS_SCALE * visualState.scale * introScale,
-          this.hexSize * PHYSICAL_PIECE_CANVAS_SCALE * visualState.scale * introScale,
-        )
-        .setAlpha(alpha * 0.98);
-      view.filterGlow
-        ?.setPosition(position.x, position.y)
-        .setDisplaySize(radius * 1.92 * introScale, radius * 1.92 * introScale)
-        .setAlpha(filter.positiveMatch ? 0.16 * introProgress : 0);
-      const glyphScale = view.tokenBase ? 1.28 : 1.78;
-      view.glyph
-        ?.setPosition(position.x, position.y - (view.tokenBase ? radius * 0.035 : 0))
-        .setDisplaySize(
-          radius * glyphScale * visualState.scale * introScale,
-          radius * glyphScale * visualState.scale * introScale,
-        )
-        .setAlpha(alpha);
-      view.label
-        ?.setPosition(position.x, position.y)
-        .setFontSize(Math.max(10, Math.floor(radius * 0.5)))
-        .setColor(
-          ACTIVE_ART_THEME === "premium"
-            ? free
-              ? THEME_COLORS.ink
-              : "#686868"
-            : free
-            ? "#eef3f8"
-            : "#9aa7b5",
-        )
-        .setScale(visualState.scale * introScale)
-        .setAlpha((free ? 0.92 : 0.5) * introProgress);
     }
     this.renderTutorialGuide();
   }

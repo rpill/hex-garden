@@ -1,42 +1,56 @@
+import { GardenBoard, type BoardPiece } from "./board.js";
+import {
+  getCampaignLevel,
+  type CampaignLevelRecord,
+} from "./campaign-levels.js";
 import {
   BoardVariant,
-  createSeededRandom,
-  generateSolvableBoard,
   type BoardVariantValue,
-  type GeneratedBoard,
+  type Solution,
 } from "./generator.js";
+import type { HexCoord } from "./hex.js";
 
-export const DEFAULT_CAMPAIGN_SEED = "garden-campaign-v1";
+/** @deprecated Campaign content is frozen; this seed is retained for migration-only callers. */
+export const DEFAULT_CAMPAIGN_SEED = "campaign-v2";
 
-export interface CampaignLevel extends GeneratedBoard {
-  level: number;
-  seed: string;
+export interface CampaignLevel
+  extends Omit<CampaignLevelRecord, "plateCells" | "pieces" | "solution"> {
+  plateCells: HexCoord[];
+  pieces: BoardPiece[];
+  solution: Solution;
+  variant: typeof BoardVariant.STANDARD;
+  shape: "canonical";
+  board: GardenBoard;
 }
 
+/** @deprecated Campaign variant selection is ignored by the frozen v2 campaign. */
 export interface GenerateCampaignLevelOptions {
   campaignSeed?: string;
   variant?: BoardVariantValue;
 }
 
 /**
- * Generate one deterministic campaign level without reading any level file.
- * Level N depends only on the campaign seed, variant, and N itself.
+ * Compatibility facade for callers that still expect a generated mutable board.
+ * Campaign puzzle data itself is loaded from the frozen 50-level dataset and
+ * never uses runtime randomness.
  */
 export function generateCampaignLevel(
   level: number,
-  {
-    campaignSeed = DEFAULT_CAMPAIGN_SEED,
-    variant = BoardVariant.STANDARD,
-  }: GenerateCampaignLevelOptions = {},
+  _options: GenerateCampaignLevelOptions = {},
 ): CampaignLevel {
-  if (!Number.isSafeInteger(level) || level < 0) {
-    throw new RangeError("level must be a non-negative safe integer");
-  }
-
-  const seed = `${campaignSeed}:${variant}:${level}`;
+  const record = getCampaignLevel(level);
+  const plateCells = record.plateCells.map((cell) => ({ ...cell }));
+  const pieces = record.pieces.map((piece) => ({ ...piece }));
+  const solution = record.solution.map((move) => move.map((cell) => ({ ...cell })));
   return {
-    level,
-    seed,
-    ...generateSolvableBoard({ random: createSeededRandom(seed), variant }),
+    ...record,
+    plateCells,
+    pieces,
+    solution,
+    variant: BoardVariant.STANDARD,
+    shape: "canonical",
+    board: new GardenBoard(pieces),
   };
 }
+
+export { getCampaignLevel } from "./campaign-levels.js";

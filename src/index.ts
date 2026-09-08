@@ -143,6 +143,18 @@ export {
   getYandexGamesAdapter,
 } from "./platform/yandex-games.js";
 export {
+  YandexTrustedClock,
+  getTrustedClock,
+  type TrustedClock,
+} from "./platform/trusted-clock.js";
+export {
+  PLAYER_DATA_STORAGE_FIELD,
+  createPlayerDataStorage,
+  getPlayerDataStorage,
+  initializePlayerDataStorage,
+  type PlayerDataStorage,
+} from "./platform/player-data-storage.js";
+export {
   DEFAULT_SETTINGS,
   Language,
   SETTINGS_STORAGE_KEY,
@@ -200,3 +212,13 @@ export {
   dailyWeekdayIndex,
   datesForMoscowWeek,
 } from "./daily-calendar.js";
+export {
+  DAILY_PROGRESS_STORAGE_KEY,
+  DailyProgressStore,
+  normalizeDailyProgress,
+  type DailyDayState,
+  type DailyEntry,
+  type DailyProgressSnapshot,
+  type DailyWeekDay,
+  type DailyWeekSummary,
+} from "./daily-progress.js";

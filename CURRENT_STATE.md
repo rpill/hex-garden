@@ -34,12 +34,17 @@ This file is a concise factual snapshot of the current implementation. For stabl
 - The Board uses floating HUD/action groups rather than full-width top/bottom chrome. Pause + Restart form the system/session group, while Move/Undo/Rescue remain a separate consumable group. Atom counts sit beside their glyphs, and type filtering leaves non-matches unchanged while giving matches restrained positive same-shape emphasis.
 - The tutorial now teaches matching first, geometric freedom second, and the remaining-piece count panel third through local contextual callouts; it never hard-blocks an otherwise legal click. Clearing the tutorial opens a focused `LEVEL 1` transition rather than a small HUD play button.
 - Fresh fields use a skippable centre-out spiral reveal with size-dependent target duration of roughly 1.6–3.2 seconds and overlapping ~200 ms piece entrances; restarting the same field uses a compressed roughly 0.8–1.0 second profile. Returning from Shop/Settings to the same Board session does not replay the intro.
+- Successful piece removals now update the Board immediately: removed piece sprites disappear on the successful move with no shrink, fade, pull, connector, ring, or removal-delay animation.
 
 ## Current runtime art state
 
-- The runtime currently loads an experimental Chequered Ink candidate set from `public/assets/chequered-ink/**` via `src/art-assets.ts`.
-- Board cells use renderer-drawn low-contrast hex treatment so empty cells recede; board pieces still use the provisional shape-based gem grammar; main panels, buttons, level tiles, Shop cards, and completion surfaces are now renderer-owned neutral primitives instead of Cartoon UI chrome.
-- This is a live comparison baseline, **not** the approved final art direction.
+- The current live Board candidate is **Physical Premium / Club Table**: deep green felt plus real/derived walnut, brown leather, and aged-brass 2D material surfaces.
+- The Board now uses a tiled felt surface, reusable ivory ceramic socket cells, a walnut/felt inventory rack, physical leather/brass control plaques, and a dedicated physical sprite for every atom type.
+- The current cell plus all 15 piece sprites come from the paused Blender Physical Asset Factory V11 iteration. The 1024x1024 Blender renders remain master art; the browser build uses centered 256x256 premultiplied-alpha Lanczos derivatives so Phaser is not shrinking 1024px art to board scale at runtime.
+- Premium pieces no longer overlay the old Chequered Ink atom glyphs. Material texture plus the embedded physical mark in each factory render carries identity.
+- On roomy desktop Board layouts the four system actions use short labels plus secondary glyphs instead of tiny icon-only squares; compact responsive layouts retain icon-only collapse.
+- The rejected B5 Adventure/RPG/Space raster UI themes are no longer active runtime candidates but their test assets remain on disk pending cleanup after live acceptance.
+- This is a live comparison candidate, **not** the approved final art direction.
 - Mechanized Magic remains bundled under `public/assets/mechanized-magic/**` as rejected legacy art but is no longer the active mapping.
 - Asset sources/license notes are recorded in `THIRD_PARTY_ASSETS.md` and `public/assets/chequered-ink/SOURCE.txt`.
 - The final visual direction is unresolved. See `ART_DIRECTION.md` before doing further visual work.
@@ -59,4 +64,4 @@ This file is a concise factual snapshot of the current implementation. For stabl
 
 ## Current focus
 
-The revised Board UX pass is ready for live verification: validate tutorial callout placement/order, the remaining-count explanation, focused Level 1 transition, system-vs-consumable grouping, and fresh/restart spiral pacing across desktop, phone portrait, and phone landscape. Continue searching for a stronger final piece/icon identity; Chequered Ink remains provisional and is not the selected final art direction.
+Live-verify the current Physical Premium Board integration with the paused V11 factory art: smooth 256px browser sprites, exact cell/piece centering, dedicated material identity for all 15 atoms, inventory readability, and immediate no-animation removal of cleared pieces. Further Blender factory refinement is intentionally paused for this iteration.

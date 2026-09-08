@@ -1,56 +1,51 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { pieceFeedbackKind, pieceFilterEmphasis } from "../src/game/piece-visual-state.js";
+import {
+  pieceFeedbackKind,
+  pieceFilterEmphasis,
+  resolvePieceVisualState,
+} from "../src/game/piece-visual-state.js";
 
-test("piece feedback reserves rings for direct hint/block feedback", () => {
-  assert.equal(pieceFeedbackKind({ panelMatch: true }), null);
-  assert.equal(pieceFeedbackKind({ hinted: true }), "hinted");
-  assert.equal(pieceFeedbackKind({ blocked: true }), "blocked");
+test("piece visual states are semantic locked available and selected states", () => {
+  const locked = resolvePieceVisualState({ free: false });
+  const available = resolvePieceVisualState({ free: true });
+  const selected = resolvePieceVisualState({ free: true, selected: true });
+
+  assert.equal(locked.kind, "locked");
+  assert.equal(available.kind, "available");
+  assert.equal(selected.kind, "selected");
+  assert.ok(locked.alpha < available.alpha);
+  assert.equal(available.scale, 1);
+  assert.equal(selected.scale, 1.03);
+  assert.ok(selected.depth > available.depth);
+  assert.ok(available.depth > locked.depth);
 });
 
-test("piece feedback priority keeps blocked above hint and ignores panel filtering", () => {
-  assert.equal(
-    pieceFeedbackKind({ panelMatch: true, hinted: true, blocked: true }),
-    "blocked",
-  );
-  assert.equal(
-    pieceFeedbackKind({ panelMatch: true, hinted: true, blocked: false }),
-    "hinted",
-  );
+test("hover stays subtle without inventing another availability state", () => {
+  const available = resolvePieceVisualState({ free: true });
+  const hovered = resolvePieceVisualState({ free: true, hovered: true });
+
+  assert.equal(hovered.kind, "available");
+  assert.ok(hovered.scale > available.scale);
+  assert.ok(hovered.scale < 1.03);
+  assert.ok(hovered.depth >= available.depth);
+});
+
+test("direct hint and blocked feedback stays separate from availability state", () => {
+  assert.equal(pieceFeedbackKind({ hinted: true }), "hinted");
+  assert.equal(pieceFeedbackKind({ blocked: true }), "blocked");
+  assert.equal(pieceFeedbackKind({ hinted: true, blocked: true }), "blocked");
   assert.equal(pieceFeedbackKind({}), null);
 });
 
-import { resolvePieceVisualState } from "../src/game/piece-visual-state.js";
-
-test("board visual state keeps hover subtle and hint stronger/distinct", () => {
-  const idle = resolvePieceVisualState({ free: true });
-  const hover = resolvePieceVisualState({ free: true, hovered: true });
-  const selected = resolvePieceVisualState({ free: true, selected: true });
-  const hinted = resolvePieceVisualState({ free: true, hinted: true, now: 250 });
-
-  assert.equal(idle.kind, "idle");
-  assert.equal(hover.kind, "hover");
-  assert.ok(hover.scale > 1 && hover.scale <= 1.05);
-  assert.ok(hover.haloAlpha < selected.haloAlpha);
-  assert.equal(hinted.kind, "hinted");
-  assert.ok(hinted.haloAlpha > hover.haloAlpha);
-});
-
-test("blocked feedback wins over hint/selection and locked pieces stay muted", () => {
-  const blocked = resolvePieceVisualState({
-    free: false,
-    selected: true,
-    hinted: true,
-    blocked: true,
-    now: 0,
-  });
-  assert.equal(blocked.kind, "blocked");
-  assert.ok(blocked.alpha < 0.7);
-});
-
-
-test("panel filtering never reduces piece alpha and only flags matches", () => {
-  assert.deepEqual(pieceFilterEmphasis({ filterActive: true, matchesFilter: false }), { alphaMultiplier: 1, positiveMatch: false });
-  assert.deepEqual(pieceFilterEmphasis({ filterActive: true, matchesFilter: true }), { alphaMultiplier: 1, positiveMatch: true });
+test("panel filtering never dims pieces and only flags positive matches", () => {
+  assert.deepEqual(
+    pieceFilterEmphasis({ filterActive: true, matchesFilter: false }),
+    { alphaMultiplier: 1, positiveMatch: false },
+  );
+  assert.deepEqual(
+    pieceFilterEmphasis({ filterActive: true, matchesFilter: true }),
+    { alphaMultiplier: 1, positiveMatch: true },
+  );
 });

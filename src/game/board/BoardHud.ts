@@ -1,81 +1,132 @@
 import type Phaser from "phaser";
-import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
 import {
-  makeCartIconButton,
-  makeCurrencyDisplay,
-  makeIconButton,
-  makePanel,
-  makeText,
-} from "../ui.js";
+  MINIMAL_UI_COLORS,
+  makeMinimalButton,
+  makeMinimalText,
+  type MinimalButton,
+} from "../minimal-ui.js";
+import { boardHudMetrics } from "../responsive-layout.js";
 
 export interface BoardHudActions {
-  onPause: () => void;
-  onShop: () => void;
-  onSettings: () => void;
-  onRestart: () => void;
+  onBack: () => void;
+  onUndo: () => void;
+  onHint: () => void;
+  onOverflow: () => void;
 }
 
 export class BoardHud {
-  readonly headerPanel: ReturnType<typeof makePanel>;
-  readonly header: Phaser.GameObjects.Text;
-  readonly status: Phaser.GameObjects.Text;
-  readonly endless: Phaser.GameObjects.Text;
-  readonly campaign: Phaser.GameObjects.Text;
-  readonly dust: ReturnType<typeof makeCurrencyDisplay>;
-  readonly pauseButton: ReturnType<typeof makeIconButton>;
-  readonly shopButton: ReturnType<typeof makeCartIconButton>;
-  readonly settingsButton: ReturnType<typeof makeIconButton>;
-  readonly restartButton: ReturnType<typeof makeIconButton>;
+  readonly backButton: MinimalButton;
+  readonly undoButton: MinimalButton;
+  readonly hintButton: MinimalButton;
+  readonly overflowButton: MinimalButton;
+  readonly identity: Phaser.GameObjects.Text;
+  readonly remaining: Phaser.GameObjects.Text;
+  readonly clean: Phaser.GameObjects.Text;
 
-  constructor(scene: Phaser.Scene, actions: BoardHudActions) {
-    this.headerPanel = makePanel(scene, UI_FRAMES.panelStripSmall, 9);
-    this.header = makeText(scene, "", 16, "#eef3f8").setOrigin(0.5).setDepth(10);
-    this.status = makeText(scene, "", 14, "#9aa7b5").setOrigin(0.5).setDepth(10);
-    this.endless = makeText(scene, "", 13, "#f3c94f").setOrigin(0.5).setDepth(10);
-    this.campaign = makeText(scene, "", 13, "#77dc91").setOrigin(0.5).setDepth(10);
-    this.dust = makeCurrencyDisplay(scene, GAMEPLAY_UI_FRAMES.dust, 0, {
-      iconSize: 22,
-      fontSize: 12,
-      color: "#f3c94f",
-    }).setDepth(10);
-    this.pauseButton = makeIconButton(scene, GAMEPLAY_UI_FRAMES.pause, actions.onPause, {
-      size: 46,
-      glyphSize: 32,
-    }).setDepth(10);
-    this.shopButton = makeCartIconButton(scene, actions.onShop, { size: 46 }).setDepth(10);
-    this.settingsButton = makeIconButton(scene, GAMEPLAY_UI_FRAMES.settings, actions.onSettings, {
-      size: 46,
-      glyphSize: 32,
-    }).setDepth(10);
-    this.restartButton = makeIconButton(
+  readonly #label: (russian: string, english: string) => string;
+  #hintBusy = false;
+
+  constructor(
+    scene: Phaser.Scene,
+    actions: BoardHudActions,
+    { english = false }: { english?: boolean } = {},
+  ) {
+    this.#label = (russian, englishText) => english ? englishText : russian;
+
+    this.backButton = makeMinimalButton(scene, "←", actions.onBack).setDepth(10);
+    this.undoButton = makeMinimalButton(
       scene,
-      GAMEPLAY_UI_FRAMES.retry,
-      actions.onRestart,
-      { size: 42, glyphSize: 26 },
+      this.#label("ОТМЕНА", "UNDO"),
+      actions.onUndo,
     ).setDepth(10);
+    this.hintButton = makeMinimalButton(
+      scene,
+      this.#label("ПОДСКАЗКА", "HINT"),
+      actions.onHint,
+    ).setDepth(10);
+    this.overflowButton = makeMinimalButton(scene, "•••", actions.onOverflow).setDepth(10);
+
+    this.identity = makeMinimalText(scene, "", 15)
+      .setOrigin(0.5)
+      .setFontStyle("bold")
+      .setDepth(10);
+    this.remaining = makeMinimalText(scene, "", 14, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5)
+      .setDepth(10);
+    this.clean = makeMinimalText(scene, "", 12, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5)
+      .setDepth(10);
   }
 
-  setBusy(busy: boolean): void {
-    this.pauseButton.setAlpha(1);
-    this.restartButton.setAlpha(busy ? 0.45 : 1);
+  setIdentity(text: string): void {
+    this.identity.setText(text);
   }
 
-  setRestartEmphasis(actualDeadEnd: boolean): void {
-    this.restartButton.setAlpha(actualDeadEnd ? 1 : 0.72);
+  setRemaining(count: number): void {
+    this.remaining.setText(`${this.#label("ОСТАЛОСЬ", "LEFT")} ${Math.max(0, count)}`);
+  }
+
+  setCleanEligible(clean: boolean): void {
+    this.clean
+      .setText(clean ? this.#label("◆ ЧИСТО", "◆ CLEAN") : this.#label("С ПОМОЩЬЮ", "ASSISTED"))
+      .setColor(clean ? MINIMAL_UI_COLORS.text : MINIMAL_UI_COLORS.textMuted);
+  }
+
+  setCleanVisible(visible: boolean): void {
+    this.clean.setVisible(visible);
+  }
+
+  setUndoEnabled(enabled: boolean): void {
+    this.undoButton.setEnabled(enabled);
+  }
+
+  setHintBusy(busy: boolean): void {
+    this.#hintBusy = busy;
+    this.hintButton
+      .setLabel(busy ? this.#label("ИЩЕМ…", "CHECKING…") : this.#label("ПОДСКАЗКА", "HINT"))
+      .setEnabled(!busy);
+  }
+
+  layout(width: number, height: number): void {
+    const metrics = boardHudMetrics(width, height);
+    const left = metrics.sidePadding + metrics.topControlSize / 2;
+    const right = width - metrics.sidePadding - metrics.topControlSize / 2;
+    const actionTotal = metrics.actionWidth * 2 + metrics.actionGap;
+    const actionLeft = (width - actionTotal) / 2 + metrics.actionWidth / 2;
+
+    this.backButton
+      .setPosition(left, metrics.topY)
+      .setSize(metrics.topControlSize, metrics.topControlSize);
+    this.overflowButton
+      .setPosition(right, metrics.topY)
+      .setSize(metrics.topControlSize, metrics.topControlSize);
+    this.identity
+      .setPosition(width / 2, metrics.identityY)
+      .setFontSize(metrics.compact ? 13 : 15)
+      .setFixedSize(Math.max(80, width - metrics.sidePadding * 2 - metrics.topControlSize * 2 - 24), 0);
+    this.clean
+      .setPosition(width / 2, metrics.cleanY)
+      .setFontSize(metrics.compact ? 11 : 12);
+    this.remaining
+      .setPosition(width / 2, metrics.remainingY)
+      .setFontSize(metrics.compact ? 13 : 14);
+    this.undoButton
+      .setPosition(actionLeft, metrics.actionY)
+      .setSize(metrics.actionWidth, metrics.actionHeight);
+    this.hintButton
+      .setPosition(actionLeft + metrics.actionWidth + metrics.actionGap, metrics.actionY)
+      .setSize(metrics.actionWidth, metrics.actionHeight);
   }
 
   destroy(): void {
     for (const object of [
-      this.headerPanel,
-      this.header,
-      this.status,
-      this.endless,
-      this.campaign,
-      this.dust,
-      this.pauseButton,
-      this.shopButton,
-      this.settingsButton,
-      this.restartButton,
+      this.backButton,
+      this.undoButton,
+      this.hintButton,
+      this.overflowButton,
+      this.identity,
+      this.remaining,
+      this.clean,
     ]) {
       object.destroy();
     }

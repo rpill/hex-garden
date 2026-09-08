@@ -54,7 +54,8 @@ test("BoardScene does not draw full-width top or bottom chrome slabs", async () 
   assert.doesNotMatch(text, /fillRect\(0, dockTop, width, height - dockTop\)/);
   assert.doesNotMatch(text, /boardChromeMetrics/);
   assert.match(text, /boardFloatingMetrics/);
-  assert.match(text, /layoutPaperBackground\([^;]+bands:\s*false/s);
+  assert.match(text, /backgroundGraphics[\s\S]{0,160}MINIMAL_UI_COLORS\.background/);
+  assert.doesNotMatch(text, /scene-background|layoutPaperBackground|createPaperBackground/);
 });
 
 
@@ -123,7 +124,7 @@ test("board staging hides placeholder geometry and pieces until the real intro r
   );
   assert.match(source, /levelGeometryReady\s*=\s*false/);
   assert.match(source, /if \(this\.levelGeometryReady\)[\s\S]{0,500}for \(const cell of this\.plateCells\)/);
-  assert.match(source, /this\.mechanicCardVisible[\s\S]{0,300}view\.glyph\?\.setVisible\(false\)/);
+  assert.match(source, /this\.mechanicCardVisible[\s\S]{0,300}view\.container\.setVisible\(false\)/);
   assert.match(source, /introAnimator\?\.active[\s\S]{0,500}inventory\.setPresentationVisible/);
 });
 
