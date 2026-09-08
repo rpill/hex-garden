@@ -17,3 +17,60 @@ export function layoutSceneHeader({title,backButton,utilityButtons=[],utilityBut
   utilityText?.setFontSize(metrics.compact?10:12).setPosition(utilityTextX,metrics.y);
   return metrics;
 }
+
+
+export interface HomeLayoutMetrics {
+  compact: boolean;
+  shortLandscape: boolean;
+  centerX: number;
+  titleY: number;
+  subtitleY: number;
+  progressY: number;
+  primaryY: number;
+  secondaryY: number;
+  primaryWidth: number;
+  primaryHeight: number;
+  secondaryWidth: number;
+  secondaryHeight: number;
+  secondaryGap: number;
+}
+
+export function homeLayoutMetrics(width: number, height: number): Readonly<HomeLayoutMetrics> {
+  const compact = width < 520;
+  const shortLandscape = isShortLandscape(width, height);
+  const centerX = width / 2;
+
+  if (shortLandscape) {
+    return Object.freeze({
+      compact,
+      shortLandscape,
+      centerX,
+      titleY: Math.max(48, height * 0.2),
+      subtitleY: Math.max(78, height * 0.3),
+      progressY: Math.max(108, height * 0.4),
+      primaryY: Math.max(154, height * 0.57),
+      secondaryY: Math.max(214, height * 0.78),
+      primaryWidth: Math.min(420, width - 64),
+      primaryHeight: 54,
+      secondaryWidth: Math.min(180, (width - 84) / 2),
+      secondaryHeight: 44,
+      secondaryGap: 12,
+    });
+  }
+
+  return Object.freeze({
+    compact,
+    shortLandscape,
+    centerX,
+    titleY: Math.max(86, height * 0.18),
+    subtitleY: Math.max(122, height * 0.24),
+    progressY: Math.max(166, height * 0.32),
+    primaryY: Math.max(246, height * 0.47),
+    secondaryY: Math.max(318, height * 0.6),
+    primaryWidth: Math.min(compact ? width - 40 : 420, 420),
+    primaryHeight: compact ? 56 : 60,
+    secondaryWidth: Math.min(compact ? (width - 52) / 2 : 190, 190),
+    secondaryHeight: 46,
+    secondaryGap: compact ? 10 : 14,
+  });
+}

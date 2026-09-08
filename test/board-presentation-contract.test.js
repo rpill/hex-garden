@@ -184,3 +184,23 @@ test("spiral reveal derives live inventory counts from revealed board pieces", a
   assert.match(inventorySource, /`×\$\{revealedCount\}`/);
   assert.match(inventorySource, /lastIntroCount/);
 });
+
+
+test("Home stays asset-free and omits legacy meta destinations", async () => {
+  const source = await readFile(
+    new URL("../src/game/scenes/MenuScene.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(source, /createHomeModel/);
+  assert.match(source, /makeMinimalButton/);
+  assert.match(source, /PlayMode\.TUTORIAL/);
+  assert.match(source, /PlayMode\.CAMPAIGN/);
+  assert.match(source, /scene\.start\("level-select"\)/);
+  assert.match(source, /scene\.start\("settings"/);
+
+  assert.doesNotMatch(source, /art-assets|scene-background|preloadUiAssets|makePanel|NineSlice/);
+  assert.doesNotMatch(source, /getEconomy|getLeaderboard|makeCurrencyDisplay|makeCartIconButton/);
+  assert.doesNotMatch(source, /scene\.start\("shop"|scene\.start\("leaderboard"/);
+  assert.doesNotMatch(source, /PlayMode\.DAILY|PlayMode\.ENDLESS/);
+});

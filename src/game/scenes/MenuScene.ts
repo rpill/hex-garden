@@ -1,152 +1,87 @@
 import Phaser from "phaser";
-import { GAMEPLAY_UI_FRAMES, UI_FRAMES } from "../../art-assets.js";
-import {
-  createPaperBackground,
-  layoutPaperBackground,
-  preloadPaperBackground,
-} from "../../scene-background.js";
-import { endlessAccess } from "../../mode-access.js";
-import { PROGRESSION_LEVEL_COUNT } from "../../progression.js";
-import { isCampaignTestMode } from "../campaign-test-mode.js";
-import { getCampaignProgress } from "../campaign-progress.js";
-import { getEconomy } from "../economy.js";
-import { getLeaderboard } from "../leaderboard.js";
-import { PlayMode } from "../modes.js";
-import { sceneHeaderMetrics } from "../navigation-layout.js";
-import { isShortLandscape } from "../responsive-layout.js";
-import { getSettings } from "../settings.js";
-import {
-  makeButton,
-  makeCurrencyDisplay,
-  makeCartIconButton,
-  makeIconButton,
-  makePanel,
-  makeText,
-  preloadUiAssets,
-  resizeNineSlice,
-} from "../ui.js";
+import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
+import { createHomeModel, type HomeModel } from "../home-model.js";
+import {
+  MINIMAL_UI_COLORS,
+  makeMinimalButton,
+  makeMinimalText,
+  type MinimalButton,
+} from "../minimal-ui.js";
+import { PlayMode } from "../modes.js";
+import { homeLayoutMetrics } from "../navigation-layout.js";
+import { getCampaignProgress } from "../campaign-progress.js";
+import { getSettings } from "../settings.js";
 
-function russianLevelWord(count: number): string {
-  const mod100 = count % 100;
-  const mod10 = count % 10;
-  if (mod100 >= 11 && mod100 <= 14) return "УРОВНЕЙ";
-  if (mod10 === 1) return "УРОВЕНЬ";
-  if (mod10 >= 2 && mod10 <= 4) return "УРОВНЯ";
-  return "УРОВНЕЙ";
+const RANK_LABELS = Object.freeze({
+  novice: { ru: "НОВИЧОК", en: "NOVICE" },
+  apprentice: { ru: "УЧЕНИК", en: "APPRENTICE" },
+  adept: { ru: "ЗНАТОК", en: "ADEPT" },
+  strategist: { ru: "СТРАТЕГ", en: "STRATEGIST" },
+  expert: { ru: "ЭКСПЕРТ", en: "EXPERT" },
+  master: { ru: "МАСТЕР", en: "MASTER" },
+} as const);
+
+function rankLabel(rank: HomeModel["rank"], english: boolean): string {
+  const labels = RANK_LABELS[rank];
+  return english ? labels.en : labels.ru;
 }
 
 export class MenuScene extends Phaser.Scene {
-  paperBackground!: ReturnType<typeof createPaperBackground>;
-  campaignTestMode = false;
   progress!: ReturnType<typeof getCampaignProgress>;
-  economy!: ReturnType<typeof getEconomy>;
   settings!: ReturnType<typeof getSettings>;
-  leaderboard!: ReturnType<typeof getLeaderboard>;
+  model!: Readonly<HomeModel>;
   english = false;
-  endlessAccess!: ReturnType<typeof endlessAccess>;
-  background!: ReturnType<typeof makePanel>;
+
   title!: Phaser.GameObjects.Text;
   subtitle!: Phaser.GameObjects.Text;
-  campaignButton!: ReturnType<typeof makeButton>;
-  standardButton!: ReturnType<typeof makeButton>;
-  shopButton!: ReturnType<typeof makeCartIconButton>;
-  leaderboardButton!: ReturnType<typeof makeButton>;
-  settingsButton!: ReturnType<typeof makeIconButton>;
-  wallet!: ReturnType<typeof makeCurrencyDisplay>;
-  note!: Phaser.GameObjects.Text;
+  progressText!: Phaser.GameObjects.Text;
+  rankText!: Phaser.GameObjects.Text;
+  primaryButton!: MinimalButton;
+  chaptersButton!: MinimalButton;
+  settingsButton!: MinimalButton;
+
   constructor() {
     super("menu");
   }
 
-  preload(): void {
-    preloadPaperBackground(this);
-    preloadUiAssets(this);
-  }
-
   create(): void {
-    this.paperBackground = createPaperBackground(this);
-    this.campaignTestMode = isCampaignTestMode();
+    this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
     this.progress = getCampaignProgress(this);
-    this.economy = getEconomy(this);
     this.settings = getSettings(this);
-    this.leaderboard = getLeaderboard(this);
-    this.leaderboard.syncCampaignScore(this.progress.snapshot.campaignScore);
     this.english = this.settings.snapshot.language === "en";
-    this.endlessAccess = endlessAccess(this.progress.snapshot, {
+    this.model = createHomeModel(this.progress.snapshot, {
       unlockAll: this.progress.testMode,
     });
-    this.background = makePanel(this, UI_FRAMES.panelMainLarge);
-    this.title = makeText(this, "HEX GARDEN", 34, "#eef3f8").setOrigin(0.5);
-    this.subtitle = makeText(
-      this,
-      this.english ? "PUZZLE" : "ГОЛОВОЛОМКА",
-      14,
-      "#9aa7b5",
-    ).setOrigin(0.5);
-    this.campaignButton = makeButton(this, this.english ? "CAMPAIGN" : "КАМПАНИЯ", () => {
-      this.scene.start(
-        this.progress.snapshot.tutorialCompleted ? "level-select" : "board",
-        this.progress.snapshot.tutorialCompleted
-          ? undefined
-          : { mode: PlayMode.TUTORIAL },
-      );
-    });
-    this.standardButton = makeButton(
-      this,
-      this.endlessAccess.unlocked
-        ? (this.english ? "ENDLESS" : "БЕСКОНЕЧНЫЙ РЕЖИМ")
-        : `${this.english ? "ENDLESS · LOCKED" : "БЕСКОНЕЧНЫЙ · ЗАКРЫТ"}  ${this.endlessAccess.completedRequiredLevels}/${this.endlessAccess.requiredCompletedLevels}`,
-      () => {
-        if (!this.endlessAccess.unlocked) {
-          const remaining = this.endlessAccess.remainingLevels;
-          this.note
-            .setText(
-              this.english
-                ? `ENDLESS UNLOCKS AFTER ${this.endlessAccess.requiredCompletedLevels} CAMPAIGN LEVELS\nCOMPLETE ${remaining} MORE CAMPAIGN LEVELS`
-                : `БЕСКОНЕЧНЫЙ РЕЖИМ ОТКРОЕТСЯ ПОСЛЕ ${this.endlessAccess.requiredCompletedLevels} УРОВНЕЙ КАМПАНИИ\n` +
-                  `ПРОЙДИТЕ ЕЩЁ ${remaining} ${russianLevelWord(remaining)} КАМПАНИИ`,
-            )
-            .setColor("#f3c94f");
-          return;
-        }
-        this.scene.start("board", { mode: PlayMode.ENDLESS, level: 0 });
-      },
-    );
-    if (!this.endlessAccess.unlocked) this.standardButton.setAlpha(0.55);
-    this.shopButton = makeCartIconButton(
-      this,
-      () => this.scene.start("shop", { returnScene: "menu" }),
-      { size: 46 },
-    );
-    this.leaderboardButton = makeButton(this, this.english ? "RANKING" : "РЕЙТИНГ", () => {
-      this.scene.start("leaderboard");
-    }).setIcon(GAMEPLAY_UI_FRAMES.rating, 22);
-    this.settingsButton = makeIconButton(
-      this,
-      GAMEPLAY_UI_FRAMES.settings,
-      () => this.scene.start("settings", { returnScene: "menu" }),
-      { size: 46, glyphSize: 32 },
-    );
-    this.wallet = makeCurrencyDisplay(
-      this,
-      GAMEPLAY_UI_FRAMES.dust,
-      this.economy.snapshot.dust,
-      { iconSize: 22, fontSize: 13 },
-    );
-    this.note = makeText(
-      this,
-      this.campaignTestMode
-        ? `TEST MODE: ALL ${PROGRESSION_LEVEL_COUNT} CAMPAIGN LEVELS UNLOCKED`
-        : this.progress.snapshot.campaignCompleted
-        ? `${this.english ? "CAMPAIGN SCORE" : "СЧЁТ КАМПАНИИ"} ${this.progress.snapshot.campaignScore.toLocaleString("ru-RU")}`
-        : this.english
-        ? "CAMPAIGN PROGRESS AND SCORE ARE SAVED ON THIS DEVICE"
-        : "ПРОГРЕСС И СЧЁТ СОХРАНЯЮТСЯ НА ЭТОМ УСТРОЙСТВЕ",
-      11,
-      "#9aa7b5",
-    ).setOrigin(0.5);
 
+    this.title = makeMinimalText(this, "HEX GARDEN", 36)
+      .setOrigin(0.5)
+      .setFontStyle("bold");
+    this.subtitle = makeMinimalText(
+      this,
+      this.english ? "LOGIC PUZZLE" : "ЛОГИЧЕСКАЯ ГОЛОВОЛОМКА",
+      13,
+      MINIMAL_UI_COLORS.textMuted,
+    ).setOrigin(0.5);
+    this.progressText = makeMinimalText(this, "", 14, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(0.5);
+    this.rankText = makeMinimalText(this, "", 13)
+      .setOrigin(0.5)
+      .setFontStyle("bold");
+
+    this.primaryButton = makeMinimalButton(this, "", () => this.activatePrimaryAction());
+    this.chaptersButton = makeMinimalButton(
+      this,
+      this.english ? "CHAPTERS" : "ГЛАВЫ",
+      () => this.scene.start("level-select"),
+    );
+    this.settingsButton = makeMinimalButton(
+      this,
+      this.english ? "SETTINGS" : "НАСТРОЙКИ",
+      () => this.scene.start("settings", { returnScene: "menu" }),
+    );
+
+    this.refreshPresentation();
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
@@ -155,78 +90,101 @@ export class MenuScene extends Phaser.Scene {
     getYandexGamesAdapter().notifyGameReady();
   }
 
-  layout(): void {
-    const { width, height } = this.scale;
-    layoutPaperBackground(this.paperBackground, width, height);
-    const compact = width < 520;
-    const shortLandscape = isShortLandscape(width, height);
-    const header = sceneHeaderMetrics(width, height);
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const cardWidth = Math.min(width - 28, shortLandscape ? 760 : 560);
-    const cardHeight = Math.min(height - 30, compact ? 590 : 620);
-    const cardX = (width - cardWidth) / 2;
-    const cardY = (height - cardHeight) / 2;
-    const mainWidth = Math.min(cardWidth - 42, 390);
-
-    resizeNineSlice(this.background, cardWidth, cardHeight);
-    this.background.setPosition(centerX, centerY);
-
-    if (shortLandscape) {
-      const leftCenter = cardX + cardWidth * 0.28;
-      const rightCenter = cardX + cardWidth * 0.7;
-      const landscapeMainWidth = Math.min(330, cardWidth * 0.42);
-      this.title.setFontSize(29).setPosition(leftCenter, cardY + 70);
-      this.subtitle.setFontSize(11).setPosition(leftCenter, cardY + 109);
-      const settingsX = header.rightX;
-      const shopX = settingsX - header.utilitySize - header.utilityGap;
-      this.settingsButton
-        .setFixedSize(header.utilitySize, header.controlHeight)
-        .setPosition(settingsX, header.y);
-      this.shopButton
-        .setFixedSize(header.utilitySize, header.controlHeight)
-        .setPosition(shopX, header.y);
-      this.wallet
-        .setFontSize(11)
-        .setPosition(shopX - header.utilitySize / 2 - 42, header.y);
-      this.note
-        .setFontSize(9)
-        .setWordWrapWidth(cardWidth * 0.42)
-        .setPosition(leftCenter, cardY + cardHeight - 64);
-      this.campaignButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 72);
-      this.standardButton.setFixedSize(landscapeMainWidth, 54).setPosition(rightCenter, cardY + 138);
-      this.leaderboardButton
-        .setFontSize(11)
-        .setFixedSize(landscapeMainWidth, 48)
-        .setPosition(rightCenter, cardY + 210);
+  private refreshPresentation(): void {
+    if (this.model.firstLaunch) {
+      this.primaryButton.setLabel(this.english ? "START" : "НАЧАТЬ").setEnabled(true);
+      this.chaptersButton.setVisible(false);
+      this.progressText.setVisible(false);
+      this.rankText.setVisible(false);
       return;
     }
 
+    this.chaptersButton.setVisible(true);
+    this.progressText
+      .setVisible(true)
+      .setText(
+        this.english
+          ? `SOLVED ${this.model.solvedCount}/${CAMPAIGN_LEVEL_COUNT}  ·  ◆ ${this.model.cleanCount}/${CAMPAIGN_LEVEL_COUNT} CLEAN`
+          : `ПРОЙДЕНО ${this.model.solvedCount}/${CAMPAIGN_LEVEL_COUNT}  ·  ◆ ЧИСТО ${this.model.cleanCount}/${CAMPAIGN_LEVEL_COUNT}`,
+      );
+    this.rankText
+      .setVisible(true)
+      .setText(
+        `${this.english ? "RANK" : "РАНГ"} · ${rankLabel(this.model.rank, this.english)}`,
+      );
+
+    if (this.model.continueTarget.kind === "campaign") {
+      this.primaryButton
+        .setLabel(
+          this.english
+            ? `CONTINUE · LEVEL ${this.model.continueTarget.level + 1}`
+            : `ПРОДОЛЖИТЬ · УРОВЕНЬ ${this.model.continueTarget.level + 1}`,
+        )
+        .setEnabled(true);
+      return;
+    }
+
+    if (this.model.continueTarget.kind === "mastery") {
+      this.primaryButton
+        .setLabel(
+          this.english
+            ? `CLEAN MASTERY · LEVEL ${this.model.continueTarget.level + 1}`
+            : `ЧИСТОЕ ПРОХОЖДЕНИЕ · УРОВЕНЬ ${this.model.continueTarget.level + 1}`,
+        )
+        .setEnabled(true);
+      return;
+    }
+
+    this.primaryButton
+      .setLabel(this.english ? "MASTERY COMPLETE" : "МАСТЕРСТВО ЗАВЕРШЕНО")
+      .setEnabled(false);
+  }
+
+  private activatePrimaryAction(): void {
+    if (this.model.firstLaunch) {
+      this.scene.start("board", { mode: PlayMode.TUTORIAL });
+      return;
+    }
+
+    const target = this.model.continueTarget;
+    if (target.kind === "complete") return;
+    this.scene.start("board", { mode: PlayMode.CAMPAIGN, level: target.level });
+  }
+
+  layout(): void {
+    const { width, height } = this.scale;
+    const metrics = homeLayoutMetrics(width, height);
+    const secondaryHalfSpan = (metrics.secondaryWidth + metrics.secondaryGap) / 2;
+
     this.title
-      .setFontSize(compact ? 28 : 34)
-      .setFontStyle("bold")
-      .setPosition(centerX, cardY + 76);
-    this.subtitle.setPosition(centerX, cardY + 116);
-    const settingsX = header.rightX;
-    const shopX = settingsX - header.utilitySize - header.utilityGap;
+      .setFontSize(metrics.compact ? 30 : 36)
+      .setPosition(metrics.centerX, metrics.titleY);
+    this.subtitle
+      .setFontSize(metrics.compact ? 11 : 13)
+      .setPosition(metrics.centerX, metrics.subtitleY);
+    this.progressText
+      .setFontSize(metrics.compact ? 11 : 14)
+      .setPosition(metrics.centerX, metrics.progressY);
+    this.rankText
+      .setFontSize(metrics.compact ? 11 : 13)
+      .setPosition(metrics.centerX, metrics.progressY + (metrics.shortLandscape ? 24 : 30));
+
+    this.primaryButton
+      .setPosition(metrics.centerX, metrics.primaryY)
+      .setSize(metrics.primaryWidth, metrics.primaryHeight);
+
+    if (this.model.firstLaunch) {
+      this.settingsButton
+        .setPosition(metrics.centerX, metrics.secondaryY)
+        .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
+      return;
+    }
+
+    this.chaptersButton
+      .setPosition(metrics.centerX - secondaryHalfSpan, metrics.secondaryY)
+      .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
     this.settingsButton
-      .setFixedSize(header.utilitySize, header.controlHeight)
-      .setPosition(settingsX, header.y);
-    this.shopButton
-      .setFixedSize(header.utilitySize, header.controlHeight)
-      .setPosition(shopX, header.y);
-    this.wallet
-      .setFontSize(compact ? 10 : 12)
-      .setPosition(shopX - header.utilitySize / 2 - (compact ? 34 : 44), header.y);
-    this.campaignButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 224);
-    this.standardButton.setFixedSize(mainWidth, 58).setPosition(centerX, cardY + 296);
-    this.leaderboardButton
-      .setFontSize(12)
-      .setFixedSize(mainWidth, 50)
-      .setPosition(centerX, cardY + 374);
-    this.note
-      .setFontSize(compact ? 9 : 11)
-      .setWordWrapWidth(cardWidth - 38)
-      .setPosition(centerX, cardY + cardHeight - 52);
+      .setPosition(metrics.centerX + secondaryHalfSpan, metrics.secondaryY)
+      .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
   }
 }
