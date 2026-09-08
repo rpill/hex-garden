@@ -11,6 +11,21 @@ export { GardenBoard } from "./board.js";
 export { analyzePuzzleDifficulty } from "./difficulty.js";
 export type { DifficultyInput, DifficultyMetrics } from "./difficulty.js";
 export {
+  CAMPAIGN_DIFFICULTY_PROFILES,
+  CAMPAIGN_DIFFICULTY_RHYTHM,
+  CampaignChapter,
+  campaignChapterForLevel,
+  campaignDifficultyProfile,
+  rankCandidatesForProfile,
+} from "./difficulty-profiles.js";
+export type {
+  CampaignChapterValue,
+  DifficultyCandidate,
+  DifficultyPercentiles,
+  DifficultyProfile,
+  RankedDifficultyCandidate,
+} from "./difficulty-profiles.js";
+export {
   CAMPAIGN_LEVEL_COUNT,
   CAMPAIGN_PLATE_SCHEDULE,
   PLATE_SPECS,
