@@ -79,6 +79,16 @@ export {
   type CampaignProgressStoreOptions,
 } from "./campaign-progress.js";
 export {
+  MasteryRank,
+  campaignContinueTarget,
+  masteryRank,
+} from "./mastery.js";
+export type {
+  CampaignContinueTarget,
+  CampaignMasteryProgress,
+  MasteryRankValue,
+} from "./mastery.js";
+export {
   STANDARD_ENDLESS_REQUIRED_COMPLETIONS,
   STANDARD_ENDLESS_UNLOCK_LEVEL,
   standardEndlessAccess,
