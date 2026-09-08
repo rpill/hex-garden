@@ -123,8 +123,8 @@ export class MinimalButton extends Phaser.GameObjects.Container {
     const hitArea = this.input?.hitArea;
     if (hitArea instanceof Phaser.Geom.Rectangle) {
       hitArea.setTo(
-        -this.buttonWidth / 2,
-        -this.buttonHeight / 2,
+        0,
+        0,
         this.buttonWidth,
         this.buttonHeight,
       );
@@ -136,8 +136,8 @@ export class MinimalButton extends Phaser.GameObjects.Container {
 
   private installInteraction(): void {
     const hitArea = new Phaser.Geom.Rectangle(
-      -this.buttonWidth / 2,
-      -this.buttonHeight / 2,
+      0,
+      0,
       this.buttonWidth,
       this.buttonHeight,
     );
