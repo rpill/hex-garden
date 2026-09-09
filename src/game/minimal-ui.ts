@@ -29,6 +29,7 @@ function drawRoundedSurface(
   fill: number,
   stroke: number,
   alpha = 1,
+  strokeWidth = 1,
 ): void {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
@@ -37,8 +38,14 @@ function drawRoundedSurface(
     .clear()
     .fillStyle(fill, alpha)
     .fillRoundedRect(-safeWidth / 2, -safeHeight / 2, safeWidth, safeHeight, radius)
-    .lineStyle(1, stroke, 1)
-    .strokeRoundedRect(-safeWidth / 2 + 0.5, -safeHeight / 2 + 0.5, safeWidth - 1, safeHeight - 1, radius);
+    .lineStyle(strokeWidth, stroke, 1)
+    .strokeRoundedRect(
+      -safeWidth / 2 + strokeWidth / 2,
+      -safeHeight / 2 + strokeWidth / 2,
+      safeWidth - strokeWidth,
+      safeHeight - strokeWidth,
+      radius,
+    );
 }
 
 export function makeMinimalText(
@@ -77,6 +84,7 @@ export class MinimalButton extends Phaser.GameObjects.Container {
   enabled = true;
   hovered = false;
   pressed = false;
+  highlighted = false;
   buttonWidth = DEFAULT_BUTTON_WIDTH;
   buttonHeight = DEFAULT_BUTTON_HEIGHT;
 
@@ -101,6 +109,12 @@ export class MinimalButton extends Phaser.GameObjects.Container {
 
   setLabel(text: string): this {
     this.label.setText(text);
+    return this;
+  }
+
+  setHighlighted(highlighted: boolean): this {
+    this.highlighted = highlighted;
+    this.redraw();
     return this;
   }
 
@@ -185,11 +199,20 @@ export class MinimalButton extends Phaser.GameObjects.Container {
         : this.hovered
           ? MINIMAL_UI_COLORS.surfaceHover
           : MINIMAL_UI_COLORS.surface;
-    const stroke = this.enabled && (this.hovered || this.pressed)
+    const stroke = this.enabled && (this.highlighted || this.hovered || this.pressed)
       ? MINIMAL_UI_COLORS.borderActive
       : MINIMAL_UI_COLORS.border;
+    const strokeWidth = this.enabled && this.highlighted ? 2 : 1;
 
-    drawRoundedSurface(this.background, this.buttonWidth, this.buttonHeight, fill, stroke);
+    drawRoundedSurface(
+      this.background,
+      this.buttonWidth,
+      this.buttonHeight,
+      fill,
+      stroke,
+      1,
+      strokeWidth,
+    );
     this.label
       .setColor(this.enabled ? MINIMAL_UI_COLORS.text : MINIMAL_UI_COLORS.textMuted)
       .setPosition(0, this.pressed ? 1 : 0);

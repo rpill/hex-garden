@@ -55,6 +55,7 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 - Solved can upgrade to Clean and Clean never downgrades. Undo and Restart preserve Clean; Hint/Rescue invalidate Clean for the attempt.
 - Current streak remains visible from yesterday while today's Daily is still open, but only on-time completions can extend it.
 - Home keeps the current seven-day summary and exposes the 90-day Archive after Daily unlock.
+- The Home Daily surface is one unified card: current streak, explicit play/improve/clean state, weekly marks, and Archive entry share one visual block. Archive keeps best streak there (not on Home), shows a symbol legend, and visually highlights today by cell state rather than appending another mark to the date label.
 - Daily Hint and Rescue require a confirmed rewarded-ad callback. Rescue is available only at a true zero-legal-moves dead end and only once per attempt.
 
 ## Endless contract

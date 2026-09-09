@@ -34,6 +34,8 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 - Daily becomes visible after 5 contiguous campaign solves. Endless becomes visible after 10.
 - Daily uses the Moscow calendar (`Europe/Moscow`) and trusted platform time.
 - Daily Archive is a playable rolling 90-day library using trusted Europe/Moscow time.
+- Home presents Daily as one unified retention card: current streak in the card header, explicit NEW/PLAY → SOLVED/IMPROVE → CLEAN action copy, the seven-day strip, and the 90-day Archive entry embedded inside the same card.
+- Daily Archive includes a solved-state legend, keeps current/best streak near the month header, and marks today with a persistent highlighted cell border instead of an extra text glyph.
 - Historical Daily can be replayed and upgraded from Solved to Clean.
 - Daily streak counts only completions recorded on the target Daily's own trusted date.
 - Completing a missed historical date never repairs a streak retroactively.

@@ -50,6 +50,7 @@ export class DailyArchiveScene extends Phaser.Scene {
   status!: Phaser.GameObjects.Text;
   monthTitle!: Phaser.GameObjects.Text;
   streakText!: Phaser.GameObjects.Text;
+  legendText!: Phaser.GameObjects.Text;
   weekdayTexts: Phaser.GameObjects.Text[] = [];
   calendarCard!: Phaser.GameObjects.Graphics;
   backButton!: MinimalButton;
@@ -77,6 +78,14 @@ export class DailyArchiveScene extends Phaser.Scene {
     this.status = makeMinimalText(this, "", 12, MINIMAL_UI_COLORS.textMuted).setOrigin(0.5);
     this.monthTitle = makeMinimalText(this, "", 16).setOrigin(0.5).setFontStyle("bold");
     this.streakText = makeMinimalText(this, "", 12, MINIMAL_UI_COLORS.textMuted).setOrigin(0.5);
+    this.legendText = makeMinimalText(
+      this,
+      this.english
+        ? "· NOT PLAYED   ✓ SOLVED   ◆ CLEAN"
+        : "· НЕ СЫГРАНО   ✓ ПРОЙДЕНО   ◆ ЧИСТО",
+      10,
+      MINIMAL_UI_COLORS.textMuted,
+    ).setOrigin(0.5).setVisible(false);
     this.calendarCard = makeMinimalCard(this, 520, 330);
     this.backButton = makeMinimalButton(this, "←", () => this.scene.start("menu"));
     this.menuButton = makeMinimalButton(this, "☰", () => this.openContextMenu()).setDepth(70);
@@ -122,6 +131,7 @@ export class DailyArchiveScene extends Phaser.Scene {
     this.loading = true;
     this.status.setText(this.uiText("ЗАГРУЗКА…", "LOADING…"));
     this.retryButton.setVisible(false);
+    this.legendText.setVisible(false);
     this.previousButton.setEnabled(false);
     this.nextButton.setEnabled(false);
     for (let index = 0; index < this.dayButtons.length; index += 1) {
@@ -146,6 +156,7 @@ export class DailyArchiveScene extends Phaser.Scene {
       ));
       this.monthTitle.setText("");
       this.streakText.setText("");
+      this.legendText.setVisible(false);
       this.retryButton.setVisible(true).setEnabled(true);
       this.layout();
       return;
@@ -178,6 +189,7 @@ export class DailyArchiveScene extends Phaser.Scene {
         ? `STREAK ${streak.currentStreak} · BEST ${streak.bestStreak}`
         : `СЕРИЯ ${streak.currentStreak} · ЛУЧШАЯ ${streak.bestStreak}`,
     );
+    this.legendText.setVisible(true);
 
     this.previousButton.setEnabled(Boolean(this.monthModel.previousMonthKey));
     this.nextButton.setEnabled(Boolean(this.monthModel.nextMonthKey));
@@ -187,15 +199,15 @@ export class DailyArchiveScene extends Phaser.Scene {
       if (!button) return;
       if (!cell) {
         this.dayDateKeys[index] = null;
-        button.setLabel("").setEnabled(false);
+        button.setLabel("").setHighlighted(false).setEnabled(false);
         return;
       }
 
       this.dayDateKeys[index] = cell.dateKey;
       const mark = cell.state === "clean" ? "◆" : cell.state === "solved" ? "✓" : "·";
-      const todayMark = cell.today ? " ●" : "";
       button
-        .setLabel(`${cell.dayOfMonth}\n${mark}${todayMark}`)
+        .setLabel(`${cell.dayOfMonth}\n${mark}`)
+        .setHighlighted(cell.today)
         .setEnabled(cell.enabled);
     });
   }
@@ -291,10 +303,11 @@ export class DailyArchiveScene extends Phaser.Scene {
     this.previousButton.label.setFontSize(18);
     this.nextButton.label.setFontSize(18);
 
-    const weekdaysY = shortLandscape ? 91 : 112;
-    const streakY = height - (shortLandscape ? 14 : 20);
+    const streakY = monthY + (shortLandscape ? 23 : 26);
+    const weekdaysY = streakY + (shortLandscape ? 24 : 28);
+    const legendY = height - (shortLandscape ? 14 : 20);
     const gridTop = weekdaysY + (shortLandscape ? 12 : 16);
-    const gridBottom = streakY - (shortLandscape ? 14 : 20);
+    const gridBottom = legendY - (shortLandscape ? 14 : 20);
     const horizontalMargin = compact ? 14 : 24;
     const maxGridWidth = Math.min(width - horizontalMargin * 2, 620);
     const maxGridHeight = Math.max(120, gridBottom - gridTop);
@@ -337,6 +350,9 @@ export class DailyArchiveScene extends Phaser.Scene {
     this.streakText
       .setFontSize(shortLandscape ? 10 : 12)
       .setPosition(width / 2, streakY);
+    this.legendText
+      .setFontSize(shortLandscape ? 8 : compact ? 9 : 10)
+      .setPosition(width / 2, legendY);
     this.contextMenu.layout(width, height);
   }
 }

@@ -97,6 +97,8 @@ DA-08  Archive -> Rules/Settings -> Back resumes Archive without resetting the s
 DA-09  Archive-origin completion primary action returns to Archive after the normal Daily interstitial opportunity; the centralized 3-minute session/cooldown gate may suppress the actual ad request.
 DA-10  Trusted-time failure disables Archive instead of falling back to device time.
 DA-11  Mobile landscape keeps month arrows, 7-column calendar, streak header, and date cells readable/clickable.
+DA-12  Home Daily is one card: current streak, explicit NEW/PLAY or SOLVED/IMPROVE or CLEAN state, weekly strip, and embedded ARCHIVE · 90 DAYS action.
+DA-13  Archive legend explains · / ✓ / ◆, current/best streak sits near the month header, and today is indicated by highlighted cell styling without an extra label glyph.
 
 ### Generation / interstitial UX
 

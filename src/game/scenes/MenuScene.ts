@@ -47,9 +47,11 @@ function dailyStateMark(state: HomeDailyState): string {
 }
 
 function dailyTodayLabel(state: HomeDailyState, english: boolean): string {
-  if (state === "clean") return "◆";
-  if (state === "solved") return "✓";
-  return english ? "NEW" : "НОВАЯ";
+  if (state === "clean") return english ? "◆ CLEAN" : "◆ ЧИСТО";
+  if (state === "solved") {
+    return english ? "SOLVED · IMPROVE TO ◆" : "ПРОЙДЕНО · УЛУЧШИТЬ ДО ◆";
+  }
+  return english ? "NEW · PLAY" : "НОВАЯ · ИГРАТЬ";
 }
 
 export class MenuScene extends Phaser.Scene {
@@ -70,6 +72,7 @@ export class MenuScene extends Phaser.Scene {
   dailyButton!: MinimalButton;
   dailyArchiveButton!: MinimalButton;
   dailyTitle!: Phaser.GameObjects.Text;
+  dailyStreak!: Phaser.GameObjects.Text;
   dailyStatus!: Phaser.GameObjects.Text;
   dailyWeek!: Phaser.GameObjects.Text;
   endlessButton!: MinimalButton;
@@ -121,7 +124,11 @@ export class MenuScene extends Phaser.Scene {
       this.english ? "DAILY PUZZLE" : "ЕЖЕДНЕВНАЯ ЗАДАЧА",
       13,
     )
-      .setOrigin(0.5)
+      .setOrigin(0, 0.5)
+      .setFontStyle("bold")
+      .setVisible(false);
+    this.dailyStreak = makeMinimalText(this, "", 11, MINIMAL_UI_COLORS.textMuted)
+      .setOrigin(1, 0.5)
       .setFontStyle("bold")
       .setVisible(false);
     this.dailyStatus = makeMinimalText(this, "", 13, MINIMAL_UI_COLORS.textMuted)
@@ -232,6 +239,10 @@ export class MenuScene extends Phaser.Scene {
     if (daily) {
       const labels = this.english ? WEEKDAY_LABELS.en : WEEKDAY_LABELS.ru;
       const marks = daily.weekStates.map((day) => dailyStateMark(day.state));
+      const streak = this.dailyProgress.streakSummary(daily.dateKey);
+      this.dailyStreak.setText(
+        this.english ? `STREAK ${streak.currentStreak}` : `СЕРИЯ ${streak.currentStreak}`,
+      );
       this.dailyStatus.setText(dailyTodayLabel(daily.todayState, this.english));
       this.dailyWeek.setText(`${labels.join("   ")}\n${marks.join("    ")}`);
       this.dailyButton.setEnabled(this.dailyReady);
@@ -239,6 +250,7 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
+    this.dailyStreak.setText("");
     this.dailyStatus.setText(
       this.dailyClockUnavailable
         ? this.english ? "YANDEX TIME UNAVAILABLE" : "ВРЕМЯ ЯНДЕКСА НЕДОСТУПНО"
@@ -253,6 +265,7 @@ export class MenuScene extends Phaser.Scene {
     this.dailyButton.setVisible(visible);
     this.dailyArchiveButton.setVisible(visible);
     this.dailyTitle.setVisible(visible);
+    this.dailyStreak.setVisible(visible);
     this.dailyStatus.setVisible(visible);
     this.dailyWeek.setVisible(visible);
   }
@@ -392,28 +405,33 @@ export class MenuScene extends Phaser.Scene {
 
     let secondaryY = metrics.secondaryY;
     if (this.model.showDaily) {
-      const dailyHeight = metrics.shortLandscape ? 62 : 76;
-      const endlessHeight = metrics.shortLandscape ? 62 : 68;
-      const archiveHeight = metrics.shortLandscape ? 26 : 28;
-      const archiveGap = 6;
-      const dailyY = metrics.primaryY + (metrics.shortLandscape ? 68 : 80);
+      const dailyHeight = metrics.shortLandscape ? 68 : 110;
+      const endlessHeight = metrics.shortLandscape ? 68 : 68;
+      const archiveHeight = metrics.shortLandscape ? 20 : 28;
+      const dailyArchiveInset = archiveHeight / 2 + 4;
+      const dailyY = metrics.primaryY + (metrics.shortLandscape ? 69 : 92);
 
       if (metrics.shortLandscape && this.model.showEndless) {
         const cardGap = 12;
         const cardWidth = (metrics.primaryWidth - cardGap) / 2;
         const dailyX = metrics.centerX - (cardWidth + cardGap) / 2;
         const endlessX = metrics.centerX + (cardWidth + cardGap) / 2;
-        const archiveY = dailyY + dailyHeight / 2 + archiveGap + archiveHeight / 2;
+        const archiveY = dailyY + dailyHeight / 2 - dailyArchiveInset;
         const lowerBottom = Math.max(
-          archiveY + archiveHeight / 2,
+          dailyY + dailyHeight / 2,
           dailyY + endlessHeight / 2,
         );
         secondaryY = lowerBottom + 8 + metrics.secondaryHeight / 2;
 
         this.dailyButton.setPosition(dailyX, dailyY).setSize(cardWidth, dailyHeight);
-        this.dailyTitle.setFontSize(11).setPosition(dailyX, dailyY - 18);
-        this.dailyStatus.setFontSize(10).setPosition(dailyX, dailyY - 1);
-        this.dailyWeek.setFontSize(8).setPosition(dailyX, dailyY + 18);
+        this.dailyTitle
+          .setFontSize(10)
+          .setPosition(dailyX - cardWidth / 2 + 10, dailyY - 22);
+        this.dailyStreak
+          .setFontSize(9)
+          .setPosition(dailyX + cardWidth / 2 - 10, dailyY - 22);
+        this.dailyStatus.setFontSize(9).setPosition(dailyX, dailyY - 7);
+        this.dailyWeek.setFontSize(7).setPosition(dailyX, dailyY + 7);
         this.dailyArchiveButton
           .setPosition(dailyX, archiveY)
           .setSize(cardWidth, archiveHeight);
@@ -430,16 +448,25 @@ export class MenuScene extends Phaser.Scene {
           .setPosition(metrics.centerX, dailyY)
           .setSize(metrics.primaryWidth, dailyHeight);
         this.dailyTitle
-          .setFontSize(metrics.compact ? 11 : 13)
-          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 18 : 22));
+          .setFontSize(metrics.compact ? 10 : 12)
+          .setPosition(
+            metrics.centerX - metrics.primaryWidth / 2 + 12,
+            dailyY - (metrics.shortLandscape ? 28 : 38),
+          );
+        this.dailyStreak
+          .setFontSize(metrics.compact ? 9 : 11)
+          .setPosition(
+            metrics.centerX + metrics.primaryWidth / 2 - 12,
+            dailyY - (metrics.shortLandscape ? 28 : 38),
+          );
         this.dailyStatus
-          .setFontSize(metrics.compact ? 11 : 13)
-          .setPosition(metrics.centerX, dailyY - 1);
+          .setFontSize(metrics.compact ? 10 : 12)
+          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 8 : 12));
         this.dailyWeek
-          .setFontSize(metrics.compact ? 9 : 10)
-          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 18 : 23));
+          .setFontSize(metrics.compact ? 8 : 10)
+          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 10 : 15));
 
-        const archiveY = dailyY + dailyHeight / 2 + archiveGap + archiveHeight / 2;
+        const archiveY = dailyY + dailyHeight / 2 - dailyArchiveInset;
         this.dailyArchiveButton
           .setPosition(metrics.centerX, archiveY)
           .setSize(metrics.primaryWidth, archiveHeight);
@@ -459,7 +486,7 @@ export class MenuScene extends Phaser.Scene {
             .setFixedSize(Math.max(120, metrics.primaryWidth - 24), 0)
             .setPosition(metrics.centerX, endlessY + 12);
         } else {
-          secondaryY = archiveY + archiveHeight / 2 + 10 + metrics.secondaryHeight / 2;
+          secondaryY = dailyY + dailyHeight / 2 + 10 + metrics.secondaryHeight / 2;
         }
       }
     }
