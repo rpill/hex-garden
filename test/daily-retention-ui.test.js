@@ -14,12 +14,15 @@ test("Home Daily card exposes streak and an explicit action for each completion 
   assert.match(menu, /СЕРИЯ/);
 });
 
-test("Home keeps Archive inside the Daily card footprint instead of below it as a separate mode", async () => {
+test("Home groups Today and Archive as two separated Daily actions inside one bracketed section", async () => {
   const menu = await read("../src/game/scenes/MenuScene.ts");
 
-  assert.match(menu, /dailyArchiveInset/);
-  assert.match(menu, /dailyY \+ dailyHeight \/ 2 - dailyArchiveInset/);
-  assert.doesNotMatch(menu, /dailyHeight \/ 2 \+ archiveGap \+ archiveHeight \/ 2/);
+  assert.match(menu, /dailyGroupBracket/);
+  assert.match(menu, /drawDailyGroupBracket/);
+  assert.match(menu, /homeDailyGroupMetrics\(metrics\)/);
+  assert.match(menu, /this\.dailyButton[\s\S]*setPosition\(metrics\.centerX, dailyActionY\)/);
+  assert.match(menu, /this\.dailyArchiveButton[\s\S]*setPosition\(metrics\.centerX, archiveY\)/);
+  assert.doesNotMatch(menu, /dailyArchiveInset/);
 });
 
 test("Daily Archive explains symbols and highlights today without adding a second text marker", async () => {
@@ -41,10 +44,9 @@ test("MinimalButton has a persistent highlighted state for semantic emphasis", a
   assert.match(minimalUi, /this\.highlighted/);
 });
 
-test("short landscape keeps the unified Daily card compact enough for lower navigation", async () => {
+test("short landscape uses the same Daily group metrics as regular Home", async () => {
   const menu = await read("../src/game/scenes/MenuScene.ts");
 
-  assert.match(menu, /const dailyHeight = metrics\.shortLandscape \? 76 : 132/);
-  assert.match(menu, /const endlessHeight = metrics\.shortLandscape \? 68 : 68/);
-  assert.match(menu, /const dailyY = metrics\.primaryY \+ \(metrics\.shortLandscape \? 69 : 104\)/);
+  assert.match(menu, /const dailyGroup = homeDailyGroupMetrics\(metrics\)/);
+  assert.match(menu, /const endlessHeight = 68/);
 });

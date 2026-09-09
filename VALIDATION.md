@@ -100,6 +100,7 @@ DA-11  Mobile landscape keeps month arrows, 7-column calendar, streak header, an
 DA-12  Home Daily is one card: current streak, explicit NEW/PLAY or SOLVED/IMPROVE or CLEAN state, weekly strip, and embedded ARCHIVE · 90 DAYS action.
 DA-13  Archive legend explains · / ✓ / ◆, current/best streak sits near the month header, and today is indicated by highlighted cell styling without an extra label glyph.
 DA-14  Home Daily title/action/week/Archive CTA do not overlap at normal or short-landscape sizes; Archive calendar starts directly below weekday labels and its legend follows the grid instead of being pinned to the viewport bottom.
+DA-15  Home Today and Archive are separate clickable rectangles with a visible gap, visually grouped by shared left/right bracket strokes; the Archive button never reuses or overlaps the Today button border.
 
 ### Generation / interstitial UX
 

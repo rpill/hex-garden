@@ -74,3 +74,39 @@ export function homeLayoutMetrics(width: number, height: number): Readonly<HomeL
     secondaryGap: compact ? 10 : 14,
   });
 }
+
+
+export interface HomeDailyGroupMetrics {
+  actionHeight: number;
+  archiveHeight: number;
+  sectionGap: number;
+  groupPadding: number;
+  groupHeight: number;
+  groupY: number;
+  actionY: number;
+  archiveY: number;
+}
+
+export function homeDailyGroupMetrics(
+  home: Pick<HomeLayoutMetrics, "shortLandscape" | "primaryY">,
+): Readonly<HomeDailyGroupMetrics> {
+  const actionHeight = home.shortLandscape ? 46 : 88;
+  const archiveHeight = home.shortLandscape ? 20 : 34;
+  const sectionGap = home.shortLandscape ? 5 : 8;
+  const groupPadding = home.shortLandscape ? 4 : 6;
+  const groupHeight = actionHeight + archiveHeight + sectionGap + groupPadding * 2;
+  const groupY = home.primaryY + (home.shortLandscape ? 74 : 112);
+  const actionY = groupY - groupHeight / 2 + groupPadding + actionHeight / 2;
+  const archiveY = actionY + actionHeight / 2 + sectionGap + archiveHeight / 2;
+
+  return Object.freeze({
+    actionHeight,
+    archiveHeight,
+    sectionGap,
+    groupPadding,
+    groupHeight,
+    groupY,
+    actionY,
+    archiveY,
+  });
+}

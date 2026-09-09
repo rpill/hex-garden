@@ -16,7 +16,7 @@ import {
   type MinimalButton,
 } from "../minimal-ui.js";
 import { PlayMode } from "../modes.js";
-import { homeLayoutMetrics } from "../navigation-layout.js";
+import { homeDailyGroupMetrics, homeLayoutMetrics } from "../navigation-layout.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEndlessProgress } from "../endless-progress.js";
 import { getSettings } from "../settings.js";
@@ -54,6 +54,34 @@ function dailyTodayLabel(state: HomeDailyState, english: boolean): string {
   return english ? "NEW · PLAY" : "НОВАЯ · ИГРАТЬ";
 }
 
+function drawDailyGroupBracket(
+  graphics: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const left = x - width / 2;
+  const right = x + width / 2;
+  const top = y - height / 2;
+  const bottom = y + height / 2;
+  const hook = 10;
+
+  graphics
+    .clear()
+    .lineStyle(1, MINIMAL_UI_COLORS.border, 0.9)
+    .beginPath()
+    .moveTo(left + hook, top)
+    .lineTo(left, top)
+    .lineTo(left, bottom)
+    .lineTo(left + hook, bottom)
+    .moveTo(right - hook, top)
+    .lineTo(right, top)
+    .lineTo(right, bottom)
+    .lineTo(right - hook, bottom)
+    .strokePath();
+}
+
 export class MenuScene extends Phaser.Scene {
   progress!: ReturnType<typeof getCampaignProgress>;
   dailyProgress!: DailyProgressStore;
@@ -69,6 +97,7 @@ export class MenuScene extends Phaser.Scene {
   progressText!: Phaser.GameObjects.Text;
   rankText!: Phaser.GameObjects.Text;
   primaryButton!: MinimalButton;
+  dailyGroupBracket!: Phaser.GameObjects.Graphics;
   dailyButton!: MinimalButton;
   dailyArchiveButton!: MinimalButton;
   dailyTitle!: Phaser.GameObjects.Text;
@@ -115,6 +144,7 @@ export class MenuScene extends Phaser.Scene {
       .setFontStyle("bold");
 
     this.primaryButton = makeMinimalButton(this, "", () => this.activatePrimaryAction());
+    this.dailyGroupBracket = this.add.graphics().setVisible(false);
     this.dailyButton = makeMinimalButton(this, "", () => this.activateDaily())
       .setEnabled(false)
       .setVisible(false);
@@ -262,6 +292,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private setDailyVisible(visible: boolean): void {
+    this.dailyGroupBracket.setVisible(visible);
     this.dailyButton.setVisible(visible);
     this.dailyArchiveButton.setVisible(visible);
     this.dailyTitle.setVisible(visible);
@@ -405,75 +436,92 @@ export class MenuScene extends Phaser.Scene {
 
     let secondaryY = metrics.secondaryY;
     if (this.model.showDaily) {
-      const dailyHeight = metrics.shortLandscape ? 76 : 132;
-      const endlessHeight = metrics.shortLandscape ? 68 : 68;
-      const archiveHeight = metrics.shortLandscape ? 20 : 32;
-      const dailyArchiveInset = archiveHeight / 2 + 4;
-      const dailyY = metrics.primaryY + (metrics.shortLandscape ? 69 : 104);
+      const dailyGroup = homeDailyGroupMetrics(metrics);
+      const dailyActionHeight = dailyGroup.actionHeight;
+      const archiveHeight = dailyGroup.archiveHeight;
+      const dailyGroupHeight = dailyGroup.groupHeight;
+      const dailyGroupY = dailyGroup.groupY;
+      const dailyActionY = dailyGroup.actionY;
+      const archiveY = dailyGroup.archiveY;
+      const endlessHeight = 68;
 
       if (metrics.shortLandscape && this.model.showEndless) {
         const cardGap = 12;
         const cardWidth = (metrics.primaryWidth - cardGap) / 2;
         const dailyX = metrics.centerX - (cardWidth + cardGap) / 2;
         const endlessX = metrics.centerX + (cardWidth + cardGap) / 2;
-        const archiveY = dailyY + dailyHeight / 2 - dailyArchiveInset;
+        const innerWidth = Math.max(1, cardWidth - 14);
         const lowerBottom = Math.max(
-          dailyY + dailyHeight / 2,
-          dailyY + endlessHeight / 2,
+          dailyGroupY + dailyGroupHeight / 2,
+          dailyGroupY + endlessHeight / 2,
         );
         secondaryY = lowerBottom + 8 + metrics.secondaryHeight / 2;
 
-        this.dailyButton.setPosition(dailyX, dailyY).setSize(cardWidth, dailyHeight);
+        drawDailyGroupBracket(
+          this.dailyGroupBracket,
+          dailyX,
+          dailyGroupY,
+          cardWidth,
+          dailyGroupHeight,
+        );
+        this.dailyButton.setPosition(dailyX, dailyActionY).setSize(innerWidth, dailyActionHeight);
         this.dailyTitle
           .setFontSize(10)
-          .setPosition(dailyX - cardWidth / 2 + 10, dailyY - 30);
+          .setPosition(dailyX - innerWidth / 2 + 10, dailyActionY - 17);
         this.dailyStreak
           .setFontSize(9)
-          .setPosition(dailyX + cardWidth / 2 - 10, dailyY - 30);
-        this.dailyStatus.setFontSize(9).setPosition(dailyX, dailyY - 9);
-        this.dailyWeek.setFontSize(7).setPosition(dailyX, dailyY + 5);
+          .setPosition(dailyX + innerWidth / 2 - 10, dailyActionY - 17);
+        this.dailyStatus.setFontSize(9).setPosition(dailyX, dailyActionY + 1);
+        this.dailyWeek.setFontSize(7).setPosition(dailyX, dailyActionY + 14);
         this.dailyArchiveButton
           .setPosition(dailyX, archiveY)
-          .setSize(cardWidth, archiveHeight);
+          .setSize(innerWidth, archiveHeight);
         this.dailyArchiveButton.label.setFontSize(9);
 
-        this.endlessButton.setPosition(endlessX, dailyY).setSize(cardWidth, endlessHeight);
-        this.endlessTitle.setFontSize(11).setPosition(endlessX, dailyY - 12);
+        this.endlessButton.setPosition(endlessX, dailyGroupY).setSize(cardWidth, endlessHeight);
+        this.endlessTitle.setFontSize(11).setPosition(endlessX, dailyGroupY - 12);
         this.endlessStatus
           .setFontSize(9)
           .setFixedSize(Math.max(80, cardWidth - 16), 0)
-          .setPosition(endlessX, dailyY + 10);
+          .setPosition(endlessX, dailyGroupY + 10);
       } else {
+        const innerWidth = Math.max(1, metrics.primaryWidth - 18);
+        drawDailyGroupBracket(
+          this.dailyGroupBracket,
+          metrics.centerX,
+          dailyGroupY,
+          metrics.primaryWidth,
+          dailyGroupHeight,
+        );
         this.dailyButton
-          .setPosition(metrics.centerX, dailyY)
-          .setSize(metrics.primaryWidth, dailyHeight);
+          .setPosition(metrics.centerX, dailyActionY)
+          .setSize(innerWidth, dailyActionHeight);
         this.dailyTitle
           .setFontSize(metrics.compact ? 10 : 12)
           .setPosition(
-            metrics.centerX - metrics.primaryWidth / 2 + 12,
-            dailyY - (metrics.shortLandscape ? 30 : 48),
+            metrics.centerX - innerWidth / 2 + 12,
+            dailyActionY - (metrics.shortLandscape ? 17 : 28),
           );
         this.dailyStreak
           .setFontSize(metrics.compact ? 9 : 11)
           .setPosition(
-            metrics.centerX + metrics.primaryWidth / 2 - 12,
-            dailyY - (metrics.shortLandscape ? 30 : 48),
+            metrics.centerX + innerWidth / 2 - 12,
+            dailyActionY - (metrics.shortLandscape ? 17 : 28),
           );
         this.dailyStatus
           .setFontSize(metrics.compact ? 10 : 12)
-          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 9 : 18));
+          .setPosition(metrics.centerX, dailyActionY + (metrics.shortLandscape ? 1 : 0));
         this.dailyWeek
           .setFontSize(metrics.compact ? 8 : 10)
-          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 5 : 7));
+          .setPosition(metrics.centerX, dailyActionY + (metrics.shortLandscape ? 14 : 24));
 
-        const archiveY = dailyY + dailyHeight / 2 - dailyArchiveInset;
         this.dailyArchiveButton
           .setPosition(metrics.centerX, archiveY)
-          .setSize(metrics.primaryWidth, archiveHeight);
+          .setSize(innerWidth, archiveHeight);
         this.dailyArchiveButton.label.setFontSize(metrics.compact ? 9 : 10);
 
         if (this.model.showEndless) {
-          const endlessY = archiveY + archiveHeight / 2 + 10 + endlessHeight / 2;
+          const endlessY = dailyGroupY + dailyGroupHeight / 2 + 10 + endlessHeight / 2;
           secondaryY = endlessY + endlessHeight / 2 + 10 + metrics.secondaryHeight / 2;
           this.endlessButton
             .setPosition(metrics.centerX, endlessY)
@@ -486,7 +534,7 @@ export class MenuScene extends Phaser.Scene {
             .setFixedSize(Math.max(120, metrics.primaryWidth - 24), 0)
             .setPosition(metrics.centerX, endlessY + 12);
         } else {
-          secondaryY = dailyY + dailyHeight / 2 + 10 + metrics.secondaryHeight / 2;
+          secondaryY = dailyGroupY + dailyGroupHeight / 2 + 10 + metrics.secondaryHeight / 2;
         }
       }
     }

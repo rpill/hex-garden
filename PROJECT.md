@@ -56,7 +56,7 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 - Current streak remains visible from yesterday while today's Daily is still open, but only on-time completions can extend it.
 - Home keeps the current seven-day summary and exposes the 90-day Archive after Daily unlock.
 - The Home Daily surface is one unified card: current streak, explicit play/improve/clean state, weekly marks, and Archive entry share one visual block. Archive keeps best streak there (not on Home), shows a symbol legend, and visually highlights today by cell state rather than appending another mark to the date label.
-- Daily-card layout reserves distinct vertical bands for the header, action, weekly strip, and embedded Archive CTA. Daily Archive keeps the month/streak/weekdays/calendar/legend as one top-anchored content block rather than centering the calendar in leftover height.
+- Home groups Daily into two distinct clickable actions: Today (title/streak/status/week strip) and Archive. They never overlap, keep an explicit gap, and are visually tied together by outer bracket strokes instead of sharing the same button border. Daily Archive keeps the month/streak/weekdays/calendar/legend as one top-anchored content block rather than centering the calendar in leftover height.
 - Daily Hint and Rescue require a confirmed rewarded-ad callback. Rescue is available only at a true zero-legal-moves dead end and only once per attempt.
 
 ## Endless contract

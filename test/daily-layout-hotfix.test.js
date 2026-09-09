@@ -4,15 +4,13 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
-test("Home Daily card reserves separate vertical bands for status, week strip, and Archive CTA", async () => {
+test("Home Daily layout delegates Today/Archive separation to reusable group metrics", async () => {
   const menu = await read("../src/game/scenes/MenuScene.ts");
+  const layout = await read("../src/game/navigation-layout.ts");
 
-  assert.match(menu, /const dailyHeight = metrics\.shortLandscape \? 76 : 132/);
-  assert.match(menu, /const archiveHeight = metrics\.shortLandscape \? 20 : 32/);
-  assert.match(menu, /const dailyY = metrics\.primaryY \+ \(metrics\.shortLandscape \? 69 : 104\)/);
-  assert.match(menu, /dailyY - \(metrics\.shortLandscape \? 30 : 48\)/);
-  assert.match(menu, /dailyY - \(metrics\.shortLandscape \? 9 : 18\)/);
-  assert.match(menu, /dailyY \+ \(metrics\.shortLandscape \? 5 : 7\)/);
+  assert.match(menu, /homeDailyGroupMetrics\(metrics\)/);
+  assert.match(layout, /const sectionGap = home\.shortLandscape \? 5 : 8/);
+  assert.match(layout, /const archiveY = actionY \+ actionHeight \/ 2 \+ sectionGap \+ archiveHeight \/ 2/);
 });
 
 test("Daily Archive anchors calendar directly below weekdays instead of centering it in leftover viewport height", async () => {
