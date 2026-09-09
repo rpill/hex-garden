@@ -56,7 +56,7 @@ test("localhost uses the SDK callbacks instead of the old custom simulation", as
   assert.equal(sdkCalls, 1);
 });
 
-test("real adapter grants a reward only after the SDK rewarded callback", async () => {
+test("real rewarded adapter reports reward without owning gameplay markup", async () => {
   const events = [];
   const sdk = {
     adv: {
@@ -79,7 +79,7 @@ test("real adapter grants a reward only after the SDK rewarded callback", async 
   });
   const result = await adapter.showRewarded();
   assert.equal(result.status, RewardedAdStatus.REWARDED);
-  assert.deepEqual(events, ["stop", "start"]);
+  assert.deepEqual(events, []);
 });
 
 test("closing early and an unavailable SDK never grant a reward", async () => {

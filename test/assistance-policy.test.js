@@ -89,3 +89,44 @@ test("confirmReward only accepts a confirmed rewarded callback", async () => {
   assert.equal(await freeAssistance.confirmReward(false), true);
   assert.equal(freeCalls, 0);
 });
+
+test("rewarded assistance asks for an explicit offer before calling the SDK ad", async () => {
+  let offerCalls = 0;
+  let adCalls = 0;
+  const assistance = new BoardAssistance(
+    {
+      async showRewarded() {
+        adCalls += 1;
+        return { status: RewardedAdStatus.REWARDED };
+      },
+    },
+    async (kind) => {
+      offerCalls += 1;
+      assert.equal(kind, "hint");
+      return false;
+    },
+  );
+
+  assert.equal(await assistance.confirmReward(true, "hint"), false);
+  assert.equal(offerCalls, 1);
+  assert.equal(adCalls, 0);
+});
+
+test("accepted rewarded offer calls the SDK ad only after the offer", async () => {
+  const events = [];
+  const assistance = new BoardAssistance(
+    {
+      async showRewarded() {
+        events.push("ad");
+        return { status: RewardedAdStatus.REWARDED };
+      },
+    },
+    async (kind) => {
+      events.push(`offer:${kind}`);
+      return true;
+    },
+  );
+
+  assert.equal(await assistance.confirmReward(true, "rescue"), true);
+  assert.deepEqual(events, ["offer:rescue", "ad"]);
+});

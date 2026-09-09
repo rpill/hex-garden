@@ -25,6 +25,7 @@ import { getEndlessProgress } from "../endless-progress.js";
 import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
+import { getGameLifecycleController } from "../../platform/game-lifecycle.js";
 import { getTrustedClock } from "../../platform/trusted-clock.js";
 import { PlayMode, type PlayModeValue } from "../modes.js";
 import { isActualDeadEnd } from "../board-session-state.js";
@@ -55,6 +56,7 @@ import {
 } from "../../tutorial.js";
 import { BoardHud } from "../board/BoardHud.js";
 import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
+import { RewardedOfferOverlay } from "../RewardedOfferOverlay.js";
 import { BoardAssistance } from "../board/BoardAssistance.js";
 import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
@@ -245,6 +247,7 @@ export class BoardScene extends Phaser.Scene {
   campaignRuleCardBody!: Phaser.GameObjects.Text;
   campaignRuleCardDismiss!: Phaser.GameObjects.Text;
   contextMenu!: ContextMenuOverlay;
+  rewardedOffer!: RewardedOfferOverlay;
   campaignDeadEndTitle!: Phaser.GameObjects.Text;
   campaignDeadEndPulse: Phaser.Tweens.Tween | undefined;
   completionOverlay!: CompletionOverlay;
@@ -354,8 +357,8 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    getGameLifecycleController().setGameplayActive(false);
     this.platform = getYandexGamesAdapter();
-    this.assistance = new BoardAssistance(this.platform);
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
@@ -423,6 +426,11 @@ export class BoardScene extends Phaser.Scene {
       MINIMAL_UI_COLORS.textMuted,
     ).setOrigin(0.5).setDepth(33).setVisible(false);
     this.contextMenu = new ContextMenuOverlay(this);
+    this.rewardedOffer = new RewardedOfferOverlay(this);
+    this.assistance = new BoardAssistance(
+      this.platform,
+      (kind) => this.rewardedOffer.request(kind, { english: this.english }),
+    );
 
     this.campaignDeadEndTitle = makeMinimalText(
       this,
@@ -454,10 +462,18 @@ export class BoardScene extends Phaser.Scene {
     });
 
     this.scale.on("resize", this.layout, this);
+    this.events.on(Phaser.Scenes.Events.PAUSE, () => {
+      getGameLifecycleController().setGameplayActive(false);
+    });
+    this.events.on(Phaser.Scenes.Events.RESUME, () => {
+      this.syncGameplayLifecycle();
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      getGameLifecycleController().setGameplayActive(false);
       this.scale.off("resize", this.layout, this);
       this.generator.terminate();
       this.introAnimator?.stop();
+      this.rewardedOffer?.cancel();
       this.pieceViews.clear();
       this.panelViews.clear();
     });
@@ -467,6 +483,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   async loadLevel(introProfile: BoardIntroProfile = "fresh"): Promise<void> {
+    getGameLifecycleController().setGameplayActive(false);
     const token = ++this.generationToken;
     this.campaignSession = undefined;
     this.dailySession = undefined;
@@ -603,7 +620,7 @@ export class BoardScene extends Phaser.Scene {
 
   openUtilityScene(key: UtilitySceneKey): void {
     if (this.rewardedAdPending) return;
-    if (this.pauseMenuVisible) this.closePauseMenu();
+    if (this.pauseMenuVisible) this.closePauseMenu({ syncGameplay: false });
     openCoveredUtilityScene(this, key, { returnScene: "board" });
   }
 
@@ -622,10 +639,7 @@ export class BoardScene extends Phaser.Scene {
       {
         id: "rules",
         label: this.uiText("ПРАВИЛА", "RULES"),
-        onSelect: () => {
-          this.closePauseMenu();
-          this.openUtilityScene("rules");
-        },
+        onSelect: () => this.openUtilityScene("rules"),
       },
       ...(this.mode === PlayMode.CAMPAIGN && !completionVisible
         ? [{
@@ -637,10 +651,7 @@ export class BoardScene extends Phaser.Scene {
       {
         id: "settings",
         label: this.uiText("НАСТРОЙКИ", "SETTINGS"),
-        onSelect: () => {
-          this.closePauseMenu();
-          this.openUtilityScene("settings");
-        },
+        onSelect: () => this.openUtilityScene("settings"),
       },
       {
         id: "home",
@@ -654,12 +665,14 @@ export class BoardScene extends Phaser.Scene {
       title: this.uiText("ПАУЗА", "PAUSED"),
       items,
     });
+    this.syncGameplayLifecycle();
   }
 
-  closePauseMenu(): void {
+  closePauseMenu({ syncGameplay = true }: { syncGameplay?: boolean } = {}): void {
     if (!this.pauseMenuVisible) return;
     this.pauseMenuVisible = false;
     this.contextMenu.close();
+    if (syncGameplay) this.syncGameplayLifecycle();
   }
 
   exitPauseToLevels(): void {
@@ -675,6 +688,7 @@ export class BoardScene extends Phaser.Scene {
   restartLevel(): void {
     if (
       this.busy ||
+      this.rewardedAdPending ||
       this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
@@ -730,9 +744,11 @@ export class BoardScene extends Phaser.Scene {
         this.introRevealedKeys = new Set(this.initialPieces.map(hexKey));
         this.render();
         if (profile === "fresh") this.maybeShowCampaignRuleCard();
+        this.syncGameplayLifecycle();
       },
     });
     this.introAnimator.start(profile);
+    this.syncGameplayLifecycle();
   }
 
   consumeBoardIntroInput(): boolean {
@@ -762,6 +778,7 @@ export class BoardScene extends Phaser.Scene {
     if (!this.campaignRuleCardVisible) return;
     this.hideCampaignRuleCard();
     this.render();
+    this.syncGameplayLifecycle();
   }
 
   hideCampaignRuleCard(): void {
@@ -778,6 +795,7 @@ export class BoardScene extends Phaser.Scene {
   selectPiece(piece: BoardPiece): void {
     if (
       this.busy ||
+      this.rewardedAdPending ||
       this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
@@ -884,6 +902,7 @@ export class BoardScene extends Phaser.Scene {
       completionAfterRebuild?.();
     }
     this.layout();
+    this.syncGameplayLifecycle();
   }
 
   showCampaignCompletion({
@@ -931,6 +950,7 @@ export class BoardScene extends Phaser.Scene {
       },
       actions,
     );
+    this.syncGameplayLifecycle();
   }
 
   async completeDailyBoard(): Promise<void> {
@@ -1028,6 +1048,7 @@ export class BoardScene extends Phaser.Scene {
         onHome: () => this.openMainMenu(),
       },
     );
+    this.syncGameplayLifecycle();
   }
 
   updateEndlessHud(): void {
@@ -1145,13 +1166,18 @@ export class BoardScene extends Phaser.Scene {
     this.restoreLastRemoval(this.uiText("ПОСЛЕДНЕЕ УДАЛЕНИЕ ОТМЕНЕНО", "LAST REMOVAL UNDONE"));
   }
 
+  setRewardedAdPending(value: boolean): void {
+    this.rewardedAdPending = value;
+    this.syncGameplayLifecycle();
+  }
+
   async useCampaignHint(): Promise<void> {
     const session = this.campaignSession;
     if (!session || !this.board || this.board.won || this.rewardedAdPending) return;
 
     const policy = assistancePolicy(PlayMode.CAMPAIGN, this.level);
     this.hud.setHintBusy(true);
-    this.rewardedAdPending = policy.rewardRequired;
+    this.setRewardedAdPending(policy.rewardRequired);
     try {
       const result = await session.requestHint(
         this.assistance,
@@ -1193,7 +1219,7 @@ export class BoardScene extends Phaser.Scene {
       );
       this.render();
     } finally {
-      this.rewardedAdPending = false;
+      this.setRewardedAdPending(false);
       this.hud.setHintBusy(this.busy);
     }
   }
@@ -1203,7 +1229,7 @@ export class BoardScene extends Phaser.Scene {
     if (!dailySession || !this.board || this.board.won || this.rewardedAdPending) return;
 
     this.hud.setHintBusy(true);
-    this.rewardedAdPending = true;
+    this.setRewardedAdPending(true);
     try {
       const result = await dailySession.requestHint(
         this.assistance,
@@ -1244,7 +1270,7 @@ export class BoardScene extends Phaser.Scene {
       );
       this.render();
     } finally {
-      this.rewardedAdPending = false;
+      this.setRewardedAdPending(false);
       this.hud.setHintBusy(this.busy);
     }
   }
@@ -1261,7 +1287,7 @@ export class BoardScene extends Phaser.Scene {
     ) return;
 
     this.hud.setHintBusy(true);
-    this.rewardedAdPending = true;
+    this.setRewardedAdPending(true);
     try {
       const analysis = this.assistance.findHint(
         this.board.pieces(),
@@ -1278,7 +1304,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
 
-      const rewarded = await this.assistance.confirmReward(true);
+      const rewarded = await this.assistance.confirmReward(true, "hint");
       if (!rewarded) {
         this.status.setText(
           this.uiText("ПОДСКАЗКА НЕ ПОЛУЧЕНА", "HINT WAS NOT GRANTED"),
@@ -1302,7 +1328,7 @@ export class BoardScene extends Phaser.Scene {
       );
       this.render();
     } finally {
-      this.rewardedAdPending = false;
+      this.setRewardedAdPending(false);
       this.hud.setHintBusy(this.busy);
       this.render();
     }
@@ -1319,7 +1345,7 @@ export class BoardScene extends Phaser.Scene {
     ) return;
 
     this.hud.setHintBusy(true);
-    this.rewardedAdPending = true;
+    this.setRewardedAdPending(true);
     try {
       const rescue = this.assistance.findRescue(
         session.history,
@@ -1336,7 +1362,7 @@ export class BoardScene extends Phaser.Scene {
         return;
       }
 
-      const rewarded = await this.assistance.confirmReward(true);
+      const rewarded = await this.assistance.confirmReward(true, "rescue");
       if (!rewarded) {
         this.status.setText(
           this.uiText("СПАСЕНИЕ НЕ ПОЛУЧЕНО", "RESCUE WAS NOT GRANTED"),
@@ -1365,7 +1391,7 @@ export class BoardScene extends Phaser.Scene {
       this.layout();
       this.render();
     } finally {
-      this.rewardedAdPending = false;
+      this.setRewardedAdPending(false);
       this.hud.setHintBusy(this.busy);
       this.render();
     }
@@ -1432,6 +1458,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   scheduleCampaignDeadEndState(): void {
+    this.syncGameplayLifecycle();
     this.campaignDeadEndTimer?.remove(false);
     this.campaignDeadEndTimer = this.time.delayedCall(CAMPAIGN_DEAD_END_DELAY_MS, () => {
       this.campaignDeadEndTimer = undefined;
@@ -1508,7 +1535,7 @@ export class BoardScene extends Phaser.Scene {
         ? true
         : assistancePolicy(PlayMode.CAMPAIGN, this.level).rewardRequired;
     this.hud.setHintBusy(true);
-    this.rewardedAdPending = rewardRequired;
+    this.setRewardedAdPending(rewardRequired);
     try {
       const result =
         this.mode === PlayMode.DAILY && dailySession
@@ -1558,7 +1585,7 @@ export class BoardScene extends Phaser.Scene {
         },
       );
     } finally {
-      this.rewardedAdPending = false;
+      this.setRewardedAdPending(false);
       this.hud.setHintBusy(this.busy);
       if (this.campaignDeadEndVisible) this.refreshCampaignDeadEndActions();
     }
@@ -1582,6 +1609,7 @@ export class BoardScene extends Phaser.Scene {
     this.rebuildPieceViews();
     this.layout();
     this.render();
+    this.syncGameplayLifecycle();
   }
 
   restoreCampaignSessionBoard(
@@ -1601,6 +1629,7 @@ export class BoardScene extends Phaser.Scene {
     this.setBusy(false);
     this.rebuildPieceViews();
     this.layout();
+    this.syncGameplayLifecycle();
   }
 
   restoreLastRemoval(message: string): void {
@@ -1622,6 +1651,7 @@ export class BoardScene extends Phaser.Scene {
     this.setBusy(false);
     this.rebuildPieceViews();
     this.layout();
+    this.syncGameplayLifecycle();
   }
 
   clearMoveHint(render = true): void {
@@ -1813,6 +1843,21 @@ export class BoardScene extends Phaser.Scene {
     if (this.introAnimator?.active) this.render();
   }
 
+  syncGameplayLifecycle(): void {
+    const gameplayActive =
+      this.board !== undefined &&
+      !this.board.won &&
+      !this.busy &&
+      this.introAnimator?.active !== true &&
+      !this.campaignRuleCardVisible &&
+      !this.pauseMenuVisible &&
+      this.completionOverlay?.visible !== true &&
+      !this.actualDeadEnd &&
+      !(this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true) &&
+      !this.rewardedAdPending;
+    getGameLifecycleController().setGameplayActive(gameplayActive);
+  }
+
   setBusy(value: boolean): void {
     this.busy = value;
     this.hud.setHintBusy(value);
@@ -1996,6 +2041,7 @@ export class BoardScene extends Phaser.Scene {
 
   layoutPauseMenu(width: number, height: number): void {
     this.contextMenu.layout(width, height);
+    this.rewardedOffer.layout(width, height);
   }
 
 

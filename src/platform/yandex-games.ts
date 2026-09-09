@@ -47,6 +47,8 @@ interface YandexPlayer {
 }
 
 interface YandexSdk {
+  on?: (event: "game_api_pause" | "game_api_resume", callback: () => void) => void;
+  off?: (event: "game_api_pause" | "game_api_resume", callback: () => void) => void;
   serverTime?: () => number;
   getPlayer?: (options?: { scopes?: boolean }) => Promise<YandexPlayer>;
   features?: {
@@ -136,6 +138,8 @@ export class YandexGamesAdapter {
   #global: unknown;
   #initPromise: Promise<YandexSdk | null> | undefined;
   #pendingRewarded = false;
+  #gameReadyReported = false;
+  #gameplayState: "started" | "stopped" | undefined;
   #playerPromise: Promise<YandexPlayer | null> | undefined;
   #sdk: YandexSdk | undefined;
   #sdkUrl: string | null;
@@ -238,12 +242,62 @@ export class YandexGamesAdapter {
   }
 
   async notifyGameReady(): Promise<void> {
+    if (this.#gameReadyReported) return;
     const sdk = await this.initialize();
+    const loadingApi = sdk?.features?.LoadingAPI;
+    const ready = loadingApi?.ready;
+    if (typeof ready !== "function") return;
     try {
-      sdk?.features?.LoadingAPI?.ready?.();
+      ready.call(loadingApi);
+      this.#gameReadyReported = true;
     } catch {
       // The game remains usable when platform readiness reporting is unavailable.
     }
+  }
+
+  async notifyGameplayStart(): Promise<void> {
+    if (this.#gameplayState === "started") return;
+    const sdk = await this.initialize();
+    const gameplayApi = sdk?.features?.GameplayAPI;
+    const start = gameplayApi?.start;
+    if (typeof start !== "function") return;
+    try {
+      start.call(gameplayApi);
+      this.#gameplayState = "started";
+    } catch {
+      // Gameplay remains usable when platform markup is unavailable.
+    }
+  }
+
+  async notifyGameplayStop(): Promise<void> {
+    if (this.#gameplayState === "stopped") return;
+    const sdk = await this.initialize();
+    const gameplayApi = sdk?.features?.GameplayAPI;
+    const stop = gameplayApi?.stop;
+    if (typeof stop !== "function") return;
+    try {
+      stop.call(gameplayApi);
+      this.#gameplayState = "stopped";
+    } catch {
+      // Gameplay remains usable when platform markup is unavailable.
+    }
+  }
+
+  async subscribeGamePauseResume({
+    onPause,
+    onResume,
+  }: {
+    onPause: () => void;
+    onResume: () => void;
+  }): Promise<(() => void) | null> {
+    const sdk = await this.initialize();
+    if (typeof sdk?.on !== "function" || typeof sdk?.off !== "function") return null;
+    sdk.on("game_api_pause", onPause);
+    sdk.on("game_api_resume", onResume);
+    return () => {
+      sdk.off?.("game_api_pause", onPause);
+      sdk.off?.("game_api_resume", onResume);
+    };
   }
 
   async showRewarded({ onOpen, onClose }: RewardedCallbacks = {}): Promise<RewardedResult> {
@@ -283,7 +337,6 @@ export class YandexGamesAdapter {
         settled = true;
         this.#pendingRewarded = false;
         try {
-          sdk.features?.GameplayAPI?.start?.();
           onClose?.();
         } finally {
           resolve(Object.freeze(result));
@@ -294,7 +347,6 @@ export class YandexGamesAdapter {
         rewardedVideo({
           callbacks: {
             onOpen: () => {
-              sdk.features?.GameplayAPI?.stop?.();
               onOpen?.();
             },
             onRewarded: () => {

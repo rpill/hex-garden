@@ -25,7 +25,7 @@ export interface BoardHintAssistance {
     pieces: readonly BoardPieceInput[],
     preferredSolution?: readonly (readonly HexCoord[])[],
   ): WinningRouteResult;
-  confirmReward(required: boolean): Promise<boolean>;
+  confirmReward(required: boolean, kind?: "hint" | "rescue"): Promise<boolean>;
 }
 
 export interface BoardRescueAssistance {
@@ -34,7 +34,7 @@ export interface BoardRescueAssistance {
     pieces: readonly BoardPieceInput[],
     preferredSolution?: readonly (readonly HexCoord[])[],
   ): RescueResult<T>;
-  confirmReward(required: boolean): Promise<boolean>;
+  confirmReward(required: boolean, kind?: "hint" | "rescue"): Promise<boolean>;
 }
 
 export type BoardRescueRequestResult =
@@ -138,7 +138,7 @@ export class BaseBoardAttempt {
       });
     }
 
-    const confirmed = await assistance.confirmReward(rewardRequired);
+    const confirmed = await assistance.confirmReward(rewardRequired, "hint");
     if (!confirmed) return Object.freeze({ kind: "reward-denied" as const });
 
     this.markHintUsed();
@@ -169,7 +169,7 @@ export class BaseBoardAttempt {
       });
     }
 
-    const confirmed = await assistance.confirmReward(rewardRequired);
+    const confirmed = await assistance.confirmReward(rewardRequired, "rescue");
     if (!confirmed) {
       return Object.freeze({ kind: "reward-denied" as const });
     }

@@ -14,8 +14,14 @@ import {
 
 type RewardedProvider = Pick<YandexGamesAdapter, "showRewarded">;
 
+export type RewardedOfferKind = "hint" | "rescue";
+type RewardedOfferConfirmer = (kind: RewardedOfferKind) => Promise<boolean>;
+
 export class BoardAssistance {
-  constructor(private readonly rewarded: RewardedProvider) {}
+  constructor(
+    private readonly rewarded: RewardedProvider,
+    private readonly confirmOffer: RewardedOfferConfirmer = async () => true,
+  ) {}
 
   findHint(
     pieces: readonly BoardPieceInput[],
@@ -38,8 +44,12 @@ export class BoardAssistance {
     });
   }
 
-  async confirmReward(required: boolean): Promise<boolean> {
+  async confirmReward(
+    required: boolean,
+    kind: RewardedOfferKind = "hint",
+  ): Promise<boolean> {
     if (!required) return true;
+    if (!(await this.confirmOffer(kind))) return false;
     const result = await this.rewarded.showRewarded();
     return result.status === RewardedAdStatus.REWARDED;
   }
