@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "author:campaign": "node --import tsx scripts/generate-campaign-shortlist.mjs",
     "freeze:campaign": "node --import tsx scripts/freeze-campaign.mjs",
-    "freeze:daily": "node --import tsx scripts/freeze-dailies.mjs",
+    "freeze:daily": "node --expose-gc --import tsx scripts/freeze-dailies.mjs",
     "check:daily": "node --import tsx scripts/check-dailies.mjs"
   },
   "engines": {

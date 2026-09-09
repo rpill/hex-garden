@@ -43,7 +43,7 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 ## Daily contract
 
 - Daily is deterministic by Moscow calendar `dateKey`; day boundary is 00:00 `Europe/Moscow`.
-- Runtime Daily boards come from a frozen solver-certified release pack, not runtime procedural generation. The current pack covers `2026-01-01` through `2027-12-31`; future, not-yet-open dates may be replaced in a later release when mechanics/content change. Pack freezing uses deterministic constructable candidates under the fixed weekday profile; deep difficulty scoring is optional manual curation rather than a runtime or bulk-freeze dependency.
+- Runtime Daily boards come from a frozen solver-certified release pack, not runtime procedural generation. The current pack covers `2026-01-01` through `2027-12-31`; future, not-yet-open dates may be replaced in a later release when mechanics/content change. Pack freezing ranks 16 deterministic solver-certified candidates per date with a fast offline selector (meaningful choices, constrained early steps, move ambiguity, and short random-route survival) under the weekday band profile. The expensive deep difficulty scorer remains optional manual curation rather than a runtime or bulk-freeze dependency.
 - Runtime date authority comes only from the trusted platform clock for archive bounds and on-time recording; device time is not a fallback.
 - Daily Archive is a playable rolling 90-day library using trusted Europe/Moscow time.
 - Historical Daily can be replayed and upgraded from Solved to Clean.

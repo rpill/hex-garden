@@ -38,7 +38,7 @@ Use:
 pnpm check:daily
 ```
 
-to replay every shipped Daily solution certificate. Use `pnpm freeze:daily` only when deliberately replacing the release pack; by default it freezes `2026-01-01` through `2027-12-31` deterministically. The bulk freeze intentionally does not run the expensive deep difficulty scorer for every date; that scorer remains available for selective authoring review.
+to replay every shipped Daily solution certificate. Use `pnpm freeze:daily` only when deliberately replacing the release pack; by default it freezes `2026-01-01` through `2027-12-31` deterministically and may take several minutes because it evaluates 16 candidates per date. The bulk freeze ranks 16 deterministic solver-certified candidates per date with the fast Daily quality selector; it intentionally does not run the expensive deep difficulty scorer for every date. `pnpm check:daily` also verifies candidate-index diversity and the expected medium → challenge gradients for meaningful choices, constrained early steps, ambiguity, and random-route survival.
 
 ## Functional automated acceptance
 

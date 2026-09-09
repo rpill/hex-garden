@@ -18,7 +18,7 @@ This is the concise factual implementation snapshot. Stable product intent lives
 - frozen campaign validation: `pnpm check:campaign`
 - frozen Daily validation: `pnpm check:daily`
 - campaign candidate authoring only: `pnpm author:campaign`
-- Daily pack authoring only: `pnpm freeze:daily`
+- Daily pack authoring only: `pnpm freeze:daily` (16-candidate fast quality ranking; deep scorer remains manual curation)
 
 Normal test/build validation does **not** regenerate `src/data/campaign-levels.json` or `src/data/daily-levels.json`.
 
@@ -50,7 +50,7 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 - Campaign, Daily, Endless records, and settings use the hydrated player-data storage boundary backed by Yandex Player Data when available.
 - Russian/English language and global sound preference persist.
 - Responsive desktop, phone portrait, and phone landscape layouts remain implemented.
-- Daily runtime reads the frozen `src/data/daily-levels.json` pack and does not start the generator worker. This release ships 730 solver-certified Daily boards covering `2026-01-01` through `2027-12-31`. Freeze authoring takes the first deterministic constructable candidate for each date/profile; the expensive deep difficulty scorer remains available for selective manual curation, not as a release-pack blocker.
+- Daily runtime reads the frozen `src/data/daily-levels.json` pack and does not start the generator worker. This release ships 730 solver-certified Daily boards covering `2026-01-01` through `2027-12-31`. Freeze authoring ranks 16 deterministic solver-certified candidates per date with the fast quality selector (meaningful choices, constrained early steps, move ambiguity, and short random-route survival); the expensive deep difficulty scorer remains available for selective manual curation, not as a release-pack blocker.
 - Endless keeps runtime generation but prefetches board N+1 in the worker while board N is being played. The central `GENERATING LEVEL / ГЕНЕРАЦИЯ УРОВНЯ` overlay is now only the first-board/fallback state when the requested Endless board is not already ready.
 - Fullscreen interstitial requests use a shared app-session gate: first 3 minutes suppressed, then at most one request per 3 minutes; Campaign replay progression does not request one; Endless board-to-board continuation remains ad-free.
 

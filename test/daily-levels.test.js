@@ -40,7 +40,7 @@ test("frozen Daily pack covers both full calendar years used by this release", (
 test("frozen Daily preserves its deterministic certified candidate", () => {
   assert.equal(
     getDailyLevel("2026-09-08").candidateSeed,
-    "daily-v1:2026-09-08:candidate:0",
+    "daily-v1:2026-09-08:candidate:9",
   );
 });
 
@@ -52,4 +52,14 @@ test("frozen Daily lookup rejects dates not shipped in this build", () => {
 test("Daily pack stays compact by deriving plate data instead of repeating it per day", async () => {
   const raw = await readFile(new URL("../src/data/daily-levels.json", import.meta.url), "utf8");
   assert.doesNotMatch(raw, /plateCells|plateRadius|difficulty|metrics/);
+});
+
+test("frozen Daily pack reflects ranked candidate selection instead of always taking candidate zero", async () => {
+  const raw = JSON.parse(await readFile(new URL("../src/data/daily-levels.json", import.meta.url), "utf8"));
+  const candidateIndexes = raw.levels.map((record) => record[0]);
+  const distinct = new Set(candidateIndexes);
+  const nonZeroCount = candidateIndexes.filter((index) => index !== 0).length;
+
+  assert.ok(distinct.size >= 6, `expected at least 6 selected candidate indexes, got ${distinct.size}`);
+  assert.ok(nonZeroCount >= Math.floor(candidateIndexes.length * 0.5), `expected ranked selection to choose non-zero candidates often, got ${nonZeroCount}/${candidateIndexes.length}`);
 });

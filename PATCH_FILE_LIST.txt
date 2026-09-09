@@ -4,6 +4,7 @@ VALIDATION.md
 package.json
 scripts/freeze-dailies.mjs
 scripts/check-dailies.mjs
+src/daily-fast-quality.ts
 src/generator-worker.ts
 src/index.ts
 src/browser.ts
@@ -12,11 +13,15 @@ test/generation-overlay.test.js
 test/daily.test.js
 test/board-session-state.test.js
 test/endless-run.test.js
+test/daily-fast-quality.test.js
 test/endless-prefetch.test.js
 test/daily-archive-board-flow.test.js
 test/daily-board-session.test.js
 test/daily-static-runtime.test.js
 test/daily-levels.test.js
+src/data/.daily-freeze-12012-2.json
+src/data/.daily-freeze-12012-1.json
+src/data/.daily-freeze-12012-0.json
 src/data/daily-levels.json
 src/game/board/EndlessLevelPrefetch.ts
 src/game/scenes/BoardScene.ts
