@@ -11,7 +11,7 @@ The public product consists of:
 - Daily unlocked after the first 5 campaign levels are Solved;
 - Endless unlocked after the first 10 campaign levels are Solved.
 
-Do not restore the removed Dust/Shop/score/leaderboard/mechanic-progression product unless the user explicitly makes a new product decision.
+Do not restore the removed Dust/Shop/legacy-score/mechanic-progression product. One explicit replacement is now approved: the **Endless Clean Yandex leaderboard** described below. Do not revive the old local/public score leaderboard architecture.
 
 ## Documentation authority
 
@@ -78,7 +78,10 @@ Quintessence may remain in low-level/internal tooling but is not a public mode.
 - One run owns one unique run seed and one `EndlessBoardSession`; the live run is not resumed after reload.
 - Board 0–1: 37 cells. Board 2–4: 61 cells. Board 5+: 91 cells.
 - Difficulty continues through profile/band selection after plate size caps at 91.
-- Result = boards cleared. There is no point score, streak multiplier, combo, or public ranked score.
+- Result = boards cleared. There is no point score, streak multiplier, combo, or score-farming system.
+- The only approved public ranking is **Endless Clean**, technical Yandex leaderboard name `endless_clean_boards`, ranked by `bestUnassistedBoards` descending.
+- Guests may view public Top 10 without login. Authorization is voluntary and may start only from an explicit CTA explaining leaderboard participation.
+- Assisted Endless records never submit to the public leaderboard. A higher remote clean score must never be overwritten by a lower local score.
 - Clearing a board automatically advances to the next board.
 - Undo is free and non-assisted before a dead end. At a true dead end ordinary Undo is unavailable.
 - Hint requires a solver-verified winning route, then rewarded confirmation, then marks the run assisted permanently.
@@ -107,7 +110,8 @@ Do not reintroduce without explicit approval:
 - purchasable/consumable Hint/Undo/Rescue inventory;
 - campaign points or per-level scores;
 - Endless points, score bonuses, streak multipliers, or score farming;
-- public/local leaderboard scene/store;
+- legacy public/local leaderboard scene/store based on points or old score concepts;
+- any ranked submission other than the approved `endless_clean_boards` Clean boards-cleared leaderboard;
 - legacy mechanic-progression cards/gates;
 - legacy 24-level progression;
 - public shape-family Campaign API.
@@ -131,7 +135,7 @@ Do not reintroduce without explicit approval:
 - Do not use production `any` or `// @ts-ignore` to suppress type problems.
 - `src/board.ts`, `src/rules.ts`, `src/solver.ts`, generation modules, and progress stores remain renderer-independent and Node-testable.
 - `BoardScene.ts` owns orchestration; board UI/session responsibilities stay split under `src/game/board/`.
-- Active scenes are `MenuScene`, `LevelSelectScene`, `SettingsScene`, and `BoardScene`.
+- Active scenes include `MenuScene`, `LevelSelectScene`, `SettingsScene`, `RulesScene`, `LeaderboardScene`, and `BoardScene`.
 - Campaign/Daily/Endless progress plus settings use the shared player-data storage boundary. Yandex Player Data is preferred when available; local/browser fallback keeps dev usable.
 - Use `Phaser.Scale.RESIZE` and preserve usable responsive layouts.
 
@@ -154,4 +158,4 @@ pnpm build
 
 `pnpm author:campaign` is **authoring only** and is not part of the normal gate. Do not regenerate campaign JSON during ordinary validation.
 
-For product changes, also verify the affected manual acceptance slice: Campaign Solved/Clean/navigation, Daily Moscow rollover/history, Endless dead-end/assistance/records, rewarded confirmation, responsive controls, and persistence as applicable.
+For product changes, also verify the affected manual acceptance slice: Campaign Solved/Clean/navigation, Daily Moscow rollover/history, Endless dead-end/assistance/records, Endless Clean guest/auth leaderboard behavior, rewarded confirmation, responsive controls, and persistence as applicable.

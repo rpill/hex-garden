@@ -149,7 +149,9 @@ test("home Endless card shows the canonical clean boards-cleared best and starts
   assert.match(menuSource, /model\.endless/);
   assert.match(menuSource, /BEST/);
   assert.match(menuSource, /PlayMode\.ENDLESS/);
-  assert.doesNotMatch(menuSource, /multiplier|leaderboard/i);
+  assert.doesNotMatch(menuSource, /multiplier/i);
+  assert.match(menuSource, /this\.model\.showEndless[\s\S]{0,260}id: "leaderboard"/);
+  assert.match(menuSource, /scene\.start\("leaderboard"\)/);
 });
 
 test("Daily completion shows current week and optional Try Clean secondary action", () => {

@@ -297,6 +297,13 @@ export class MenuScene extends Phaser.Scene {
     this.contextMenu.open({
       title: this.english ? "MENU" : "МЕНЮ",
       items: [
+        ...(this.model.showEndless
+          ? [{
+              id: "leaderboard",
+              label: this.english ? "LEADERBOARD" : "РЕЙТИНГ",
+              onSelect: () => this.scene.start("leaderboard"),
+            }]
+          : []),
         {
           id: "rules",
           label: this.english ? "RULES" : "ПРАВИЛА",

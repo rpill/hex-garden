@@ -63,7 +63,7 @@ test("sticky banner calls are idempotent and unavailable SDK fails closed", asyn
 });
 
 test("non-gameplay scenes request sticky banner while Board hides it on create and resume", async () => {
-  const sceneFiles = ["MenuScene.ts", "LevelSelectScene.ts", "RulesScene.ts", "SettingsScene.ts"];
+  const sceneFiles = ["MenuScene.ts", "LevelSelectScene.ts", "RulesScene.ts", "SettingsScene.ts", "LeaderboardScene.ts"];
   for (const file of sceneFiles) {
     const source = await readFile(new URL(`../src/game/scenes/${file}`, import.meta.url), "utf8");
     assert.match(source, /showStickyBanner\(\)/, `${file} must show the sticky banner`);

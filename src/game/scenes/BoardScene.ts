@@ -22,6 +22,7 @@ import type { CampaignProgressSnapshot } from "../../campaign-progress.js";
 import { masteryRank, type MasteryRankValue } from "../../mastery.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEndlessProgress } from "../endless-progress.js";
+import { getEndlessLeaderboard } from "../endless-leaderboard.js";
 import { getSettings } from "../settings.js";
 import { CompletionOverlay } from "../completion-overlay.js";
 import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
@@ -221,6 +222,7 @@ export class BoardScene extends Phaser.Scene {
   english = false;
   progress!: ReturnType<typeof getCampaignProgress>;
   endlessProgress!: ReturnType<typeof getEndlessProgress>;
+  endlessLeaderboard!: ReturnType<typeof getEndlessLeaderboard>;
   dailyProgress!: DailyProgressStore;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
   generator!: BrowserLevelGenerator;
@@ -312,6 +314,7 @@ export class BoardScene extends Phaser.Scene {
     const init = boardInitData(data);
     this.progress = getCampaignProgress(this);
     this.endlessProgress = getEndlessProgress(this);
+    this.endlessLeaderboard = getEndlessLeaderboard(this);
     this.dailyProgress = new DailyProgressStore();
     this.english = getSettings(this).snapshot.language === "en";
     this.mode = init.mode ?? PlayMode.CAMPAIGN;
@@ -1049,10 +1052,14 @@ export class BoardScene extends Phaser.Scene {
   showEndlessCompletion(): void {
     const session = this.endlessSession;
     if (this.mode !== PlayMode.ENDLESS || !session) return;
+    const previousCleanBest = this.endlessProgress.snapshot.bestUnassistedBoards;
     const result = this.endlessProgress.submit({
       boardsCleared: session.boardsCleared,
       assisted: session.assisted,
     });
+    if (!session.assisted && result.bestUnassistedBoards > previousCleanBest) {
+      void this.endlessLeaderboard.publishImprovedCleanBest(result.bestUnassistedBoards);
+    }
     this.completionOverlay.show(
       {
         kind: "endless",

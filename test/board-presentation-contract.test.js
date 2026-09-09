@@ -198,7 +198,7 @@ test("spiral reveal derives live inventory counts from revealed board pieces", a
 });
 
 
-test("Home stays asset-free and omits legacy meta destinations", async () => {
+test("Home stays asset-free, omits legacy shop, and exposes Endless leaderboard after unlock", async () => {
   const source = await readFile(
     new URL("../src/game/scenes/MenuScene.ts", import.meta.url),
     "utf8",
@@ -213,7 +213,9 @@ test("Home stays asset-free and omits legacy meta destinations", async () => {
 
   assert.doesNotMatch(source, /art-assets|scene-background|preloadUiAssets|makePanel|NineSlice/);
   assert.doesNotMatch(source, /getEconomy|getLeaderboard|makeCurrencyDisplay|makeCartIconButton/);
-  assert.doesNotMatch(source, /scene\.start\("shop"|scene\.start\("leaderboard"/);
+  assert.doesNotMatch(source, /scene\.start\("shop"/);
+  assert.match(source, /this\.model\.showEndless[\s\S]{0,260}id: "leaderboard"/);
+  assert.match(source, /scene\.start\("leaderboard"\)/);
   assert.match(source, /PlayMode\.DAILY/);
   assert.match(source, /PlayMode\.ENDLESS/);
 });

@@ -2,9 +2,11 @@ import Phaser from "phaser";
 import "./styles.css";
 import { THEME_COLORS } from "./art-assets.js";
 import { getYandexGamesAdapter } from "./platform/yandex-games.js";
+import { getGameLifecycleController } from "./platform/game-lifecycle.js";
 import { initializePlayerDataStorage } from "./platform/player-data-storage.js";
 import { BoardScene } from "./game/scenes/BoardScene.js";
 import { LevelSelectScene } from "./game/scenes/LevelSelectScene.js";
+import { LeaderboardScene } from "./game/scenes/LeaderboardScene.js";
 import { MenuScene } from "./game/scenes/MenuScene.js";
 import { SettingsScene } from "./game/scenes/SettingsScene.js";
 import { RulesScene } from "./game/scenes/RulesScene.js";
@@ -17,6 +19,8 @@ declare global {
 async function startGarden(): Promise<void> {
   const platform = getYandexGamesAdapter();
   await platform.initialize();
+  const lifecycle = getGameLifecycleController();
+  await lifecycle.initialize();
   await initializePlayerDataStorage(platform);
 
   const game = new Phaser.Game({
@@ -38,9 +42,10 @@ async function startGarden(): Promise<void> {
       activePointers: 3,
       touch: { capture: true },
     },
-    scene: [MenuScene, LevelSelectScene, SettingsScene, RulesScene, BoardScene],
+    scene: [MenuScene, LevelSelectScene, SettingsScene, RulesScene, LeaderboardScene, BoardScene],
   });
 
+  lifecycle.attachGame(game);
   window.addEventListener("contextmenu", (event) => event.preventDefault());
   globalThis.__GARDEN_RULES_LAB__ = game;
 

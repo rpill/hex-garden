@@ -32,6 +32,7 @@ test("currency presentation carries only the dynamic numeric text", () => {
 
 test("utility scenes only return to root scenes; nested utility origins fall back to Home", () => {
   assert.deepEqual(utilityReturnPlan("board"), { kind: "resume", scene: "board" });
+  assert.deepEqual(utilityReturnPlan("leaderboard"), { kind: "resume", scene: "leaderboard" });
   assert.deepEqual(utilityReturnPlan("settings"), { kind: "start", scene: "menu" });
   assert.deepEqual(utilityReturnPlan("rules"), { kind: "start", scene: "menu" });
   assert.deepEqual(utilityReturnPlan("level-select"), { kind: "start", scene: "level-select" });

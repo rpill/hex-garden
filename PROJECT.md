@@ -55,6 +55,10 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 - Endless is one session-scoped run of consecutive canonical standard boards. A new run gets a unique run seed and is not persisted across page reloads.
 - Board sizes are staged: boards 0–1 use 37 cells, boards 2–4 use 61 cells, and board 5 onward uses 91 cells. Difficulty continues through difficulty-band/profile selection after size reaches 91.
 - The result is **boards cleared**. There is no point score, per-piece score, streak multiplier, combo, or score-farming system.
+- The only public ranking is **Endless Clean** through Yandex Games leaderboard `endless_clean_boards`, numeric descending with decimal offset `0`.
+- Guests can view the public Top 10 without authorization. Yandex authorization is voluntary and starts only from an explicit sign-in CTA that explains the leaderboard benefit.
+- Only `bestUnassistedBoards` can be submitted. Assisted records never enter the ranking, and synchronization must never replace a higher remote score with a lower local score.
+- Leaderboard data is not save data and never overwrites Campaign/Daily/Endless Player Data.
 - Clearing a board automatically advances to the next board in the same run.
 - Undo is free before a visible dead end and does not mark the run assisted. Once a true dead end is entered, ordinary Undo is unavailable.
 - Hint must come from a solver-verified route to a full clear and permanently marks the run assisted after the rewarded callback is confirmed.
@@ -80,7 +84,8 @@ The following are not part of the current product and must not be reintroduced w
 - booster inventory or consumable Hint/Undo/Rescue counts;
 - campaign or Endless point scoring;
 - score multipliers/streak scoring;
-- public leaderboard navigation or ranked score submission;
+- legacy public leaderboard navigation or ranked point-score submission;
+- any ranked submission other than Endless Clean `bestUnassistedBoards`;
 - legacy mechanic-progression cards/gates;
 - public shape-family progression contracts.
 

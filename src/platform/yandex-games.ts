@@ -44,6 +44,7 @@ interface DocumentLike {
 interface YandexPlayer {
   getData?: (keys?: string[]) => Promise<unknown>;
   setData?: (data: Record<string, unknown>, flush?: boolean) => Promise<void>;
+  isAuthorized?: () => boolean;
 }
 
 type StickyBannerStatus = Readonly<{
@@ -56,6 +57,18 @@ interface YandexSdk {
   off?: (event: "game_api_pause" | "game_api_resume", callback: () => void) => void;
   serverTime?: () => number;
   getPlayer?: (options?: { scopes?: boolean }) => Promise<YandexPlayer>;
+  isAvailableMethod?: (method: string) => Promise<boolean> | boolean;
+  auth?: {
+    openAuthDialog?: () => Promise<void>;
+  };
+  leaderboards?: {
+    getEntries?: (
+      leaderboardName: string,
+      options: { includeUser?: boolean; quantityAround?: number; quantityTop?: number },
+    ) => Promise<unknown>;
+    getPlayerEntry?: (leaderboardName: string) => Promise<unknown>;
+    setScore?: (leaderboardName: string, score: number, extraData?: string) => Promise<void>;
+  };
   features?: {
     LoadingAPI?: { ready?: () => void };
     GameplayAPI?: { start?: () => void; stop?: () => void };
@@ -147,6 +160,42 @@ export type RewardedResult = Readonly<{
   error?: unknown;
 }>;
 
+export interface LeaderboardEntry {
+  rank: number;
+  score: number;
+  publicName: string;
+  uniqueId: string;
+}
+
+export type AuthorizationResult = "authorized" | "guest" | "unavailable";
+
+export type LeaderboardEntriesResult =
+  | { status: "ready"; entries: readonly LeaderboardEntry[] }
+  | { status: "unavailable"; entries: readonly LeaderboardEntry[] };
+
+export type LeaderboardPlayerEntryResult =
+  | { status: "ready"; entry: LeaderboardEntry }
+  | { status: "not-present"; entry: null }
+  | { status: "unavailable"; entry: null };
+
+function normalizeLeaderboardEntry(value: unknown): LeaderboardEntry | null {
+  if (!isRecord(value) || !isRecord(value.player)) return null;
+  const { rank, score } = value;
+  if (
+    typeof rank !== "number" || !Number.isFinite(rank) || rank < 0 ||
+    typeof score !== "number" || !Number.isFinite(score) || score < 0
+  ) return null;
+  const publicName = typeof value.player.publicName === "string" ? value.player.publicName : "";
+  const uniqueId = typeof value.player.uniqueID === "string" ? value.player.uniqueID : "";
+  return Object.freeze({ rank, score, publicName, uniqueId });
+}
+
+function isLeaderboardPlayerNotPresent(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  return error.code === "LEADERBOARD_PLAYER_NOT_PRESENT" ||
+    error.name === "LEADERBOARD_PLAYER_NOT_PRESENT";
+}
+
 export class YandexGamesAdapter {
   #document: DocumentLike | undefined;
   #global: unknown;
@@ -216,6 +265,116 @@ export class YandexGamesAdapter {
       }
     })();
     return this.#playerPromise;
+  }
+
+  async isPlayerAuthorized(): Promise<boolean> {
+    const player = await this.#getPlayer();
+    if (typeof player?.isAuthorized !== "function") return false;
+    try {
+      return player.isAuthorized() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async requestPlayerAuthorization(): Promise<AuthorizationResult> {
+    const current = await this.#getPlayer();
+    if (typeof current?.isAuthorized === "function") {
+      try {
+        if (current.isAuthorized() === true) return "authorized";
+      } catch {
+        // Continue to the explicit auth flow.
+      }
+    }
+
+    const sdk = await this.initialize();
+    const authTarget = sdk?.auth;
+    const openAuthDialog = authTarget?.openAuthDialog;
+    if (typeof openAuthDialog !== "function") return "unavailable";
+
+    try {
+      await openAuthDialog.call(authTarget);
+    } catch {
+      // A user-cancelled dialog may reject. Refresh Player below to distinguish
+      // a normal guest outcome from an unavailable SDK/player.
+    }
+
+    this.#playerPromise = undefined;
+    const refreshed = await this.#getPlayer();
+    if (!refreshed || typeof refreshed.isAuthorized !== "function") return "unavailable";
+    try {
+      return refreshed.isAuthorized() === true ? "authorized" : "guest";
+    } catch {
+      return "unavailable";
+    }
+  }
+
+  async getLeaderboardEntries(
+    name: string,
+    quantityTop = 10,
+  ): Promise<LeaderboardEntriesResult> {
+    const sdk = await this.initialize();
+    const leaderboardsTarget = sdk?.leaderboards;
+    const getEntries = leaderboardsTarget?.getEntries;
+    if (typeof getEntries !== "function") {
+      return Object.freeze({ status: "unavailable", entries: [] });
+    }
+    const safeQuantity = Math.max(1, Math.min(20, Math.trunc(quantityTop)));
+    try {
+      const value = await getEntries.call(leaderboardsTarget, name, {
+        quantityTop: safeQuantity,
+        includeUser: false,
+      });
+      if (!isRecord(value) || !Array.isArray(value.entries)) {
+        return Object.freeze({ status: "unavailable", entries: [] });
+      }
+      const entries = value.entries.map(normalizeLeaderboardEntry);
+      if (entries.some((entry) => entry === null)) {
+        return Object.freeze({ status: "unavailable", entries: [] });
+      }
+      return Object.freeze({
+        status: "ready",
+        entries: Object.freeze(entries as LeaderboardEntry[]),
+      });
+    } catch {
+      return Object.freeze({ status: "unavailable", entries: [] });
+    }
+  }
+
+  async getLeaderboardPlayerEntry(name: string): Promise<LeaderboardPlayerEntryResult> {
+    const sdk = await this.initialize();
+    const getPlayerEntry = sdk?.leaderboards?.getPlayerEntry;
+    if (typeof sdk?.isAvailableMethod !== "function" || typeof getPlayerEntry !== "function") {
+      return Object.freeze({ status: "unavailable", entry: null });
+    }
+    try {
+      if (!(await sdk.isAvailableMethod("leaderboards.getPlayerEntry"))) {
+        return Object.freeze({ status: "unavailable", entry: null });
+      }
+      const value = await getPlayerEntry.call(sdk.leaderboards, name);
+      const entry = normalizeLeaderboardEntry(value);
+      return entry
+        ? Object.freeze({ status: "ready", entry })
+        : Object.freeze({ status: "unavailable", entry: null });
+    } catch (error) {
+      return isLeaderboardPlayerNotPresent(error)
+        ? Object.freeze({ status: "not-present", entry: null })
+        : Object.freeze({ status: "unavailable", entry: null });
+    }
+  }
+
+  async setLeaderboardScore(name: string, score: number): Promise<boolean> {
+    if (!Number.isFinite(score) || score < 0) return false;
+    const sdk = await this.initialize();
+    const setScore = sdk?.leaderboards?.setScore;
+    if (typeof sdk?.isAvailableMethod !== "function" || typeof setScore !== "function") return false;
+    try {
+      if (!(await sdk.isAvailableMethod("leaderboards.setScore"))) return false;
+      await setScore.call(sdk.leaderboards, name, Math.trunc(score));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async getPlayerData(keys?: readonly string[]): Promise<Record<string, unknown> | null> {

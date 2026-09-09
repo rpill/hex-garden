@@ -14,7 +14,7 @@ import { boardPrimitiveMetrics } from "../presentation-layout.js";
 import { closeUtilityScene, exitUtilityToScene, switchUtilityScene } from "../utility-navigation.js";
 import type { UtilityRootSceneKey } from "../presentation-model.js";
 
-const RETURN_SCENES = new Set<UtilityRootSceneKey>(["board", "menu", "level-select"]);
+const RETURN_SCENES = new Set<UtilityRootSceneKey>(["board", "menu", "level-select", "leaderboard"]);
 
 const GOAL_FRAGMENT_CELLS = Object.freeze([
   { q: 0, r: 0 },

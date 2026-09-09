@@ -21,7 +21,7 @@ test("runtime product has no economy or shop surface", () => {
   );
 });
 
-test("runtime product has no legacy score or public leaderboard surface", () => {
+test("runtime product has no legacy score system while allowing the Endless Clean leaderboard", () => {
   const gameText = sources(fileURLToPath(new URL("../src/game", import.meta.url)))
     .map((file) => fs.readFileSync(file, "utf8"))
     .join("\n");
@@ -31,8 +31,11 @@ test("runtime product has no legacy score or public leaderboard surface", () => 
   const text = `${gameText}\n${entryText}`;
   assert.doesNotMatch(
     text,
-    /CAMPAIGN SCORE|STREAK MULTIPLIER|RANKING|РЕЙТИНГ|scoreRemovedAtoms|LocalLeaderboardStore|LeaderboardScene|scene\.start\(["']leaderboard/,
+    /CAMPAIGN SCORE|STREAK MULTIPLIER|scoreRemovedAtoms|LocalLeaderboardStore|campaignScore|levelScores/,
   );
+  assert.match(text, /LeaderboardScene/);
+  assert.match(text, /scene\.start\(["']leaderboard/);
+  assert.match(text, /ENDLESS · ЧИСТЫЙ РЕЙТИНГ|ENDLESS · CLEAN LEADERBOARD/);
 });
 
 test("runtime product has no legacy mechanic progression or shape-family generation surface", () => {

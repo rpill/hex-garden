@@ -33,6 +33,8 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 - Daily uses the Moscow calendar (`Europe/Moscow`), trusted platform time, Monday–Sunday weekly history, latest-90-day persistence, and Solved/Clean upgrades.
 - Endless is a session-scoped sequence of boards: two 37-cell boards, three 61-cell boards, then 91-cell boards. The result is boards cleared, not points.
 - Endless persists separate best unassisted and best assisted board counts; Home displays the canonical unassisted best.
+- Endless Clean Yandex leaderboard is implemented with technical name `endless_clean_boards`: guests can read Top 10; explicit Yandex sign-in enables personal placement and clean-best publication; higher remote scores are never downgraded by lower local scores.
+- `LeaderboardScene` is available from Home contextual menu after Endless unlock. Assisted results are never submitted.
 - Campaign, Daily, and Endless use the shared solver-backed Hint/Rescue infrastructure.
 - Undo and Restart are free. They do not invalidate Clean/assisted eligibility by themselves.
 - Hint and Rescue invalidate Clean for Campaign/Daily attempts; Hint/Rescue permanently mark an Endless run assisted.
@@ -51,7 +53,7 @@ The current runtime no longer contains the old product surfaces:
 - no booster inventory or paid consumable counts;
 - no campaign score or per-level score persistence;
 - no Endless point score, streak multiplier, or score farming;
-- no public/local leaderboard scene/store;
+- no legacy point-score/local leaderboard architecture; the only approved ranking is the new Endless Clean Yandex leaderboard;
 - no 24-level mechanic progression;
 - no legacy runtime mechanic-progression gate;
 - no public shape-family progression API.
@@ -68,7 +70,7 @@ The current runtime no longer contains the old product surfaces:
 
 ## Architecture snapshot
 
-- Active Phaser scenes: `MenuScene`, `LevelSelectScene`, `SettingsScene`, `BoardScene`.
+- Active Phaser scenes: `MenuScene`, `LevelSelectScene`, `SettingsScene`, `RulesScene`, `LeaderboardScene`, `BoardScene`.
 - `BoardScene.ts` orchestrates gameplay/session state.
 - Board-specific presentation/session helpers live under `src/game/board/`, including `BoardHud`, `BoardInventory` (atom-count/filter panel), `BoardTutorial`, `BoardIntroAnimator`, `BoardAssistance`, and Campaign/Daily/Endless session classes.
 - Frozen Campaign data is read synchronously from `src/data/campaign-levels.json`; Campaign is not generated in the worker at runtime.
@@ -84,4 +86,4 @@ The current runtime no longer contains the old product surfaces:
 
 ## Current focus
 
-Finish Plan 6 functional acceptance and campaign curation/playtesting. Do not resume Physical Premium / Physical UI Factory runtime integration until functional product playtest acceptance explicitly reopens visual production.
+Finish Yandex release-readiness validation (lifecycle, rewarded/interstitial/banner, Endless Clean leaderboard, statistics/retention follow-ups) alongside functional playtesting. Do not resume Physical Premium / Physical UI Factory runtime integration until functional product playtest acceptance explicitly reopens visual production.

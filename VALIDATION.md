@@ -1,6 +1,6 @@
 # Hex Garden — Validation
 
-This file defines the current functional-product validation gate. It intentionally excludes the removed Dust/Shop/score/leaderboard product and does not require frozen Physical Premium factory outputs.
+This file defines the current functional-product validation gate. It excludes the removed Dust/Shop/legacy score product while including the approved Endless Clean Yandex leaderboard, and it does not require frozen Physical Premium factory outputs.
 
 ## Normal handoff gate
 
@@ -43,7 +43,8 @@ The normal `pnpm test` suite should cover the current product contracts, includi
 - one Rescue per Campaign/Daily attempt or Endless run;
 - player-data persistence boundaries and settings;
 - responsive/product navigation contracts;
-- absence of removed Dust/Shop/score/leaderboard/mechanic-progression surfaces.
+- Endless Clean Yandex leaderboard guest/auth/no-downgrade/clean-only submission contracts;
+- absence of removed Dust/Shop/legacy score/mechanic-progression surfaces.
 
 ## Manual smoke acceptance
 
@@ -80,6 +81,31 @@ For user-facing changes, smoke-test the affected slice in `pnpm yandex:dev`.
 - Rescue works once, restores a solver-verified safe history state, and marks assisted.
 - A later true dead end after Rescue ends the run.
 - Assisted result cannot replace the Home clean best.
+
+
+### Endless Clean leaderboard
+
+- [ ] Guest can open leaderboard and see public Top 10 without auth dialog.
+- [ ] Guest local clean best is visible even when leaderboard is unavailable.
+- [ ] Closing/cancelling auth keeps game usable and returns to guest state.
+- [ ] Successful auth refreshes Player and shows personal placement when present.
+- [ ] Local 17 vs remote 25 performs no `setScore` call.
+- [ ] Local 17 vs remote 12 submits 17 once.
+- [ ] Local 0 with no remote entry does not create a zero entry.
+- [ ] Assisted Endless best never changes leaderboard score.
+- [ ] New clean Endless best publishes asynchronously without delaying result overlay.
+- [ ] Missing console leaderboard/404 shows unavailable state and Home remains reachable.
+- [ ] Rules/Settings opened from leaderboard return to leaderboard without duplicate fetch loops.
+- [ ] Desktop, portrait phone, and short-landscape leaderboard layouts remain usable.
+
+Developer Console requirement:
+
+```text
+Technical name: endless_clean_boards
+Type: numeric
+Decimal offset: 0
+Sort: DESC
+```
 
 ### Platform / responsive UI
 
