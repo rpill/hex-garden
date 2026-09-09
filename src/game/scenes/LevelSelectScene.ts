@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
+import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 import {
   CAMPAIGN_CHAPTERS,
   CampaignLevelState,
@@ -41,6 +42,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
+    void getYandexGamesAdapter().showStickyBanner();
     this.progress = getCampaignProgress(this);
     this.english = getSettings(this).snapshot.language === "en";
 

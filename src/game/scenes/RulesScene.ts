@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { Atom, type AtomType } from "../../atom-types.js";
+import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
 import {
   MINIMAL_UI_COLORS,
@@ -207,6 +208,7 @@ export class RulesScene extends Phaser.Scene {
     this.returnScene = returnSceneFromData(data);
     this.english = getSettings(this).snapshot.language === "en";
     this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
+    void getYandexGamesAdapter().showStickyBanner();
 
     this.title = makeMinimalText(this, this.english ? "RULES" : "ПРАВИЛА", 26)
       .setOrigin(0.5)
@@ -283,7 +285,7 @@ export class RulesScene extends Phaser.Scene {
     this.diagramLabels = [];
   }
 
-  private addDiagramText(text: string, x: number, y: number, size = 18, color = MINIMAL_UI_COLORS.text): void {
+  private addDiagramText(text: string, x: number, y: number, size = 18, color: string = MINIMAL_UI_COLORS.text): void {
     this.diagramLabels.push(
       makeMinimalText(this, text, size, color).setOrigin(0.5).setDepth(3).setPosition(x, y),
     );

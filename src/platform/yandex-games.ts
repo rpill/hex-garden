@@ -46,6 +46,11 @@ interface YandexPlayer {
   setData?: (data: Record<string, unknown>, flush?: boolean) => Promise<void>;
 }
 
+type StickyBannerStatus = Readonly<{
+  stickyAdvIsShowing: boolean;
+  reason?: "ADV_IS_NOT_CONNECTED" | "UNKNOWN";
+}>;
+
 interface YandexSdk {
   on?: (event: "game_api_pause" | "game_api_resume", callback: () => void) => void;
   off?: (event: "game_api_pause" | "game_api_resume", callback: () => void) => void;
@@ -56,6 +61,8 @@ interface YandexSdk {
     GameplayAPI?: { start?: () => void; stop?: () => void };
   };
   adv?: {
+    showBannerAdv?: () => Promise<StickyBannerStatus>;
+    hideBannerAdv?: () => Promise<Readonly<{ stickyAdvIsShowing: boolean }>>;
     showFullscreenAdv?: (options: {
       callbacks: {
         onOpen?: () => void;
@@ -147,6 +154,8 @@ export class YandexGamesAdapter {
   #pendingRewarded = false;
   #gameReadyReported = false;
   #gameplayState: "started" | "stopped" | undefined;
+  #stickyBannerState: boolean | undefined;
+  #stickyBannerOperation: Promise<void> = Promise.resolve();
   #playerPromise: Promise<YandexPlayer | null> | undefined;
   #sdk: YandexSdk | undefined;
   #sdkUrl: string | null;
@@ -305,6 +314,35 @@ export class YandexGamesAdapter {
       sdk.off?.("game_api_pause", onPause);
       sdk.off?.("game_api_resume", onResume);
     };
+  }
+
+  showStickyBanner(): Promise<void> {
+    return this.#queueStickyBannerState(true);
+  }
+
+  hideStickyBanner(): Promise<void> {
+    return this.#queueStickyBannerState(false);
+  }
+
+  #queueStickyBannerState(visible: boolean): Promise<void> {
+    const apply = async (): Promise<void> => {
+      if (this.#stickyBannerState === visible) return;
+      const sdk = await this.initialize();
+      const adv = sdk?.adv;
+      const method = visible ? adv?.showBannerAdv : adv?.hideBannerAdv;
+      if (typeof method !== "function") return;
+      try {
+        const result = await method.call(adv);
+        this.#stickyBannerState = result?.stickyAdvIsShowing === visible
+          ? visible
+          : undefined;
+      } catch {
+        this.#stickyBannerState = undefined;
+      }
+    };
+
+    this.#stickyBannerOperation = this.#stickyBannerOperation.then(apply, apply);
+    return this.#stickyBannerOperation;
   }
 
   async showFullscreen(): Promise<void> {

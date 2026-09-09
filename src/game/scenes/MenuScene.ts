@@ -84,6 +84,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
+    void getYandexGamesAdapter().showStickyBanner();
     this.progress = getCampaignProgress(this);
     this.dailyProgress = new DailyProgressStore();
     this.endlessProgress = getEndlessProgress(this);

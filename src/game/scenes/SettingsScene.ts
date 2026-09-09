@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { Language } from "../../settings.js";
+import { getYandexGamesAdapter } from "../../platform/yandex-games.js";
 import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
 import {
   MINIMAL_UI_COLORS,
@@ -49,6 +50,7 @@ export class SettingsScene extends Phaser.Scene {
     this.returnScene = returnSceneFromData(data);
     this.settings = getSettings(this);
     this.cameras.main.setBackgroundColor(MINIMAL_UI_COLORS.background);
+    void getYandexGamesAdapter().showStickyBanner();
 
     this.title = makeMinimalText(this, "НАСТРОЙКИ", 26)
       .setOrigin(0.5)

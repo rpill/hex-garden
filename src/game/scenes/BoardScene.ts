@@ -362,6 +362,7 @@ export class BoardScene extends Phaser.Scene {
   create(): void {
     getGameLifecycleController().setGameplayActive(false);
     this.platform = getYandexGamesAdapter();
+    void this.platform.hideStickyBanner();
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
@@ -469,6 +470,7 @@ export class BoardScene extends Phaser.Scene {
       getGameLifecycleController().setGameplayActive(false);
     });
     this.events.on(Phaser.Scenes.Events.RESUME, () => {
+      void this.platform.hideStickyBanner();
       this.syncGameplayLifecycle();
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
