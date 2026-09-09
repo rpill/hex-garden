@@ -1,23 +1,22 @@
 import {
-  BoardVariant,
-  generateCampaignLevel,
+  CAMPAIGN_LEVEL_COUNT,
+  getCampaignLevel,
   replaySolution,
 } from "../src/index.js";
 
-const count = Number.parseInt(process.argv[2] ?? "250", 10);
-const campaignSeed = process.argv[3] ?? "release-check";
-if (!Number.isSafeInteger(count) || count < 1) {
-  throw new RangeError("count must be a positive safe integer");
+const count = Number.parseInt(process.argv[2] ?? String(CAMPAIGN_LEVEL_COUNT), 10);
+if (!Number.isSafeInteger(count) || count < 1 || count > CAMPAIGN_LEVEL_COUNT) {
+  throw new RangeError(`count must be an integer from 1 to ${CAMPAIGN_LEVEL_COUNT}`);
 }
 
 for (let level = 0; level < count; level += 1) {
-  const variant =
-    level % 5 === 4 ? BoardVariant.QUINTESSENCE : BoardVariant.STANDARD;
-  const record = generateCampaignLevel(level, { campaignSeed, variant });
-  replaySolution(record.board, record.solution);
+  const record = getCampaignLevel(level);
+  replaySolution(record.pieces, record.solution);
 
-  if ((level + 1) % 100 === 0 || level + 1 === count) {
-    process.stdout.write(`\rReplay-verified campaign levels: ${level + 1}/${count}`);
+  if ((level + 1) % 10 === 0 || level + 1 === count) {
+    process.stdout.write(
+      `\rReplay-verified frozen campaign levels: ${level + 1}/${count}`,
+    );
   }
 }
 process.stdout.write("\n");
