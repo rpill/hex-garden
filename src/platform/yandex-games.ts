@@ -56,6 +56,13 @@ interface YandexSdk {
     GameplayAPI?: { start?: () => void; stop?: () => void };
   };
   adv?: {
+    showFullscreenAdv?: (options: {
+      callbacks: {
+        onOpen?: () => void;
+        onClose?: (wasShown: boolean) => void;
+        onError?: (error: unknown) => void;
+      };
+    }) => void;
     showRewardedVideo?: (options: {
       callbacks: {
         onOpen: () => void;
@@ -298,6 +305,31 @@ export class YandexGamesAdapter {
       sdk.off?.("game_api_pause", onPause);
       sdk.off?.("game_api_resume", onResume);
     };
+  }
+
+  async showFullscreen(): Promise<void> {
+    const sdk = await this.initialize();
+    const showFullscreenAdv = sdk?.adv?.showFullscreenAdv;
+    if (typeof showFullscreenAdv !== "function") return;
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      try {
+        showFullscreenAdv({
+          callbacks: {
+            onClose: () => finish(),
+            onError: () => finish(),
+          },
+        });
+      } catch {
+        finish();
+      }
+    });
   }
 
   async showRewarded({ onOpen, onClose }: RewardedCallbacks = {}): Promise<RewardedResult> {

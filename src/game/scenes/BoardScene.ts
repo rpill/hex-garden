@@ -206,6 +206,7 @@ export class BoardScene extends Phaser.Scene {
   activeHintKeys = new Set<string>();
   hintTimer: Phaser.Time.TimerEvent | undefined;
   rewardedAdPending = false;
+  interstitialAdPending = false;
   certifiedSolution: readonly (readonly HexCoord[])[] = [];
   knownWinningRoute: readonly (readonly HexCoord[])[] = [];
   positionSolveStatus: SolveStatusValue = SolveStatus.UNKNOWN;
@@ -281,6 +282,7 @@ export class BoardScene extends Phaser.Scene {
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
     this.rewardedAdPending = false;
+    this.interstitialAdPending = false;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
@@ -337,6 +339,7 @@ export class BoardScene extends Phaser.Scene {
     this.activeHintKeys = new Set();
     this.hintTimer = undefined;
     this.rewardedAdPending = false;
+    this.interstitialAdPending = false;
     this.certifiedSolution = [];
     this.knownWinningRoute = [];
     this.positionSolveStatus = SolveStatus.UNKNOWN;
@@ -449,7 +452,7 @@ export class BoardScene extends Phaser.Scene {
       },
     );
     this.input.keyboard?.on("keydown-ESC", () => {
-      if (this.rewardedAdPending) return;
+      if (this.rewardedAdPending || this.interstitialAdPending) return;
       if (this.pauseMenuVisible) {
         this.closePauseMenu();
         return;
@@ -619,13 +622,13 @@ export class BoardScene extends Phaser.Scene {
   }
 
   openUtilityScene(key: UtilitySceneKey): void {
-    if (this.rewardedAdPending) return;
+    if (this.rewardedAdPending || this.interstitialAdPending) return;
     if (this.pauseMenuVisible) this.closePauseMenu({ syncGameplay: false });
     openCoveredUtilityScene(this, key, { returnScene: "board" });
   }
 
   openPauseMenu(): void {
-    if (this.pauseMenuVisible || this.rewardedAdPending) return;
+    if (this.pauseMenuVisible || this.rewardedAdPending || this.interstitialAdPending) return;
     this.pauseMenuVisible = true;
     const completionVisible = this.completionOverlay?.visible === true;
     const items = [
@@ -689,11 +692,24 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.rewardedAdPending ||
+      this.interstitialAdPending ||
       this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.initialPieces.length === 0
     ) return;
+
+    const deadEndInterstitial =
+      this.actualDeadEnd &&
+      (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY);
+    if (deadEndInterstitial) {
+      void this.runInterstitialBefore(() => this.restartLevelNow());
+      return;
+    }
+    this.restartLevelNow();
+  }
+
+  restartLevelNow(): void {
     this.hideCampaignDeadEndState();
     if (this.mode === PlayMode.ENDLESS) {
       this.scene.restart({
@@ -796,6 +812,7 @@ export class BoardScene extends Phaser.Scene {
     if (
       this.busy ||
       this.rewardedAdPending ||
+      this.interstitialAdPending ||
       this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
@@ -927,14 +944,16 @@ export class BoardScene extends Phaser.Scene {
 
     const actions = destination.kind === "home"
       ? {
-          onHome: () => this.openMainMenu(destination.reveal),
+          onHome: () => void this.runInterstitialBefore(
+            () => this.openMainMenu(destination.reveal),
+          ),
           ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
         }
       : {
-          onNext: () => {
+          onNext: () => void this.runInterstitialBefore(() => {
             this.level = destination.level;
-            this.loadLevel();
-          },
+            void this.loadLevel();
+          }),
           ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
         };
 
@@ -1005,7 +1024,7 @@ export class BoardScene extends Phaser.Scene {
             : {}),
         },
         {
-          onHome: () => this.openMainMenu(),
+          onHome: () => void this.runInterstitialBefore(() => this.openMainMenu()),
           ...(!achievedClean ? { onSecondary: () => this.loadLevel() } : {}),
         },
       );
@@ -1040,11 +1059,11 @@ export class BoardScene extends Phaser.Scene {
         bestUnassistedBoards: result.bestUnassistedBoards,
       },
       {
-        onNext: () => this.scene.restart({
+        onNext: () => void this.runInterstitialBefore(() => this.scene.restart({
           mode: PlayMode.ENDLESS,
           level: 0,
           runSeed: createEndlessRunSeed(),
-        }),
+        })),
         onHome: () => this.openMainMenu(),
       },
     );
@@ -1169,6 +1188,18 @@ export class BoardScene extends Phaser.Scene {
   setRewardedAdPending(value: boolean): void {
     this.rewardedAdPending = value;
     this.syncGameplayLifecycle();
+  }
+
+  async runInterstitialBefore(action: () => void): Promise<void> {
+    if (this.interstitialAdPending) return;
+    this.interstitialAdPending = true;
+    this.syncGameplayLifecycle();
+    try {
+      await this.platform.showFullscreen();
+    } finally {
+      this.interstitialAdPending = false;
+      action();
+    }
   }
 
   async useCampaignHint(): Promise<void> {
@@ -1854,7 +1885,8 @@ export class BoardScene extends Phaser.Scene {
       this.completionOverlay?.visible !== true &&
       !this.actualDeadEnd &&
       !(this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true) &&
-      !this.rewardedAdPending;
+      !this.rewardedAdPending &&
+      !this.interstitialAdPending;
     getGameLifecycleController().setGameplayActive(gameplayActive);
   }
 
