@@ -44,7 +44,7 @@ test("MinimalButton has a persistent highlighted state for semantic emphasis", a
 test("short landscape keeps the unified Daily card compact enough for lower navigation", async () => {
   const menu = await read("../src/game/scenes/MenuScene.ts");
 
-  assert.match(menu, /const dailyHeight = metrics\.shortLandscape \? 68 : 110/);
+  assert.match(menu, /const dailyHeight = metrics\.shortLandscape \? 76 : 132/);
   assert.match(menu, /const endlessHeight = metrics\.shortLandscape \? 68 : 68/);
-  assert.match(menu, /const dailyY = metrics\.primaryY \+ \(metrics\.shortLandscape \? 69 : 92\)/);
+  assert.match(menu, /const dailyY = metrics\.primaryY \+ \(metrics\.shortLandscape \? 69 : 104\)/);
 });

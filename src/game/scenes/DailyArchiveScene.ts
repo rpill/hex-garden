@@ -305,9 +305,10 @@ export class DailyArchiveScene extends Phaser.Scene {
 
     const streakY = monthY + (shortLandscape ? 23 : 26);
     const weekdaysY = streakY + (shortLandscape ? 24 : 28);
-    const legendY = height - (shortLandscape ? 14 : 20);
     const gridTop = weekdaysY + (shortLandscape ? 12 : 16);
-    const gridBottom = legendY - (shortLandscape ? 14 : 20);
+    const bottomMargin = shortLandscape ? 14 : 20;
+    const legendGap = shortLandscape ? 12 : 20;
+    const gridBottom = height - bottomMargin - legendGap;
     const horizontalMargin = compact ? 14 : 24;
     const maxGridWidth = Math.min(width - horizontalMargin * 2, 620);
     const maxGridHeight = Math.max(120, gridBottom - gridTop);
@@ -319,7 +320,11 @@ export class DailyArchiveScene extends Phaser.Scene {
     const gridWidth = actualCellWidth * 7 + gap * 6;
     const gridHeight = actualCellHeight * 6 + gap * 5;
     const left = (width - gridWidth) / 2;
-    const top = gridTop + Math.max(0, (maxGridHeight - gridHeight) / 2);
+    const top = gridTop + (shortLandscape ? 4 : 8);
+    const legendY = Math.min(
+      height - bottomMargin,
+      top + gridHeight + (shortLandscape ? 12 : 20),
+    );
 
     this.calendarCard
       .setPosition(width / 2, top + gridHeight / 2)

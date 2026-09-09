@@ -405,11 +405,11 @@ export class MenuScene extends Phaser.Scene {
 
     let secondaryY = metrics.secondaryY;
     if (this.model.showDaily) {
-      const dailyHeight = metrics.shortLandscape ? 68 : 110;
+      const dailyHeight = metrics.shortLandscape ? 76 : 132;
       const endlessHeight = metrics.shortLandscape ? 68 : 68;
-      const archiveHeight = metrics.shortLandscape ? 20 : 28;
+      const archiveHeight = metrics.shortLandscape ? 20 : 32;
       const dailyArchiveInset = archiveHeight / 2 + 4;
-      const dailyY = metrics.primaryY + (metrics.shortLandscape ? 69 : 92);
+      const dailyY = metrics.primaryY + (metrics.shortLandscape ? 69 : 104);
 
       if (metrics.shortLandscape && this.model.showEndless) {
         const cardGap = 12;
@@ -426,12 +426,12 @@ export class MenuScene extends Phaser.Scene {
         this.dailyButton.setPosition(dailyX, dailyY).setSize(cardWidth, dailyHeight);
         this.dailyTitle
           .setFontSize(10)
-          .setPosition(dailyX - cardWidth / 2 + 10, dailyY - 22);
+          .setPosition(dailyX - cardWidth / 2 + 10, dailyY - 30);
         this.dailyStreak
           .setFontSize(9)
-          .setPosition(dailyX + cardWidth / 2 - 10, dailyY - 22);
-        this.dailyStatus.setFontSize(9).setPosition(dailyX, dailyY - 7);
-        this.dailyWeek.setFontSize(7).setPosition(dailyX, dailyY + 7);
+          .setPosition(dailyX + cardWidth / 2 - 10, dailyY - 30);
+        this.dailyStatus.setFontSize(9).setPosition(dailyX, dailyY - 9);
+        this.dailyWeek.setFontSize(7).setPosition(dailyX, dailyY + 5);
         this.dailyArchiveButton
           .setPosition(dailyX, archiveY)
           .setSize(cardWidth, archiveHeight);
@@ -451,20 +451,20 @@ export class MenuScene extends Phaser.Scene {
           .setFontSize(metrics.compact ? 10 : 12)
           .setPosition(
             metrics.centerX - metrics.primaryWidth / 2 + 12,
-            dailyY - (metrics.shortLandscape ? 28 : 38),
+            dailyY - (metrics.shortLandscape ? 30 : 48),
           );
         this.dailyStreak
           .setFontSize(metrics.compact ? 9 : 11)
           .setPosition(
             metrics.centerX + metrics.primaryWidth / 2 - 12,
-            dailyY - (metrics.shortLandscape ? 28 : 38),
+            dailyY - (metrics.shortLandscape ? 30 : 48),
           );
         this.dailyStatus
           .setFontSize(metrics.compact ? 10 : 12)
-          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 8 : 12));
+          .setPosition(metrics.centerX, dailyY - (metrics.shortLandscape ? 9 : 18));
         this.dailyWeek
           .setFontSize(metrics.compact ? 8 : 10)
-          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 10 : 15));
+          .setPosition(metrics.centerX, dailyY + (metrics.shortLandscape ? 5 : 7));
 
         const archiveY = dailyY + dailyHeight / 2 - dailyArchiveInset;
         this.dailyArchiveButton

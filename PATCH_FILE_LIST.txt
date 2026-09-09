@@ -2,6 +2,6 @@ CURRENT_STATE.md
 PROJECT.md
 VALIDATION.md
 test/daily-retention-ui.test.js
-src/game/minimal-ui.ts
+test/daily-layout-hotfix.test.js
 src/game/scenes/DailyArchiveScene.ts
 src/game/scenes/MenuScene.ts
