@@ -42,7 +42,7 @@ export function boardFloatingMetrics(
 export function isShortLandscape(width: number, height: number): boolean { return height < 520 && width > height; }
 
 export interface BoardHudMetrics {
-  actionCount: 2;
+  actionCount: 3;
   compact: boolean;
   portrait: boolean;
   topY: number;
@@ -67,7 +67,7 @@ export function boardHudMetrics(width: number, height: number): Readonly<BoardHu
   const actionY = Math.max(topY + 120, height - sidePadding - actionHeight / 2);
 
   return Object.freeze({
-    actionCount: 2,
+    actionCount: 3,
     compact,
     portrait: viewport.portrait,
     topY,

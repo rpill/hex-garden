@@ -90,7 +90,7 @@ export function completionActionMetrics(cardHeight:number,{primaryHeight=40,seco
 }
 
 export interface BoardActionRowMetrics {
-  count: 2;
+  count: 3;
   sidePadding: number;
   gap: number;
   width: number;
@@ -100,11 +100,11 @@ export interface BoardActionRowMetrics {
 export function boardActionRowMetrics(width: number): Readonly<BoardActionRowMetrics> {
   const compact = width < 560;
   const sidePadding = compact ? 14 : 22;
-  const gap = compact ? 10 : 12;
-  const available = Math.max(2, width - sidePadding * 2 - gap);
-  const actionWidth = Math.min(compact ? 188 : 220, available / 2);
+  const gap = compact ? 8 : 12;
+  const available = Math.max(3, width - sidePadding * 2 - gap * 2);
+  const actionWidth = Math.min(compact ? 116 : 160, available / 3);
   return Object.freeze({
-    count: 2,
+    count: 3,
     sidePadding,
     gap,
     width: Math.max(1, actionWidth),
@@ -123,8 +123,8 @@ export interface BoardPrimitiveMetrics {
 export function boardPrimitiveMetrics(hexSize: number): Readonly<BoardPrimitiveMetrics> {
   const size = Math.max(1, hexSize);
   return Object.freeze({
-    slotRadius: size * 0.78,
-    tokenRadius: Math.max(5.5, size * 0.66),
+    slotRadius: size * 0.96,
+    tokenRadius: Math.max(5.5, size * 0.62),
     hitDiameter: Math.max(42, size * 1.56),
     slotAlpha: 0.13,
     slotLineWidth: Math.max(1, size * 0.035),

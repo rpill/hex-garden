@@ -30,11 +30,11 @@ test("currency presentation carries only the dynamic numeric text", () => {
 });
 
 
-test("utility scenes resume a paused board but start ordinary return scenes", () => {
+test("utility scenes only return to root scenes; nested utility origins fall back to Home", () => {
   assert.deepEqual(utilityReturnPlan("board"), { kind: "resume", scene: "board" });
-  assert.deepEqual(utilityReturnPlan("settings"), { kind: "resume", scene: "settings" });
+  assert.deepEqual(utilityReturnPlan("settings"), { kind: "start", scene: "menu" });
+  assert.deepEqual(utilityReturnPlan("rules"), { kind: "start", scene: "menu" });
   assert.deepEqual(utilityReturnPlan("level-select"), { kind: "start", scene: "level-select" });
-  assert.deepEqual(utilityReturnPlan("leaderboard"), { kind: "start", scene: "menu" });
   assert.deepEqual(utilityReturnPlan("menu"), { kind: "start", scene: "menu" });
   assert.deepEqual(utilityReturnPlan("unknown"), { kind: "start", scene: "menu" });
 });

@@ -68,24 +68,24 @@ test("floating board metrics reserve space without a top-bar height contract", (
 });
 
 
-test("minimal board HUD keeps two reachable bottom actions on portrait and desktop", () => {
+test("minimal board HUD keeps three reachable bottom actions on portrait and desktop", () => {
   const portrait = boardHudMetrics(390, 844);
   const desktop = boardHudMetrics(1280, 800);
 
-  assert.equal(portrait.actionCount, 2);
+  assert.equal(portrait.actionCount, 3);
   assert.ok(portrait.actionY > 844 * 0.8);
   assert.ok(portrait.actionHeight >= 48);
-  assert.ok(portrait.actionWidth >= 150);
+  assert.ok(portrait.actionWidth >= 92);
 
-  assert.equal(desktop.actionCount, 2);
-  assert.ok(desktop.actionWidth <= 220);
+  assert.equal(desktop.actionCount, 3);
+  assert.ok(desktop.actionWidth <= 170);
   assert.ok(desktop.topControlSize >= 40);
 });
 
 test("board action row always fits inside the viewport", () => {
   for (const width of [320, 390, 844, 1280]) {
     const row = boardActionRowMetrics(width);
-    assert.equal(row.count, 2);
-    assert.ok(row.width * 2 + row.gap <= width - row.sidePadding * 2 + 0.001);
+    assert.equal(row.count, 3);
+    assert.ok(row.width * 3 + row.gap * 2 <= width - row.sidePadding * 2 + 0.001);
   }
 });

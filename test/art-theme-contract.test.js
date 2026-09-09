@@ -18,3 +18,16 @@ test("functional board cells use the minimal UI palette instead of the legacy ar
   assert.match(source, /MINIMAL_UI_COLORS\.border/);
   assert.doesNotMatch(source, /THEME_COLORS\.cellFillNumber|THEME_COLORS\.cellLineNumber/);
 });
+
+test("functional runtime never defaults to the frozen premium theme when its assets are absent", async () => {
+  const theme = await read("src/art-theme.ts");
+  const physicalAssets = new URL("../public/assets/physical-premium/", import.meta.url);
+
+  await assert.rejects(readFile(new URL("felt-table.jpg", physicalAssets), "utf8"));
+  assert.match(theme, /return requested === "premium" \? "premium" : "chequered";/);
+});
+
+test("chequered startup does not preload frozen physical-premium files", async () => {
+  const assets = await read("src/art-assets.ts");
+  assert.match(assets, /const PHYSICAL_ASSET_URLS[\s\S]*ACTIVE_ART_THEME === "premium"\s*\? PHYSICAL_ASSET_URLS\s*:\s*\{\}/);
+});

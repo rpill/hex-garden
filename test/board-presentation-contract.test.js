@@ -14,7 +14,7 @@ for (const file of ["BoardHud.ts", "BoardInventory.ts", "BoardTutorial.ts", "Boa
 }
 
 
-test("BoardHud is asset-free and exposes only core board actions", async () => {
+test("BoardHud is asset-free and exposes core board actions plus one contextual menu", async () => {
   const text = await readFile(
     new URL("../src/game/board/BoardHud.ts", import.meta.url),
     "utf8",
@@ -22,8 +22,13 @@ test("BoardHud is asset-free and exposes only core board actions", async () => {
 
   assert.match(text, /onBack:/);
   assert.match(text, /onUndo:/);
+  assert.match(text, /onRestart:/);
+  assert.match(text, /restartButton/);
   assert.match(text, /onHint:/);
-  assert.match(text, /onOverflow:/);
+  assert.match(text, /onMenu:/);
+  assert.match(text, /menuButton/);
+  assert.match(text, /"☰"/);
+  assert.doesNotMatch(text, /settingsButton|overflowButton|onSettings:|onOverflow:/);
   assert.match(text, /setIdentity\(/);
   assert.match(text, /setRemaining\(/);
   assert.match(text, /setCleanEligible\(/);
@@ -32,7 +37,7 @@ test("BoardHud is asset-free and exposes only core board actions", async () => {
 
   assert.doesNotMatch(text, /dust|shop|inventory/i);
   assert.doesNotMatch(text, /GAMEPLAY_UI_FRAMES|UI_FRAMES|art-assets|makePanel|makeCurrencyDisplay/);
-  assert.doesNotMatch(text, /onRestart:|restartButton|onRescue:|rescueButton/);
+  assert.doesNotMatch(text, /onRescue:|rescueButton/);
 });
 
 
@@ -90,18 +95,21 @@ test("tutorial completion persists once and restarts directly into Campaign Leve
   assert.doesNotMatch(hudSource, /onNext/);
 });
 
-test("BoardScene wires the minimal HUD without permanent shop, settings, or restart controls", async () => {
+test("BoardScene wires the contextual menu and permanent restart into the minimal HUD", async () => {
   const boardSource = await readFile(
     new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
     "utf8",
   );
 
   assert.match(boardSource, /onBack:/);
-  assert.match(boardSource, /onUndo:\s*\(\) => this\.undoLastRemoval\(\)/);
+  assert.match(boardSource, /onUndo:\s*\(\) => this\.usePrimaryUndoAction\(\)/);
+  assert.match(boardSource, /onRestart:\s*\(\) => this\.restartLevel\(\)/);
   assert.match(boardSource, /onHint:\s*\(\) => this\.usePrimaryHint\(\)/);
-  assert.match(boardSource, /onOverflow:\s*\(\) => this\.openPauseMenu\(\)/);
+  assert.match(boardSource, /onMenu:\s*\(\) => this\.openPauseMenu\(\)/);
+  assert.match(boardSource, /this\.openUtilityScene\("settings"\)/);
+  assert.match(boardSource, /this\.openUtilityScene\("rules"\)/);
   assert.match(boardSource, /this\.hud\.layout\(width, height\)/);
-  assert.doesNotMatch(boardSource, /this\.(?:shopButton|settingsButton|restartButton|dustHud|headerPanel)/);
+  assert.doesNotMatch(boardSource, /this\.(?:shopButton|settingsButton|dustHud|headerPanel)/);
 });
 
 
@@ -201,11 +209,56 @@ test("Home stays asset-free and omits legacy meta destinations", async () => {
   assert.match(source, /PlayMode\.TUTORIAL/);
   assert.match(source, /PlayMode\.CAMPAIGN/);
   assert.match(source, /scene\.start\("level-select"\)/);
-  assert.match(source, /scene\.start\("settings"/);
+  assert.match(source, /openUtilityScene\(this, "settings", \{ returnScene: "menu" \}\)/);
 
   assert.doesNotMatch(source, /art-assets|scene-background|preloadUiAssets|makePanel|NineSlice/);
   assert.doesNotMatch(source, /getEconomy|getLeaderboard|makeCurrencyDisplay|makeCartIconButton/);
   assert.doesNotMatch(source, /scene\.start\("shop"|scene\.start\("leaderboard"/);
   assert.match(source, /PlayMode\.DAILY/);
   assert.match(source, /PlayMode\.ENDLESS/);
+});
+
+test("BoardScene creates the reusable context menu before the first layout pass", async () => {
+  const source = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+  const firstLayout = source.indexOf("    this.layout();");
+  const contextMenu = source.indexOf("this.contextMenu = new ContextMenuOverlay(this)");
+
+  assert.ok(firstLayout > 0, "BoardScene must perform an initial layout");
+  assert.ok(contextMenu > 0 && contextMenu < firstLayout, "context menu must exist before layout");
+  assert.doesNotMatch(source, /pauseMenuGraphics|pauseMenuPanel|pauseMenuHitZone/);
+});
+
+test("primitive board renders empty plate cells as hexagons instead of circles", async () => {
+  const source = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+  const start = source.indexOf("this.cellGraphics.clear();");
+  const end = source.indexOf("this.atomGraphics.clear();", start);
+  assert.ok(start >= 0 && end > start, "board slot rendering block must exist");
+  const cellBlock = source.slice(start, end);
+
+  assert.match(cellBlock, /strokePoints\(/);
+  assert.match(cellBlock, /fillPoints\(/);
+  assert.doesNotMatch(cellBlock, /fillCircle\(|strokeCircle\(/);
+});
+
+test("remaining inventory uses the same primitive token palette and labels as board pieces", async () => {
+  const boardSource = await readFile(
+    new URL("../src/game/scenes/BoardScene.ts", import.meta.url),
+    "utf8",
+  );
+  const inventorySource = await readFile(
+    new URL("../src/game/board/BoardInventory.ts", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(boardSource, /glyphFrameForType:\s*\(\)\s*=>\s*undefined/);
+  assert.doesNotMatch(boardSource, /atomGlyphFrame/);
+  assert.match(inventorySource, /colorForType\(entry\.type\)/);
+  assert.match(inventorySource, /fillCircle\(x, y, displayRadius\)/);
+  assert.match(inventorySource, /labelForType\(type\)/);
 });

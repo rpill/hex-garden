@@ -19,7 +19,7 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 ## Stable rules and board contract
 
 - Preserve internal atom IDs from `src/atom-types.ts` and the audited selection/pairing/metal rules in `RULES_AUDIT.md`.
-- Public gameplay uses the standard Garden ruleset. Campaign levels may use different compositions, but there are no mechanic-introduction rule variants or per-level rule overrides.
+- Public gameplay uses the standard Garden ruleset. Campaign levels may use different compositions, but there are no per-level rule variants or overrides. Fixed first-appearance onboarding cards may explain the standard rules without changing them.
 - Public plates are complete regular hexes only: radius 3 / 4 / 5 = 37 / 61 / 91 cells.
 - Geometry, matching, solver behavior, Solved/Clean state, and assistance policy are renderer-independent contracts.
 - Quintessence may remain in low-level rules/internal tooling, but it is not a public product mode.
@@ -81,7 +81,7 @@ The following are not part of the current product and must not be reintroduced w
 - campaign or Endless point scoring;
 - score multipliers/streak scoring;
 - public leaderboard navigation or ranked score submission;
-- mechanic-introduction cards/progression gates;
+- legacy mechanic-progression cards/gates;
 - public shape-family progression contracts.
 
 ## Platform and persistence contract

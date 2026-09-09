@@ -1,6 +1,7 @@
 export const GlobalAction = Object.freeze({ BACK: "back", PAUSE: "pause", SETTINGS: "settings" } as const);
 export type GlobalActionValue = (typeof GlobalAction)[keyof typeof GlobalAction];
-export type UtilitySceneKey = "board" | "settings" | "level-select" | "menu";
+export type UtilityRootSceneKey = "board" | "level-select" | "menu";
+export type UtilitySceneKey = UtilityRootSceneKey | "settings" | "rules";
 
 export interface GlobalActionPresentation { label:string; iconOnly:boolean; }
 export function globalActionPresentation(action:GlobalActionValue,english=false):Readonly<GlobalActionPresentation>{
@@ -39,9 +40,9 @@ export function tutorialPresentationStep(step:number,english=false):Readonly<Tut
   if(copy===undefined)throw new RangeError(`Unknown tutorial presentation step: ${step}`);
   return Object.freeze({copy});
 }
-export type UtilityReturnPlan=Readonly<{kind:"resume"|"start";scene:UtilitySceneKey}>;
+export type UtilityReturnPlan=Readonly<{kind:"resume"|"start";scene:UtilityRootSceneKey}>;
 export function utilityReturnPlan(returnScene:string|undefined):UtilityReturnPlan{
-  if(returnScene==="board"||returnScene==="settings")return Object.freeze({kind:"resume",scene:returnScene});
+  if(returnScene==="board")return Object.freeze({kind:"resume",scene:returnScene});
   if(returnScene==="level-select"||returnScene==="menu")return Object.freeze({kind:"start",scene:returnScene});
   return Object.freeze({kind:"start",scene:"menu"});
 }

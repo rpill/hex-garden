@@ -24,7 +24,8 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 
 - Public play modes are Tutorial, Campaign, Daily, and Endless.
 - Campaign is a separate tutorial plus **50 fixed levels**, split into **5 chapters × 10 levels**.
-- Campaign runtime reads frozen level data. The old 24-level procedural mechanic progression and mechanic-introduction cards are removed.
+- Campaign runtime reads frozen level data. The old 24-level procedural mechanic progression is removed. Fixed onboarding cards now explain first appearances of Salt, Vitae/Mors, and the gradual metal chain in the opening campaign levels.
+- Opening Campaign learning curve is frozen as: L1 elements only; L2 + Salt; L3 + Vitae/Mors; L4 + Quicksilver/Lead; L5 + Tin; L6 + Iron; L7 + Copper; L8 + Silver; L9 + Gold; L10 full-set exam.
 - Public board geometry is canonical full hex plates only: **37 / 61 / 91 cells**.
 - Campaign progression persists `Solved` and `Clean` separately. Sequential unlock follows the contiguous solved prefix.
 - Clean mastery ranks are implemented at 0 / 5 / 15 / 30 / 40 / 50 Clean levels.
@@ -52,7 +53,7 @@ The current runtime no longer contains the old product surfaces:
 - no Endless point score, streak multiplier, or score farming;
 - no public/local leaderboard scene/store;
 - no 24-level mechanic progression;
-- no runtime mechanic-introduction gate;
+- no legacy runtime mechanic-progression gate;
 - no public shape-family progression API.
 
 `src/legacy-database-generation.ts` remains only as isolated offline database-authoring support; it is not a public runtime progression API.

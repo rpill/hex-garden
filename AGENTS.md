@@ -108,7 +108,7 @@ Do not reintroduce without explicit approval:
 - campaign points or per-level scores;
 - Endless points, score bonuses, streak multipliers, or score farming;
 - public/local leaderboard scene/store;
-- mechanic-introduction cards;
+- legacy mechanic-progression cards/gates;
 - legacy 24-level progression;
 - public shape-family Campaign API.
 

@@ -16,6 +16,12 @@ const DEFAULT_BUTTON_WIDTH = 220;
 const DEFAULT_BUTTON_HEIGHT = 52;
 const DEFAULT_RADIUS = 10;
 
+function labelWidthForButton(width: number): number {
+  const safeWidth = Math.max(1, width);
+  const horizontalPadding = Math.min(14, Math.max(4, safeWidth * 0.12));
+  return Math.max(1, safeWidth - horizontalPadding * 2);
+}
+
 function drawRoundedSurface(
   graphics: Phaser.GameObjects.Graphics,
   width: number,
@@ -118,7 +124,7 @@ export class MinimalButton extends Phaser.GameObjects.Container {
     this.buttonWidth = Math.max(1, width);
     this.buttonHeight = Math.max(1, height);
     super.setSize(this.buttonWidth, this.buttonHeight);
-    this.label.setFixedSize(Math.max(1, this.buttonWidth - 28), 0).setOrigin(0.5);
+    this.label.setFixedSize(labelWidthForButton(this.buttonWidth), 0).setOrigin(0.5);
 
     const hitArea = this.input?.hitArea;
     if (hitArea instanceof Phaser.Geom.Rectangle) {

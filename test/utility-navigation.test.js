@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { closeUtilityScene, openUtilityScene } from "../src/game/utility-navigation.js";
+import { closeUtilityScene, exitUtilityToScene, openUtilityScene, switchUtilityScene } from "../src/game/utility-navigation.js";
 
 function fakeScene(key = "board") {
   const calls = [];
@@ -33,4 +33,24 @@ test("closing utility scene stops it then resumes board", () => {
   const scene = fakeScene("settings");
   closeUtilityScene(scene, "board");
   assert.deepEqual(scene.calls, [["stop", "settings"], ["resume", "board"], ["bringToTop", "board"]]);
+});
+
+test("switching between utility scenes replaces current utility without pausing it", () => {
+  const scene = fakeScene("rules");
+  switchUtilityScene(scene, "settings", { returnScene: "board" });
+  assert.deepEqual(scene.calls, [
+    ["launch", "settings", { returnScene: "board" }],
+    ["bringToTop", "settings"],
+    ["stop", "rules"],
+  ]);
+});
+
+test("exiting a utility to main menu stops covered board before starting menu", () => {
+  const scene = fakeScene("settings");
+  exitUtilityToScene(scene, "menu", { returnScene: "board" });
+  assert.deepEqual(scene.calls, [
+    ["stop", "settings"],
+    ["stop", "board"],
+    ["start", "menu"],
+  ]);
 });

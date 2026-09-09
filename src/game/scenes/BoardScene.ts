@@ -1,12 +1,8 @@
 import Phaser from "phaser";
-import {
-  GAMEPLAY_UI_FRAMES,
-  UI_FRAMES,
-  atomGlyphFrame,
-} from "../../art-assets.js";
 import { Atom, ATOM_NAMES, type AtomType } from "../../atom-types.js";
 import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.js";
 import { getCampaignLevel } from "../../campaign-levels.js";
+import { campaignRuleIntroForLevel, type CampaignRuleIntro } from "../../campaign-onboarding.js";
 import { BrowserLevelGenerator } from "../../browser.js";
 import { dailyDateKey } from "../../daily-calendar.js";
 import { DailyProgressStore } from "../../daily-progress.js";
@@ -38,7 +34,7 @@ import {
   resolvePieceVisualState,
 } from "../piece-visual-state.js";
 import { openUtilityScene as openCoveredUtilityScene } from "../utility-navigation.js";
-import { boardFloatingMetrics } from "../responsive-layout.js";
+import { boardFloatingMetrics, boardHudMetrics } from "../responsive-layout.js";
 import {
   boardPrimitiveMetrics,
   inventoryAnchorMetrics,
@@ -58,6 +54,7 @@ import {
   type TutorialLevel,
 } from "../../tutorial.js";
 import { BoardHud } from "../board/BoardHud.js";
+import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
 import { BoardAssistance } from "../board/BoardAssistance.js";
 import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
@@ -65,7 +62,6 @@ import { DailyBoardSession } from "../board/DailyBoardSession.js";
 import { EndlessBoardSession } from "../board/EndlessBoardSession.js";
 import {
   MINIMAL_UI_COLORS,
-  makeMinimalButton,
   makeMinimalText,
 } from "../minimal-ui.js";
 import {
@@ -83,15 +79,13 @@ import {
   type BoardIntroProfile,
 } from "../board/BoardIntroAnimator.js";
 import {
-  makeButton,
-  makePanel,
   makeText,
   preloadUiAssets,
-  resizeNineSlice,
 } from "../ui.js";
 
 const PANEL_HIGHLIGHT_DURATION_MS = 2000;
 const MOVE_HINT_DURATION_MS = 4000;
+const CAMPAIGN_DEAD_END_DELAY_MS = 800;
 
 
 const ATOM_LABELS = Object.freeze({
@@ -218,6 +212,7 @@ export class BoardScene extends Phaser.Scene {
   pauseMenuVisible = false;
   campaignDeadEndVisible = false;
   campaignRescueUnavailable = false;
+  campaignDeadEndTimer: Phaser.Time.TimerEvent | undefined;
   hoveredPieceKey: string | undefined;
   busy = false;
   english = false;
@@ -230,6 +225,8 @@ export class BoardScene extends Phaser.Scene {
   hud!: BoardHud;
   introAnimator: BoardIntroAnimator | undefined;
   introRevealedKeys = new Set<string>();
+  campaignRuleCardVisible = false;
+  campaignRuleCardIntro: Readonly<CampaignRuleIntro> | undefined;
   inventory!: BoardInventory;
   tutorialUi!: BoardTutorial;
   inventoryPanel!: BoardInventory["panel"];
@@ -241,18 +238,15 @@ export class BoardScene extends Phaser.Scene {
   backgroundGraphics!: Phaser.GameObjects.Graphics;
   cellGraphics!: Phaser.GameObjects.Graphics;
   atomGraphics!: Phaser.GameObjects.Graphics;
-  pauseMenuGraphics!: Phaser.GameObjects.Graphics;
-  pauseMenuPanel!: ReturnType<typeof makePanel>;
-  pauseMenuHitZone!: Phaser.GameObjects.Zone;
-  pauseMenuTitle!: Phaser.GameObjects.Text;
-  pauseResumeButton!: ReturnType<typeof makeButton>;
-  pauseRestartButton!: ReturnType<typeof makeButton>;
-  pauseLevelsButton!: ReturnType<typeof makeButton>;
-  pauseExitButton!: ReturnType<typeof makeButton>;
-  campaignDeadEndGraphics!: Phaser.GameObjects.Graphics;
+  campaignRuleCardGraphics!: Phaser.GameObjects.Graphics;
+  campaignRuleCardBlocker!: Phaser.GameObjects.Zone;
+  campaignRuleCardHitZone!: Phaser.GameObjects.Zone;
+  campaignRuleCardTitle!: Phaser.GameObjects.Text;
+  campaignRuleCardBody!: Phaser.GameObjects.Text;
+  campaignRuleCardDismiss!: Phaser.GameObjects.Text;
+  contextMenu!: ContextMenuOverlay;
   campaignDeadEndTitle!: Phaser.GameObjects.Text;
-  campaignDeadEndRestartButton!: ReturnType<typeof makeMinimalButton>;
-  campaignDeadEndRescueButton!: ReturnType<typeof makeMinimalButton>;
+  campaignDeadEndPulse: Phaser.Tweens.Tween | undefined;
   completionOverlay!: CompletionOverlay;
   status!: Phaser.GameObjects.Text;
   attemptState = createAttemptState();
@@ -293,9 +287,12 @@ export class BoardScene extends Phaser.Scene {
     this.pauseMenuVisible = false;
     this.campaignDeadEndVisible = false;
     this.campaignRescueUnavailable = false;
+    this.campaignDeadEndTimer = undefined;
     this.hoveredPieceKey = undefined;
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
+    this.campaignRuleCardVisible = false;
+    this.campaignRuleCardIntro = undefined;
   }
 
   preload(): void {
@@ -344,10 +341,16 @@ export class BoardScene extends Phaser.Scene {
     this.blockedMoveKey = undefined;
     this.attemptState = createAttemptState();
     this.pauseMenuVisible = false;
+    this.campaignDeadEndVisible = false;
+    this.campaignRescueUnavailable = false;
+    this.campaignDeadEndTimer?.remove(false);
+    this.campaignDeadEndTimer = undefined;
     this.hoveredPieceKey = undefined;
     this.introAnimator?.stop();
     this.introAnimator = undefined;
     this.introRevealedKeys = new Set();
+    this.campaignRuleCardVisible = false;
+    this.campaignRuleCardIntro = undefined;
   }
 
   create(): void {
@@ -368,7 +371,7 @@ export class BoardScene extends Phaser.Scene {
       {
         labelForType: (type) => ATOM_LABELS[type],
         colorForType: (type) => ATOM_COLORS[type],
-        glyphFrameForType: (type) => atomGlyphFrame(type),
+        glyphFrameForType: () => undefined,
       },
     );
     this.inventoryPanel = this.inventory.panel;
@@ -382,58 +385,51 @@ export class BoardScene extends Phaser.Scene {
       this,
       {
         onBack: () => {
-          if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL) this.openLevelSelect();
+          if (this.mode === PlayMode.TUTORIAL) this.openMainMenu();
+          else if (this.mode === PlayMode.CAMPAIGN) this.openLevelSelect();
           else this.openMainMenu();
         },
-        onUndo: () => this.undoLastRemoval(),
+        onUndo: () => this.usePrimaryUndoAction(),
+        onRestart: () => this.restartLevel(),
         onHint: () => this.usePrimaryHint(),
-        onOverflow: () => this.openPauseMenu(),
+        onMenu: () => this.openPauseMenu(),
       },
       { english: this.english },
     );
     this.status = makeText(this, "", 12, "#9aa7b5").setOrigin(0.5).setDepth(10);
-    this.pauseMenuTitle = makeText(this, this.uiText("ПАУЗА", "PAUSED"), 24, "#eef3f8")
+    this.campaignRuleCardGraphics = this.add.graphics().setDepth(32).setVisible(false);
+    this.campaignRuleCardBlocker = this.add.zone(0, 0, 1, 1)
+      .setDepth(31)
+      .setVisible(false)
+      .setInteractive();
+    this.campaignRuleCardHitZone = this.add.zone(0, 0, 1, 1)
+      .setDepth(34)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.campaignRuleCardHitZone.on("pointerdown", () => this.dismissCampaignRuleCard());
+    this.campaignRuleCardTitle = makeMinimalText(this, "", 20)
       .setOrigin(0.5)
       .setFontStyle("bold")
-      .setDepth(41)
+      .setDepth(33)
       .setVisible(false);
-    this.pauseResumeButton = makeButton(this, this.uiText("ПРОДОЛЖИТЬ", "RESUME"), () => this.closePauseMenu())
-      .setDepth(41)
-      .setVisible(false)
-      .disableInteractive();
-    this.pauseRestartButton = makeButton(this, this.uiText("ЗАНОВО", "RESTART"), () => this.restartFromPause())
-      .setIcon(GAMEPLAY_UI_FRAMES.retry, 20)
-      .setDepth(41)
-      .setVisible(false)
-      .disableInteractive();
-    this.pauseLevelsButton = makeButton(this, this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"), () => this.exitPauseToLevels())
-      .setIcon(GAMEPLAY_UI_FRAMES.next, 20)
-      .setDepth(41)
-      .setVisible(false)
-      .disableInteractive();
-    this.pauseExitButton = makeButton(this, this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"), () => this.exitPauseToMenu())
-      .setIcon(GAMEPLAY_UI_FRAMES.back, 20)
-      .setDepth(41)
-      .setVisible(false)
-      .disableInteractive();
+    this.campaignRuleCardBody = makeMinimalText(this, "", 14, MINIMAL_UI_COLORS.text)
+      .setOrigin(0.5)
+      .setDepth(33)
+      .setVisible(false);
+    this.campaignRuleCardDismiss = makeMinimalText(
+      this,
+      this.uiText("НАЖМИ НА КАРТОЧКУ, ЧТОБЫ ПРОДОЛЖИТЬ", "TAP THE CARD TO CONTINUE"),
+      11,
+      MINIMAL_UI_COLORS.textMuted,
+    ).setOrigin(0.5).setDepth(33).setVisible(false);
+    this.contextMenu = new ContextMenuOverlay(this);
 
-    this.campaignDeadEndGraphics = this.add.graphics().setDepth(34).setVisible(false);
     this.campaignDeadEndTitle = makeMinimalText(
       this,
       this.uiText("ХОДОВ НЕТ", "NO MOVES"),
-      22,
-      MINIMAL_UI_COLORS.text,
+      11,
+      MINIMAL_UI_COLORS.textMuted,
     ).setOrigin(0.5).setFontStyle("bold").setDepth(35).setVisible(false);
-    this.campaignDeadEndRestartButton = makeMinimalButton(
-      this,
-      this.uiText("ЗАНОВО", "RESTART"),
-      () => this.restartCampaignFromDeadEnd(),
-    ).setDepth(35).setVisible(false).setEnabled(false);
-    this.campaignDeadEndRescueButton = makeMinimalButton(
-      this,
-      this.uiText("СПАСТИ ПОПЫТКУ", "RESCUE ATTEMPT"),
-      () => void this.requestCampaignRescue(),
-    ).setDepth(35).setVisible(false).setEnabled(false);
 
     this.completionOverlay = new CompletionOverlay(this);
 
@@ -481,6 +477,7 @@ export class BoardScene extends Phaser.Scene {
     this.actualDeadEnd = false;
     this.blockedMoveKey = undefined;
     this.attemptState = createAttemptState();
+    this.hideCampaignRuleCard();
     this.clearMoveHint(false);
     this.setBusy(true);
     this.levelGeometryReady = false;
@@ -592,7 +589,7 @@ export class BoardScene extends Phaser.Scene {
   }
 
   openLevelSelect(): void {
-    if (this.mode !== PlayMode.CAMPAIGN && this.mode !== PlayMode.TUTORIAL) {
+    if (this.mode !== PlayMode.CAMPAIGN) {
       return;
     }
     this.generationToken += 1;
@@ -605,60 +602,64 @@ export class BoardScene extends Phaser.Scene {
   }
 
   openUtilityScene(key: UtilitySceneKey): void {
-    if (
-      this.rewardedAdPending ||
-      this.completionOverlay?.visible
-    ) return;
+    if (this.rewardedAdPending) return;
     if (this.pauseMenuVisible) this.closePauseMenu();
     openCoveredUtilityScene(this, key, { returnScene: "board" });
   }
 
   openPauseMenu(): void {
-    if (
-      this.pauseMenuVisible ||
-      this.rewardedAdPending ||
-      this.completionOverlay?.visible
-    ) return;
+    if (this.pauseMenuVisible || this.rewardedAdPending) return;
     this.pauseMenuVisible = true;
-    this.pauseMenuHitZone.setVisible(true).setInteractive();
-    for (const item of [
-      this.pauseMenuTitle,
-      this.pauseResumeButton,
-      this.pauseRestartButton,
-      this.pauseExitButton,
-    ]) item.setVisible(true);
-    this.pauseResumeButton.setInteractive({ useHandCursor: true });
-    const canRestart = !this.busy && this.initialPieces.length > 0;
-    this.pauseRestartButton.setAlpha(canRestart ? 1 : 0.45);
-    if (canRestart) this.pauseRestartButton.setInteractive({ useHandCursor: true });
-    else this.pauseRestartButton.disableInteractive();
-    this.pauseExitButton.setInteractive({ useHandCursor: true });
-    const campaignNavigation =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
-    this.pauseLevelsButton.setVisible(campaignNavigation);
-    if (campaignNavigation) this.pauseLevelsButton.setInteractive({ useHandCursor: true });
-    else this.pauseLevelsButton.disableInteractive();
-    this.layoutPauseMenu(this.scale.width, this.scale.height);
+    const completionVisible = this.completionOverlay?.visible === true;
+    const items = [
+      ...(!completionVisible
+        ? [{
+            id: "resume",
+            label: this.uiText("ПРОДОЛЖИТЬ", "RESUME"),
+            onSelect: () => this.closePauseMenu(),
+          }]
+        : []),
+      {
+        id: "rules",
+        label: this.uiText("ПРАВИЛА", "RULES"),
+        onSelect: () => {
+          this.closePauseMenu();
+          this.openUtilityScene("rules");
+        },
+      },
+      ...(this.mode === PlayMode.CAMPAIGN && !completionVisible
+        ? [{
+            id: "levels",
+            label: this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"),
+            onSelect: () => this.exitPauseToLevels(),
+          }]
+        : []),
+      {
+        id: "settings",
+        label: this.uiText("НАСТРОЙКИ", "SETTINGS"),
+        onSelect: () => {
+          this.closePauseMenu();
+          this.openUtilityScene("settings");
+        },
+      },
+      {
+        id: "home",
+        label: this.mode === PlayMode.TUTORIAL
+          ? this.uiText("ВЫЙТИ ИЗ ОБУЧЕНИЯ", "EXIT TUTORIAL")
+          : this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"),
+        onSelect: () => this.exitPauseToMenu(),
+      },
+    ];
+    this.contextMenu.open({
+      title: this.uiText("ПАУЗА", "PAUSED"),
+      items,
+    });
   }
 
   closePauseMenu(): void {
     if (!this.pauseMenuVisible) return;
     this.pauseMenuVisible = false;
-    this.pauseMenuGraphics.clear();
-    this.pauseMenuPanel.setVisible(false);
-    this.pauseMenuHitZone.setVisible(false).disableInteractive();
-    for (const item of [
-      this.pauseMenuTitle,
-      this.pauseResumeButton,
-      this.pauseRestartButton,
-      this.pauseLevelsButton,
-      this.pauseExitButton,
-    ]) item.setVisible(false).disableInteractive?.();
-  }
-
-  restartFromPause(): void {
-    this.closePauseMenu();
-    this.restartLevel();
+    this.contextMenu.close();
   }
 
   exitPauseToLevels(): void {
@@ -674,6 +675,7 @@ export class BoardScene extends Phaser.Scene {
   restartLevel(): void {
     if (
       this.busy ||
+      this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.initialPieces.length === 0
@@ -727,6 +729,7 @@ export class BoardScene extends Phaser.Scene {
       onComplete: () => {
         this.introRevealedKeys = new Set(this.initialPieces.map(hexKey));
         this.render();
+        if (profile === "fresh") this.maybeShowCampaignRuleCard();
       },
     });
     this.introAnimator.start(profile);
@@ -736,9 +739,46 @@ export class BoardScene extends Phaser.Scene {
     return this.introAnimator?.finish() ?? false;
   }
 
+  maybeShowCampaignRuleCard(): void {
+    if (this.mode !== PlayMode.CAMPAIGN) return;
+    if (this.progress.snapshot.solvedLevels.includes(this.level)) return;
+    const intro = campaignRuleIntroForLevel(this.level);
+    if (!intro) return;
+    this.campaignRuleCardIntro = intro;
+    this.campaignRuleCardVisible = true;
+    this.campaignRuleCardTitle.setText(this.english ? intro.titleEn : intro.titleRu).setVisible(true);
+    this.campaignRuleCardBody.setText(this.english ? intro.textEn : intro.textRu).setVisible(true);
+    this.campaignRuleCardDismiss
+      .setText(this.uiText("НАЖМИ НА КАРТОЧКУ, ЧТОБЫ ПРОДОЛЖИТЬ", "TAP THE CARD TO CONTINUE"))
+      .setVisible(true);
+    this.campaignRuleCardGraphics.setVisible(true);
+    this.campaignRuleCardBlocker.setVisible(true).setInteractive();
+    this.campaignRuleCardHitZone.setVisible(true).setInteractive({ useHandCursor: true });
+    this.layoutCampaignRuleCard(this.scale.width, this.scale.height);
+    this.render();
+  }
+
+  dismissCampaignRuleCard(): void {
+    if (!this.campaignRuleCardVisible) return;
+    this.hideCampaignRuleCard();
+    this.render();
+  }
+
+  hideCampaignRuleCard(): void {
+    this.campaignRuleCardVisible = false;
+    this.campaignRuleCardIntro = undefined;
+    this.campaignRuleCardGraphics?.clear().setVisible(false);
+    this.campaignRuleCardBlocker?.setVisible(false).disableInteractive();
+    this.campaignRuleCardHitZone?.setVisible(false).disableInteractive();
+    this.campaignRuleCardTitle?.setVisible(false);
+    this.campaignRuleCardBody?.setVisible(false);
+    this.campaignRuleCardDismiss?.setVisible(false);
+  }
+
   selectPiece(piece: BoardPiece): void {
     if (
       this.busy ||
+      this.campaignRuleCardVisible ||
       this.completionOverlay?.visible ||
       this.pauseMenuVisible ||
       this.campaignDeadEndVisible ||
@@ -827,9 +867,9 @@ export class BoardScene extends Phaser.Scene {
       } else {
         this.analyzeCurrentPosition();
         if (this.actualDeadEnd) {
-          message = this.uiText("ХОДОВ НЕТ", "NO MOVES");
           if (this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.DAILY) {
-            this.enterCampaignDeadEndState();
+            message = "";
+            this.scheduleCampaignDeadEndState();
           } else if (this.mode === PlayMode.ENDLESS && this.endlessSession) {
             const deadEnd = this.endlessSession.enterDeadEnd();
             if (deadEnd.kind === "terminal") {
@@ -1039,9 +1079,15 @@ export class BoardScene extends Phaser.Scene {
     return analysis;
   }
 
+  usePrimaryUndoAction(): void {
+    if (this.campaignDeadEndVisible) return;
+    this.undoLastRemoval();
+  }
+
   undoLastRemoval(): void {
     if (
       this.busy ||
+      this.campaignRuleCardVisible ||
       this.pauseMenuVisible ||
       !this.board ||
       this.board.won
@@ -1326,10 +1372,14 @@ export class BoardScene extends Phaser.Scene {
   }
 
   usePrimaryHint(): void {
+    if (this.campaignDeadEndVisible) {
+      void this.requestCampaignRescue();
+      return;
+    }
     if (
       this.busy ||
+      this.campaignRuleCardVisible ||
       this.pauseMenuVisible ||
-      this.campaignDeadEndVisible ||
       !this.board
     ) {
       return;
@@ -1381,6 +1431,16 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
+  scheduleCampaignDeadEndState(): void {
+    this.campaignDeadEndTimer?.remove(false);
+    this.campaignDeadEndTimer = this.time.delayedCall(CAMPAIGN_DEAD_END_DELAY_MS, () => {
+      this.campaignDeadEndTimer = undefined;
+      const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
+      if (!session?.actualDeadEnd || this.board?.won) return;
+      this.enterCampaignDeadEndState();
+    });
+  }
+
   enterCampaignDeadEndState(): void {
     const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
     if (
@@ -1389,32 +1449,26 @@ export class BoardScene extends Phaser.Scene {
     ) return;
     this.campaignDeadEndVisible = true;
     this.campaignRescueUnavailable = false;
-    this.hud.setUndoEnabled(false);
-    this.hud.hintButton.setEnabled(false);
     this.refreshCampaignDeadEndActions();
+    this.layoutCampaignDeadEnd(this.scale.width, this.scale.height);
   }
 
   hideCampaignDeadEndState(): void {
+    this.campaignDeadEndTimer?.remove(false);
+    this.campaignDeadEndTimer = undefined;
     this.campaignDeadEndVisible = false;
     this.campaignRescueUnavailable = false;
-    this.campaignDeadEndGraphics?.clear().setVisible(false);
-    this.campaignDeadEndTitle?.setVisible(false);
-    this.campaignDeadEndRestartButton?.setVisible(false).setEnabled(false);
-    this.campaignDeadEndRescueButton?.setVisible(false).setEnabled(false);
+    this.campaignDeadEndPulse?.stop();
+    this.campaignDeadEndPulse = undefined;
+    this.campaignDeadEndTitle?.setAlpha(1).setVisible(false);
+    this.hud?.setCampaignDeadEndState(false, false);
   }
 
   refreshCampaignDeadEndActions(): void {
     if (!this.campaignDeadEndVisible) return;
     const session = this.mode === PlayMode.DAILY ? this.dailySession : this.campaignSession;
     const rescueVisible = session?.canRescue === true && !this.campaignRescueUnavailable;
-    this.campaignDeadEndRestartButton
-      .setLabel(this.uiText("ЗАНОВО", "RESTART"))
-      .setVisible(true)
-      .setEnabled(!this.rewardedAdPending);
-    this.campaignDeadEndRescueButton
-      .setLabel(this.uiText("СПАСТИ ПОПЫТКУ", "RESCUE ATTEMPT"))
-      .setVisible(rescueVisible)
-      .setEnabled(rescueVisible && !this.rewardedAdPending);
+    this.hud.setCampaignDeadEndState(true, rescueVisible);
     this.campaignDeadEndTitle
       .setText(
         this.campaignRescueUnavailable
@@ -1422,12 +1476,20 @@ export class BoardScene extends Phaser.Scene {
           : this.uiText("ХОДОВ НЕТ", "NO MOVES"),
       )
       .setVisible(true);
+    this.startCampaignDeadEndPulse();
   }
 
-  restartCampaignFromDeadEnd(): void {
-    if (!this.campaignDeadEndVisible || this.rewardedAdPending) return;
-    this.hideCampaignDeadEndState();
-    this.restartLevel();
+  startCampaignDeadEndPulse(): void {
+    if (this.campaignDeadEndPulse || !this.campaignDeadEndVisible) return;
+    this.campaignDeadEndTitle.setAlpha(1);
+    this.campaignDeadEndPulse = this.tweens.add({
+      targets: this.campaignDeadEndTitle,
+      alpha: 0.38,
+      duration: 620,
+      ease: "Sine.easeInOut",
+      yoyo: true,
+      repeat: -1,
+    });
   }
 
   async requestCampaignRescue(): Promise<void> {
@@ -1445,10 +1507,7 @@ export class BoardScene extends Phaser.Scene {
       this.mode === PlayMode.DAILY
         ? true
         : assistancePolicy(PlayMode.CAMPAIGN, this.level).rewardRequired;
-    this.campaignDeadEndRescueButton
-      .setLabel(this.uiText("ИЩЕМ…", "CHECKING…"))
-      .setEnabled(false);
-    this.campaignDeadEndRestartButton.setEnabled(false);
+    this.hud.setHintBusy(true);
     this.rewardedAdPending = rewardRequired;
     try {
       const result =
@@ -1500,6 +1559,7 @@ export class BoardScene extends Phaser.Scene {
       );
     } finally {
       this.rewardedAdPending = false;
+      this.hud.setHintBusy(this.busy);
       if (this.campaignDeadEndVisible) this.refreshCampaignDeadEndActions();
     }
   }
@@ -1640,6 +1700,7 @@ export class BoardScene extends Phaser.Scene {
   selectPanelType(type: AtomType): void {
     if (
       this.busy ||
+      this.campaignRuleCardVisible ||
       this.pauseMenuVisible ||
       !this.board
     ) return;
@@ -1692,6 +1753,7 @@ export class BoardScene extends Phaser.Scene {
   renderTutorialGuide(): void {
     const enabled =
       this.mode === PlayMode.TUTORIAL &&
+      this.introAnimator?.active !== true &&
       this.tutorialStep < TUTORIAL_GUIDED_MOVE_COUNT &&
       Boolean(this.board) &&
       this.board?.won !== true;
@@ -1753,7 +1815,6 @@ export class BoardScene extends Phaser.Scene {
 
   setBusy(value: boolean): void {
     this.busy = value;
-    this.pauseRestartButton?.setAlpha(value ? 0.45 : 1);
     this.hud.setHintBusy(value);
     const canUndo = this.mode === PlayMode.CAMPAIGN
       ? this.campaignSession?.canUndo === true
@@ -1762,7 +1823,7 @@ export class BoardScene extends Phaser.Scene {
       : this.mode === PlayMode.ENDLESS
       ? this.endlessSession?.canUndo() === true
       : this.removalHistory.length > 0 && !this.board?.won;
-    this.hud.setUndoEnabled(!value && canUndo);
+    this.hud.setUndoEnabled(!value && !this.campaignRuleCardVisible && canUndo);
     this.hud.setEndlessDeadEndState(
       this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true,
       this.endlessSession?.canRescue() === true,
@@ -1854,89 +1915,87 @@ export class BoardScene extends Phaser.Scene {
       }
     }
     this.render();
+    this.layoutCampaignRuleCard(width, height);
     this.layoutPauseMenu(width, height);
     this.layoutCampaignDeadEnd(width, height);
     this.completionOverlay.layout(width, height);
   }
 
-  layoutCampaignDeadEnd(width: number, height: number): void {
-    this.campaignDeadEndGraphics.clear();
-    if (!this.campaignDeadEndVisible) {
-      this.campaignDeadEndGraphics.setVisible(false);
-      this.campaignDeadEndTitle.setVisible(false);
-      this.campaignDeadEndRestartButton.setVisible(false);
-      this.campaignDeadEndRescueButton.setVisible(false);
+  layoutCampaignRuleCard(width: number, height: number): void {
+    this.campaignRuleCardGraphics.clear();
+    if (!this.campaignRuleCardVisible || !this.campaignRuleCardIntro) {
+      this.campaignRuleCardGraphics.setVisible(false);
       return;
     }
 
     const compact = width < 560;
-    const buttonWidth = Math.min(width - 48, 320);
+    const shortLandscape = height < 520 && width > height;
+    const cardWidth = Math.min(width - 28, shortLandscape ? 500 : 460);
+    const cardHeight = Math.min(height - 92, shortLandscape ? 230 : 270);
+    const centerX = width / 2;
     const centerY = height / 2;
-    this.campaignDeadEndGraphics
+    const cardX = centerX - cardWidth / 2;
+    const cardY = centerY - cardHeight / 2;
+
+    this.campaignRuleCardBlocker
+      .setPosition(width / 2, height / 2)
+      .setSize(width, height);
+    const blockerArea = this.campaignRuleCardBlocker.input?.hitArea;
+    if (blockerArea instanceof Phaser.Geom.Rectangle) blockerArea.setTo(0, 0, width, height);
+
+    this.campaignRuleCardGraphics
       .setVisible(true)
-      .fillStyle(MINIMAL_UI_COLORS.background, 0.9)
-      .fillRect(0, 0, width, height);
+      .fillStyle(0x000000, 0.58)
+      .fillRect(0, 0, width, height)
+      .fillStyle(MINIMAL_UI_COLORS.surface, 1)
+      .fillRoundedRect(cardX, cardY, cardWidth, cardHeight, 12)
+      .lineStyle(1, MINIMAL_UI_COLORS.borderActive, 1)
+      .strokeRoundedRect(cardX + 0.5, cardY + 0.5, cardWidth - 1, cardHeight - 1, 12);
+
+    this.campaignRuleCardHitZone
+      .setPosition(centerX, centerY)
+      .setSize(cardWidth, cardHeight);
+    const cardArea = this.campaignRuleCardHitZone.input?.hitArea;
+    if (cardArea instanceof Phaser.Geom.Rectangle) cardArea.setTo(0, 0, cardWidth, cardHeight);
+
+    this.campaignRuleCardTitle
+      .setFontSize(compact ? 16 : 20)
+      .setPosition(centerX, cardY + (shortLandscape ? 36 : 46));
+    this.campaignRuleCardBody
+      .setFontSize(compact ? 12 : 14)
+      .setLineSpacing(compact ? 5 : 7)
+      .setWordWrapWidth(cardWidth - 44)
+      .setPosition(centerX, centerY - (shortLandscape ? 4 : 2));
+    this.campaignRuleCardDismiss
+      .setFontSize(compact ? 9 : 11)
+      .setPosition(centerX, cardY + cardHeight - (shortLandscape ? 27 : 32));
+  }
+
+  layoutCampaignDeadEnd(width: number, height: number): void {
+    if (!this.campaignDeadEndVisible) {
+      this.campaignDeadEndTitle.setVisible(false);
+      return;
+    }
+
+    const metrics = boardHudMetrics(width, height);
+    const actionTop = metrics.actionY - metrics.actionHeight / 2;
+    const panelBottom = this.panelLayout
+      ? this.panelLayout.top + this.panelLayout.height
+      : actionTop - 22;
+    const gap = Math.max(0, actionTop - panelBottom);
+    const noticeY = gap >= 12
+      ? panelBottom + gap / 2
+      : actionTop - 8;
+
     this.campaignDeadEndTitle
-      .setFontSize(compact ? 18 : 22)
-      .setPosition(width / 2, centerY - 78)
+      .setFontSize(metrics.compact ? 10 : 11)
+      .setPosition(width / 2, noticeY)
       .setVisible(true);
-    this.campaignDeadEndRestartButton
-      .setPosition(width / 2, centerY - 8)
-      .setSize(buttonWidth, 52);
-    this.campaignDeadEndRescueButton
-      .setPosition(width / 2, centerY + 58)
-      .setSize(buttonWidth, 52);
     this.refreshCampaignDeadEndActions();
   }
 
   layoutPauseMenu(width: number, height: number): void {
-    this.pauseMenuGraphics.clear();
-    if (!this.pauseMenuVisible) {
-      this.pauseMenuPanel.setVisible(false);
-      return;
-    }
-    const campaignNavigation =
-      this.mode === PlayMode.CAMPAIGN || this.mode === PlayMode.TUTORIAL;
-    const buttons = [
-      this.pauseResumeButton,
-      this.pauseRestartButton,
-      ...(campaignNavigation ? [this.pauseLevelsButton] : []),
-      this.pauseExitButton,
-    ];
-    const compact = width < 560;
-    const cardWidth = Math.min(width - 28, 430);
-    const cardHeight = Math.min(height - 24, 104 + buttons.length * 54);
-    const x = (width - cardWidth) / 2;
-    const y = (height - cardHeight) / 2;
-    const buttonWidth = Math.min(cardWidth - 36, 330);
-    const startY = y + 88;
-    const step = Math.min(54, (cardHeight - 102) / buttons.length);
-
-    this.pauseMenuHitZone.setPosition(width / 2, height / 2).setSize(width, height);
-    this.pauseMenuHitZone.input?.hitArea?.setTo(0, 0, width, height);
-    this.pauseMenuGraphics.fillStyle(0x000000, 0.78).fillRect(0, 0, width, height);
-    resizeNineSlice(this.pauseMenuPanel, cardWidth, cardHeight);
-    this.pauseMenuPanel
-      .setPosition(width / 2, y + cardHeight / 2)
-      .setVisible(true);
-    this.pauseMenuTitle
-      .setText(this.uiText("ПАУЗА", "PAUSED"))
-      .setFontSize(compact ? 20 : 24)
-      .setPosition(width / 2, y + 38);
-    this.pauseResumeButton.setText(this.uiText("ПРОДОЛЖИТЬ", "RESUME")).setBackgroundColor("#526d5a");
-    this.pauseRestartButton.setText(
-      this.mode === PlayMode.ENDLESS
-        ? this.uiText("НОВЫЙ ЗАБЕГ", "NEW RUN")
-        : this.uiText("ЗАНОВО", "RESTART"),
-    );
-    this.pauseLevelsButton.setText(this.uiText("ВЫБОР УРОВНЕЙ", "LEVEL SELECT"));
-    this.pauseExitButton.setText(this.uiText("ГЛАВНОЕ МЕНЮ", "MAIN MENU"));
-    buttons.forEach((button, index) => {
-      button
-        .setFontSize(compact ? 11 : 13)
-        .setFixedSize(buttonWidth, Math.min(44, step - 6))
-        .setPosition(width / 2, startY + index * step);
-    });
+    this.contextMenu.layout(width, height);
   }
 
 
@@ -1995,7 +2054,7 @@ export class BoardScene extends Phaser.Scene {
       : this.mode === PlayMode.ENDLESS
       ? this.endlessSession?.canUndo() === true
       : this.removalHistory.length > 0 && !this.board?.won;
-    this.hud.setUndoEnabled(!this.busy && canUndo);
+    this.hud.setUndoEnabled(!this.busy && !this.campaignRuleCardVisible && canUndo);
     this.hud.setEndlessDeadEndState(
       this.mode === PlayMode.ENDLESS && this.endlessSession?.deadEnd === true,
       this.endlessSession?.canRescue() === true,
@@ -2006,7 +2065,7 @@ export class BoardScene extends Phaser.Scene {
     const introActive = this.introAnimator?.active === true;
     const inventoryVisible =
       this.board !== undefined;
-    const boardActionsEnabled = inventoryVisible && !introActive;
+    const boardActionsEnabled = inventoryVisible && !introActive && !this.campaignRuleCardVisible;
     this.renderPanel(introActive);
     this.inventory.setPresentationVisible(inventoryVisible, boardActionsEnabled);
 
@@ -2015,15 +2074,25 @@ export class BoardScene extends Phaser.Scene {
     if (this.levelGeometryReady) {
       for (const cell of this.plateCells) {
         const position = this.hexToScreen(cell);
+        const points: Phaser.Geom.Point[] = [];
+        for (let corner = 0; corner < 6; corner += 1) {
+          const angle = Phaser.Math.DegToRad(60 * corner - 30);
+          points.push(
+            new Phaser.Geom.Point(
+              position.x + primitiveMetrics.slotRadius * Math.cos(angle),
+              position.y + primitiveMetrics.slotRadius * Math.sin(angle),
+            ),
+          );
+        }
         this.cellGraphics
           .fillStyle(MINIMAL_UI_COLORS.surface, primitiveMetrics.slotAlpha)
-          .fillCircle(position.x, position.y, primitiveMetrics.slotRadius)
+          .fillPoints(points, true)
           .lineStyle(
             primitiveMetrics.slotLineWidth,
             MINIMAL_UI_COLORS.border,
             0.28,
           )
-          .strokeCircle(position.x, position.y, primitiveMetrics.slotRadius);
+          .strokePoints(points, true);
       }
     }
 
@@ -2068,9 +2137,6 @@ export class BoardScene extends Phaser.Scene {
         : this.board.isFree(view.piece);
       const isPanelMatch = this.activePanelType === view.piece.type;
       const isHinted = this.activeHintKeys.has(key);
-      const isBlocked =
-        this.blockedMoveKey !== undefined &&
-        this.blockedMoveKey.split("|").includes(key);
       const introProgress = introActive
         ? this.introAnimator?.entranceProgress(key, this.time.now) ?? 1
         : 1;
@@ -2080,10 +2146,7 @@ export class BoardScene extends Phaser.Scene {
         selected: selected.has(key),
         hovered: this.hoveredPieceKey === key,
       });
-      const feedback = pieceFeedbackKind({
-        hinted: isHinted,
-        blocked: isBlocked,
-      });
+      const feedback = pieceFeedbackKind({ hinted: isHinted });
       const filter = pieceFilterEmphasis({
         filterActive: this.activePanelType !== null,
         matchesFilter: isPanelMatch,
@@ -2136,7 +2199,7 @@ export class BoardScene extends Phaser.Scene {
         this.atomGraphics
           .lineStyle(
             Math.max(2, this.hexSize * 0.065),
-            feedback === "blocked" ? 0xef5a50 : 0x68cf75,
+            0x68cf75,
             0.92 * introProgress,
           )
           .strokeCircle(

@@ -371,11 +371,17 @@ test("successful campaign rescue is one-use even after another visible dead end"
   assert.equal(calls, 0);
 });
 
-test("BoardScene exposes contextual campaign dead-end Restart and one-use Rescue actions", async () => {
-  const source = await readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8");
+test("BoardScene exposes contextual campaign dead-end actions through the bottom HUD", async () => {
+  const [source, hud] = await Promise.all([
+    readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/game/board/BoardHud.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(source, /enterCampaignDeadEndState\(\)/);
   assert.match(source, /requestCampaignRescue\(\)/);
-  assert.match(source, /campaignDeadEndRestartButton/);
-  assert.match(source, /campaignDeadEndRescueButton/);
+  assert.match(source, /setCampaignDeadEndState\(/);
+  assert.doesNotMatch(source, /campaignDeadEndRestartButton/);
+  assert.doesNotMatch(source, /campaignDeadEndRescueButton/);
   assert.match(source, /session\.canRescue/);
+  assert.match(hud, /"ЗАНОВО"/);
+  assert.match(hud, /"СПАСТИ"/);
 });

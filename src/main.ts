@@ -7,6 +7,7 @@ import { BoardScene } from "./game/scenes/BoardScene.js";
 import { LevelSelectScene } from "./game/scenes/LevelSelectScene.js";
 import { MenuScene } from "./game/scenes/MenuScene.js";
 import { SettingsScene } from "./game/scenes/SettingsScene.js";
+import { RulesScene } from "./game/scenes/RulesScene.js";
 
 declare global {
   // Development handle used by the browser test bench.
@@ -37,7 +38,7 @@ async function startGarden(): Promise<void> {
       activePointers: 3,
       touch: { capture: true },
     },
-    scene: [MenuScene, LevelSelectScene, SettingsScene, BoardScene],
+    scene: [MenuScene, LevelSelectScene, SettingsScene, RulesScene, BoardScene],
   });
 
   window.addEventListener("contextmenu", (event) => event.preventDefault());

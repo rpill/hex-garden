@@ -10,15 +10,25 @@ import {
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("primitive board metrics keep slots subtle and tokens inside their cells", () => {
+test("primitive board metrics form a tight hex lattice with tokens breathing inside slots", () => {
   const metrics = boardPrimitiveMetrics(24);
-  assert.ok(metrics.slotRadius > metrics.tokenRadius);
+  const horizontalCenterDistance = Math.sqrt(3) * 24;
+  const visualHexWidth = Math.sqrt(3) * metrics.slotRadius;
+  const visualGap = horizontalCenterDistance - visualHexWidth;
+  const slotInradius = Math.cos(Math.PI / 6) * metrics.slotRadius;
+
+  assert.ok(visualGap / 24 <= 0.12, "neighboring hex outlines should have only a tiny gap");
+  assert.ok(
+    metrics.tokenRadius / slotInradius <= 0.82,
+    "tokens should leave visible breathing room inside their hex slots",
+  );
   assert.ok(metrics.slotAlpha > 0 && metrics.slotAlpha < 0.3);
   assert.ok(metrics.tokenRadius >= 12);
   assert.ok(metrics.hitDiameter >= 42);
 
   const dense = boardPrimitiveMetrics(9);
-  assert.ok(dense.slotRadius > dense.tokenRadius);
+  const denseInradius = Math.cos(Math.PI / 6) * dense.slotRadius;
+  assert.ok(dense.tokenRadius / denseInradius <= 0.82);
 });
 
 test("slot model preserves every canonical plate cell independent of occupancy", () => {

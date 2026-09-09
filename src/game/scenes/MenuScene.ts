@@ -20,6 +20,8 @@ import { homeLayoutMetrics } from "../navigation-layout.js";
 import { getCampaignProgress } from "../campaign-progress.js";
 import { getEndlessProgress } from "../endless-progress.js";
 import { getSettings } from "../settings.js";
+import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
+import { openUtilityScene } from "../utility-navigation.js";
 
 const RANK_LABELS = Object.freeze({
   novice: { ru: "НОВИЧОК", en: "NOVICE" },
@@ -73,7 +75,8 @@ export class MenuScene extends Phaser.Scene {
   endlessTitle!: Phaser.GameObjects.Text;
   endlessStatus!: Phaser.GameObjects.Text;
   chaptersButton!: MinimalButton;
-  settingsButton!: MinimalButton;
+  menuButton!: MinimalButton;
+  contextMenu!: ContextMenuOverlay;
 
   constructor() {
     super("menu");
@@ -140,11 +143,11 @@ export class MenuScene extends Phaser.Scene {
       this.english ? "CHAPTERS" : "ГЛАВЫ",
       () => this.scene.start("level-select"),
     );
-    this.settingsButton = makeMinimalButton(
-      this,
-      this.english ? "SETTINGS" : "НАСТРОЙКИ",
-      () => this.scene.start("settings", { returnScene: "menu" }),
-    );
+    this.menuButton = makeMinimalButton(this, "☰", () => this.openContextMenu()).setDepth(70);
+    this.contextMenu = new ContextMenuOverlay(this);
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.contextMenu.visible) this.contextMenu.close();
+    });
 
     this.refreshPresentation();
     void this.refreshDailyModel();
@@ -289,6 +292,24 @@ export class MenuScene extends Phaser.Scene {
     this.layout();
   }
 
+  private openContextMenu(): void {
+    this.contextMenu.open({
+      title: this.english ? "MENU" : "МЕНЮ",
+      items: [
+        {
+          id: "rules",
+          label: this.english ? "RULES" : "ПРАВИЛА",
+          onSelect: () => openUtilityScene(this, "rules", { returnScene: "menu" }),
+        },
+        {
+          id: "settings",
+          label: this.english ? "SETTINGS" : "НАСТРОЙКИ",
+          onSelect: () => openUtilityScene(this, "settings", { returnScene: "menu" }),
+        },
+      ],
+    });
+  }
+
   private activatePrimaryAction(): void {
     if (this.model.firstLaunch) {
       this.scene.start("board", { mode: PlayMode.TUTORIAL });
@@ -313,7 +334,11 @@ export class MenuScene extends Phaser.Scene {
   layout(): void {
     const { width, height } = this.scale;
     const metrics = homeLayoutMetrics(width, height);
-    const secondaryHalfSpan = (metrics.secondaryWidth + metrics.secondaryGap) / 2;
+    const menuSize = metrics.shortLandscape ? 36 : 42;
+    this.menuButton
+      .setPosition(width - 14 - menuSize / 2, metrics.shortLandscape ? 27 : 34)
+      .setSize(menuSize, menuSize);
+    this.menuButton.label.setFontSize(metrics.shortLandscape ? 16 : 18);
 
     this.title
       .setFontSize(metrics.compact ? 30 : 36)
@@ -333,9 +358,7 @@ export class MenuScene extends Phaser.Scene {
       .setSize(metrics.primaryWidth, metrics.primaryHeight);
 
     if (this.model.firstLaunch) {
-      this.settingsButton
-        .setPosition(metrics.centerX, metrics.secondaryY)
-        .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
+      this.contextMenu.layout(width, height);
       return;
     }
 
@@ -397,10 +420,8 @@ export class MenuScene extends Phaser.Scene {
     }
 
     this.chaptersButton
-      .setPosition(metrics.centerX - secondaryHalfSpan, secondaryY)
-      .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
-    this.settingsButton
-      .setPosition(metrics.centerX + secondaryHalfSpan, secondaryY)
-      .setSize(metrics.secondaryWidth, metrics.secondaryHeight);
+      .setPosition(metrics.centerX, secondaryY)
+      .setSize(Math.min(metrics.primaryWidth, metrics.secondaryWidth * 1.45), metrics.secondaryHeight);
+    this.contextMenu.layout(width, height);
   }
 }

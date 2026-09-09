@@ -213,7 +213,7 @@ const ATOM_ASSET_FILES = Object.freeze({
   [Atom.QUINTESSENCE]: "quintessence",
 } satisfies Record<AtomType, string>);
 
-export const ART_ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
+const PHYSICAL_ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
   [PHYSICAL_MATERIAL_FRAMES.feltTable]: physicalUrl("felt-table.jpg"),
   [PHYSICAL_MATERIAL_FRAMES.surfaceCard]: physicalUrl("surface-card.png"),
   [PHYSICAL_MATERIAL_FRAMES.surfaceTray]: physicalUrl("surface-tray.png"),
@@ -238,6 +238,10 @@ export const ART_ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
   [PHYSICAL_MATERIAL_FRAMES.mors]: physicalUrl("piece-mors.png"),
   [PHYSICAL_MATERIAL_FRAMES.quintessence]: physicalUrl("piece-quintessence.png"),
   [PHYSICAL_MATERIAL_FRAMES.coin]: physicalUrl("coin.png"),
+});
+
+export const ART_ASSET_URLS: Readonly<Record<string, string>> = Object.freeze({
+  ...(ACTIVE_ART_THEME === "premium" ? PHYSICAL_ASSET_URLS : {}),
   [GAMEPLAY_UI_FRAMES.back]: chequeredUrl("icons", "back"),
   [GAMEPLAY_UI_FRAMES.pause]: chequeredUrl("icons", "pause"),
   [GAMEPLAY_UI_FRAMES.settings]: chequeredUrl("icons", "settings"),

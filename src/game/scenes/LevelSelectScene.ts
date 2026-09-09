@@ -16,6 +16,8 @@ import {
 import { PlayMode } from "../modes.js";
 import { chapterGridMetrics } from "../presentation-layout.js";
 import { getSettings } from "../settings.js";
+import { ContextMenuOverlay } from "../ContextMenuOverlay.js";
+import { openUtilityScene } from "../utility-navigation.js";
 
 type LevelButtonView = {
   level: number;
@@ -30,6 +32,8 @@ export class LevelSelectScene extends Phaser.Scene {
   title!: Phaser.GameObjects.Text;
   summary!: Phaser.GameObjects.Text;
   backButton!: MinimalButton;
+  menuButton!: MinimalButton;
+  contextMenu!: ContextMenuOverlay;
 
   constructor() {
     super("level-select");
@@ -51,6 +55,8 @@ export class LevelSelectScene extends Phaser.Scene {
     this.backButton = makeMinimalButton(this, this.english ? "BACK" : "НАЗАД", () => {
       this.scene.start("menu");
     });
+    this.menuButton = makeMinimalButton(this, "☰", () => this.openContextMenu()).setDepth(70);
+    this.contextMenu = new ContextMenuOverlay(this);
 
     this.chapterLabels = CAMPAIGN_CHAPTERS.map((chapter) =>
       makeMinimalText(
@@ -66,7 +72,10 @@ export class LevelSelectScene extends Phaser.Scene {
       button: makeMinimalButton(this, "", () => this.startLevel(level)),
     }));
 
-    this.input.keyboard?.on("keydown-ESC", () => this.scene.start("menu"));
+    this.input.keyboard?.on("keydown-ESC", () => {
+      if (this.contextMenu.visible) this.contextMenu.close();
+      else this.scene.start("menu");
+    });
     this.scale.on("resize", this.layout, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.layout, this);
@@ -74,6 +83,29 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.refresh();
     this.layout();
+  }
+
+  openContextMenu(): void {
+    this.contextMenu.open({
+      title: this.english ? "MENU" : "МЕНЮ",
+      items: [
+        {
+          id: "rules",
+          label: this.english ? "RULES" : "ПРАВИЛА",
+          onSelect: () => openUtilityScene(this, "rules", { returnScene: "level-select" }),
+        },
+        {
+          id: "settings",
+          label: this.english ? "SETTINGS" : "НАСТРОЙКИ",
+          onSelect: () => openUtilityScene(this, "settings", { returnScene: "level-select" }),
+        },
+        {
+          id: "home",
+          label: this.english ? "MAIN MENU" : "ГЛАВНОЕ МЕНЮ",
+          onSelect: () => this.scene.start("menu"),
+        },
+      ],
+    });
   }
 
   refresh(): void {
@@ -122,6 +154,14 @@ export class LevelSelectScene extends Phaser.Scene {
       backHeight,
     );
     this.backButton.label.setFontSize(shortLandscape ? 11 : 12);
+    layoutMinimalButton(
+      this.menuButton,
+      width - 12 - backHeight / 2,
+      headerY,
+      backHeight,
+      backHeight,
+    );
+    this.menuButton.label.setFontSize(shortLandscape ? 16 : 18);
 
     const summaryY = shortLandscape ? 54 : 68;
     this.summary
@@ -159,5 +199,6 @@ export class LevelSelectScene extends Phaser.Scene {
         );
       }
     });
+    this.contextMenu.layout(width, height);
   }
 }

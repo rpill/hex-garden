@@ -8,7 +8,9 @@ test("live board cells are asset-free primitive slots rendered for every plate c
   const board = await read("src/game/scenes/BoardScene.ts");
   assert.match(board, /for \(const cell of this\.plateCells\)/);
   assert.match(board, /primitiveMetrics\.slotRadius/);
-  assert.match(board, /\.fillCircle\(position\.x, position\.y, primitiveMetrics\.slotRadius\)/);
+  assert.match(board, /\.fillPoints\(points, true\)/);
+  assert.match(board, /\.strokePoints\(points, true\)/);
+  assert.doesNotMatch(board, /\.fillCircle\(position\.x, position\.y, primitiveMetrics\.slotRadius\)/);
   assert.doesNotMatch(board, /GAMEPLAY_FRAMES\.hexIdle/);
   assert.doesNotMatch(board, /PHYSICAL_MATERIAL_FRAMES\.boardCell/);
 });
