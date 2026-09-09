@@ -54,3 +54,13 @@ test("exiting a utility to main menu stops covered board before starting menu", 
     ["start", "menu"],
   ]);
 });
+
+test("utility scenes resume Daily archive as a covered root", () => {
+  const scene = fakeScene("settings");
+  closeUtilityScene(scene, "daily-archive");
+  assert.deepEqual(scene.calls, [
+    ["stop", "settings"],
+    ["resume", "daily-archive"],
+    ["bringToTop", "daily-archive"],
+  ]);
+});

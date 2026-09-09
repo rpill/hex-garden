@@ -94,7 +94,7 @@ test("browser worker facade sends runSeed through the dedicated endless request"
 test("browser Endless boundary requires an explicit runSeed", async () => {
   const source = await readFile(new URL("../src/browser.ts", import.meta.url), "utf8");
   const start = source.indexOf("  generateEndlessRun(");
-  const end = source.indexOf("\n  generateDaily(", start);
+  const end = source.indexOf("\n  generatePuzzleCandidate(", start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   const method = source.slice(start, end);

@@ -42,12 +42,19 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 
 ## Daily contract
 
-- Daily is one deterministic puzzle for the current Moscow calendar date.
-- Day boundary is 00:00 `Europe/Moscow`; weeks are Monday–Sunday in the same timezone.
-- Runtime date authority comes from the trusted platform clock when available; a Daily attempt that crosses into a new Moscow date is expired rather than recorded for the old date.
-- Daily stores Solved/Clean state per date, keeps the latest 90 daily entries, and preserves aggregate best solved/clean week counts.
-- Home shows the current seven-day week summary. Old days are history, not a selectable archive.
-- Undo and Restart are free and preserve Clean. Hint/Rescue invalidate Clean for the attempt.
+- Daily is deterministic by Moscow calendar `dateKey`; day boundary is 00:00 `Europe/Moscow`.
+- Runtime Daily boards come from a frozen solver-certified release pack, not runtime procedural generation. The current pack covers `2026-01-01` through `2027-12-31`; future, not-yet-open dates may be replaced in a later release when mechanics/content change. Pack freezing uses deterministic constructable candidates under the fixed weekday profile; deep difficulty scoring is optional manual curation rather than a runtime or bulk-freeze dependency.
+- Runtime date authority comes only from the trusted platform clock for archive bounds and on-time recording; device time is not a fallback.
+- Daily Archive is a playable rolling 90-day library using trusted Europe/Moscow time.
+- Historical Daily can be replayed and upgraded from Solved to Clean.
+- Daily streak counts only completions recorded on the target Daily's own trusted date.
+- Completing a missed historical date never repairs a streak retroactively.
+- Archive-origin Daily returns to Daily Archive after completion.
+- The playable window is today plus the previous 89 Moscow calendar days. Future dates and older dates are not playable.
+- Daily stores per-date Solved/Clean plus independent `completedOnTime`; legacy dev entries without that field normalize to off-time.
+- Solved can upgrade to Clean and Clean never downgrades. Undo and Restart preserve Clean; Hint/Rescue invalidate Clean for the attempt.
+- Current streak remains visible from yesterday while today's Daily is still open, but only on-time completions can extend it.
+- Home keeps the current seven-day summary and exposes the 90-day Archive after Daily unlock.
 - Daily Hint and Rescue require a confirmed rewarded-ad callback. Rescue is available only at a true zero-legal-moves dead end and only once per attempt.
 
 ## Endless contract
@@ -60,6 +67,7 @@ If prose conflicts with code/tests, surface the mismatch. Do not silently reintr
 - Only `bestUnassistedBoards` can be submitted. Assisted records never enter the ranking, and synchronization must never replace a higher remote score with a lower local score.
 - Leaderboard data is not save data and never overwrites Campaign/Daily/Endless Player Data.
 - Clearing a board automatically advances to the next board in the same run.
+- While the player solves board N, the generator worker prefetches board N+1 for the same run seed. If prefetch is not ready when needed, normal worker generation remains the fallback and the generation overlay is shown.
 - Undo is free before a visible dead end and does not mark the run assisted. Once a true dead end is entered, ordinary Undo is unavailable.
 - Hint must come from a solver-verified route to a full clear and permanently marks the run assisted after the rewarded callback is confirmed.
 - Rescue is offered only at a true zero-legal-moves dead end, restores a solver-verified recoverable history position, may be used once for the entire run, and marks the run assisted. A second true dead end after Rescue ends the run.
@@ -96,7 +104,7 @@ The following are not part of the current product and must not be reintroduced w
 - Campaign progress, Daily progress, Endless records, and settings use the shared player-data storage boundary. It hydrates from Yandex Player Data when available and falls back to browser/in-memory storage for local/dev use.
 - Russian/English language and global sound on/off persist through the same product storage path.
 - Rewarded ads use the Yandex adapter; only a confirmed rewarded callback authorizes assisted Hint/Rescue.
-- Forced/interstitial ads, real-money purchases, selectable difficulty modes, and public Quintessence remain outside the product contract.
+- Forced/interstitial ads are limited to a centralized natural-break policy: no fullscreen request during the first 3 minutes of an app session, then at most one request every 3 minutes; Campaign replay progression is ineligible; no fullscreen ad is requested between Endless boards. Real-money purchases, selectable difficulty modes, and public Quintessence remain outside the product contract.
 
 ## Presentation contract
 

@@ -4,8 +4,13 @@ import { GardenBoard, type BoardPiece, type BoardPieceInput } from "../../board.
 import { getCampaignLevel } from "../../campaign-levels.js";
 import { campaignRuleIntroForLevel, type CampaignRuleIntro } from "../../campaign-onboarding.js";
 import { BrowserLevelGenerator } from "../../browser.js";
-import { dailyDateKey } from "../../daily-calendar.js";
+import {
+  dailyDateKey,
+  isDailyArchiveDateAvailable,
+  isDailyDateKey,
+} from "../../daily-calendar.js";
 import { DailyProgressStore } from "../../daily-progress.js";
+import { getDailyLevel } from "../../daily-levels.js";
 import { BoardVariant, type BoardVariantValue } from "../../generator.js";
 import { CAMPAIGN_LEVEL_COUNT } from "../../plates.js";
 import {
@@ -63,6 +68,9 @@ import { assistancePolicy } from "../board/assistance-policy.js";
 import { CampaignBoardSession } from "../board/CampaignBoardSession.js";
 import { DailyBoardSession } from "../board/DailyBoardSession.js";
 import { EndlessBoardSession } from "../board/EndlessBoardSession.js";
+import { EndlessLevelPrefetch } from "../board/EndlessLevelPrefetch.js";
+import { BoardGenerationOverlay } from "../board/BoardGenerationOverlay.js";
+import { getInterstitialAdGate } from "../interstitial-policy.js";
 import {
   MINIMAL_UI_COLORS,
   makeMinimalText,
@@ -168,13 +176,37 @@ function isPlayModeValue(value: unknown): value is PlayModeValue {
   return typeof value === "string" && (Object.values(PlayMode) as readonly string[]).includes(value);
 }
 
-function boardInitData(data: unknown): { mode?: PlayModeValue; level?: number; runSeed?: string } {
+type DailyReturnTarget = "home" | "daily-archive";
+
+type BoardInitData = {
+  mode?: PlayModeValue;
+  level?: number;
+  runSeed?: string;
+  dailyDateKey?: string;
+  dailyReturnTarget?: DailyReturnTarget;
+};
+
+function isDailyReturnTarget(value: unknown): value is DailyReturnTarget {
+  return value === "home" || value === "daily-archive";
+}
+
+function boardInitData(data: unknown): BoardInitData {
   if (typeof data !== "object" || data === null) return {};
-  const raw = data as { mode?: unknown; level?: unknown; runSeed?: unknown };
+  const raw = data as {
+    mode?: unknown;
+    level?: unknown;
+    runSeed?: unknown;
+    dailyDateKey?: unknown;
+    dailyReturnTarget?: unknown;
+  };
   return {
     ...(isPlayModeValue(raw.mode) ? { mode: raw.mode } : {}),
     ...(Number.isSafeInteger(raw.level) && (raw.level as number) >= 0 ? { level: raw.level as number } : {}),
     ...(typeof raw.runSeed === "string" && raw.runSeed.length > 0 ? { runSeed: raw.runSeed } : {}),
+    ...(isDailyDateKey(raw.dailyDateKey) ? { dailyDateKey: raw.dailyDateKey } : {}),
+    ...(isDailyReturnTarget(raw.dailyReturnTarget)
+      ? { dailyReturnTarget: raw.dailyReturnTarget }
+      : {}),
   };
 }
 
@@ -201,7 +233,10 @@ export class BoardScene extends Phaser.Scene {
   tutorialSolution: readonly (readonly HexCoord[])[] = [];
   campaignSession: CampaignBoardSession | undefined;
   dailySession: DailyBoardSession | undefined;
+  dailyTargetDateKey = "";
+  dailyReturnTarget: DailyReturnTarget = "home";
   endlessSession: EndlessBoardSession | undefined;
+  endlessPrefetch: EndlessLevelPrefetch<Awaited<ReturnType<BrowserLevelGenerator["generateEndlessRun"]>>> | undefined;
   endlessRunSeed = "";
   removalHistory: RemovalHistoryEntry[] = [];
   activeHintKeys = new Set<string>();
@@ -225,7 +260,7 @@ export class BoardScene extends Phaser.Scene {
   endlessLeaderboard!: ReturnType<typeof getEndlessLeaderboard>;
   dailyProgress!: DailyProgressStore;
   platform!: ReturnType<typeof getYandexGamesAdapter>;
-  generator!: BrowserLevelGenerator;
+  generator: BrowserLevelGenerator | undefined;
   assistance!: BoardAssistance;
   hud!: BoardHud;
   introAnimator: BoardIntroAnimator | undefined;
@@ -254,6 +289,7 @@ export class BoardScene extends Phaser.Scene {
   campaignDeadEndTitle!: Phaser.GameObjects.Text;
   campaignDeadEndPulse: Phaser.Tweens.Tween | undefined;
   completionOverlay!: CompletionOverlay;
+  generationOverlay!: BoardGenerationOverlay;
   status!: Phaser.GameObjects.Text;
   attemptState = createAttemptState();
   boardCenterX = 0;
@@ -278,6 +314,8 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialSolution = [];
     this.campaignSession = undefined;
     this.dailySession = undefined;
+    this.dailyTargetDateKey = "";
+    this.dailyReturnTarget = "home";
     this.endlessSession = undefined;
     this.endlessRunSeed = "";
     this.removalHistory = [];
@@ -336,6 +374,9 @@ export class BoardScene extends Phaser.Scene {
     this.tutorialSolution = [];
     this.campaignSession = undefined;
     this.dailySession = undefined;
+    this.dailyTargetDateKey = this.mode === PlayMode.DAILY ? init.dailyDateKey ?? "" : "";
+    this.dailyReturnTarget =
+      this.mode === PlayMode.DAILY ? init.dailyReturnTarget ?? "home" : "home";
     this.endlessSession = this.mode === PlayMode.ENDLESS ? new EndlessBoardSession() : undefined;
     this.endlessRunSeed = this.mode === PlayMode.ENDLESS ? init.runSeed ?? createEndlessRunSeed() : "";
     this.removalHistory = [];
@@ -369,7 +410,13 @@ export class BoardScene extends Phaser.Scene {
     this.pieceViews = new Map();
     this.panelViews = new Map();
     this.panelTypes = [];
-    this.generator = new BrowserLevelGenerator();
+    if (this.mode === PlayMode.ENDLESS) {
+      const generator = new BrowserLevelGenerator();
+      this.generator = generator;
+      this.endlessPrefetch = new EndlessLevelPrefetch((level) =>
+        generator.generateEndlessRun(level, { runSeed: this.endlessRunSeed }),
+      );
+    }
     this.backgroundGraphics = this.add.graphics().setDepth(-3);
     this.cellGraphics = this.add.graphics();
     this.atomGraphics = this.add.graphics().setDepth(1);
@@ -447,6 +494,7 @@ export class BoardScene extends Phaser.Scene {
     ).setOrigin(0.5).setFontStyle("bold").setDepth(35).setVisible(false);
 
     this.completionOverlay = new CompletionOverlay(this);
+    this.generationOverlay = new BoardGenerationOverlay(this);
 
     this.input.keyboard?.on("keydown-R", () => this.restartLevel());
     this.input.on(
@@ -479,9 +527,10 @@ export class BoardScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       getGameLifecycleController().setGameplayActive(false);
       this.scale.off("resize", this.layout, this);
-      this.generator.terminate();
+      this.generator?.terminate();
       this.introAnimator?.stop();
       this.rewardedOffer?.cancel();
+      this.generationOverlay?.destroy();
       this.pieceViews.clear();
       this.panelViews.clear();
     });
@@ -511,7 +560,11 @@ export class BoardScene extends Phaser.Scene {
     this.clearPanelHighlight(false);
     this.tutorialStep = 0;
     this.tutorialSolution = [];
-    this.status.setText("GENERATING");
+    this.status.setText("");
+    const runtimeGenerated =
+      this.mode === PlayMode.ENDLESS && !this.endlessPrefetch?.isReady(this.level);
+    if (runtimeGenerated) this.generationOverlay.show({ english: this.english });
+    else this.generationOverlay.hide();
     this.clearPieceViews();
     this.rebuildPanelViews();
     this.render();
@@ -547,8 +600,17 @@ export class BoardScene extends Phaser.Scene {
                   ),
                 );
               }
-              const dateKey = dailyDateKey(trustedNow);
-              const generated = await this.generator.generateDaily(dateKey);
+              const currentDateKey = dailyDateKey(trustedNow);
+              const dailyDateKeyToPlay = this.dailyTargetDateKey || currentDateKey;
+              if (!isDailyArchiveDateAvailable(currentDateKey, dailyDateKeyToPlay)) {
+                throw new RangeError(
+                  this.uiText(
+                    "ЕЖЕДНЕВНАЯ ЗАДАЧА ВНЕ ДОСТУПНОГО 90-ДНЕВНОГО ОКНА",
+                    "DAILY PUZZLE IS OUTSIDE THE AVAILABLE 90-DAY WINDOW",
+                  ),
+                );
+              }
+              const generated = getDailyLevel(dailyDateKeyToPlay);
               const session = new DailyBoardSession(generated, this.dailyProgress);
               this.dailySession = session;
               return {
@@ -559,9 +621,11 @@ export class BoardScene extends Phaser.Scene {
               };
             })()
           : this.mode === PlayMode.ENDLESS
-          ? await this.generator.generateEndlessRun(this.level, {
-              runSeed: this.endlessRunSeed,
-            })
+          ? await (async () => {
+              const endlessPrefetch = this.endlessPrefetch;
+              if (!endlessPrefetch) throw new Error("Endless generator is unavailable");
+              return endlessPrefetch.take(this.level);
+            })()
           : await Promise.reject<never>(new Error("Unsupported play mode"));
       if (token !== this.generationToken) return;
       this.board = record.board;
@@ -579,6 +643,12 @@ export class BoardScene extends Phaser.Scene {
         this.mode === PlayMode.TUTORIAL
           ? record.solution.map((move) => move.map((position) => ({ ...position })))
           : [];
+      if (this.mode === PlayMode.ENDLESS) {
+        const endlessPrefetch = this.endlessPrefetch;
+        if (!endlessPrefetch) throw new Error("Endless generator is unavailable");
+        endlessPrefetch.prefetch(this.level + 1);
+      }
+      this.generationOverlay.hide();
       this.status.setText("");
       this.setBusy(false);
       this.rebuildPanelViews();
@@ -588,9 +658,13 @@ export class BoardScene extends Phaser.Scene {
       this.layout();
     } catch (error) {
       if (token !== this.generationToken) return;
+      this.generationOverlay.hide();
       this.status.setText(`ERROR: ${error instanceof Error ? error.message : error}`);
       this.setBusy(false);
       this.render();
+      if (this.mode === PlayMode.DAILY && error instanceof RangeError) {
+        this.time.delayedCall(1200, () => this.returnFromDailyBoard());
+      }
     }
   }
 
@@ -624,6 +698,15 @@ export class BoardScene extends Phaser.Scene {
   openMainMenu(reveal?: CampaignHomeReveal): void {
     this.generationToken += 1;
     this.scene.start("menu", reveal ? { reveal } : undefined);
+  }
+
+  returnFromDailyBoard(): void {
+    this.generationToken += 1;
+    if (this.dailyReturnTarget === "daily-archive") {
+      this.scene.start("daily-archive");
+      return;
+    }
+    this.scene.start("menu");
   }
 
   openUtilityScene(key: UtilitySceneKey): void {
@@ -951,14 +1034,18 @@ export class BoardScene extends Phaser.Scene {
       ? {
           onHome: () => void this.runInterstitialBefore(
             () => this.openMainMenu(destination.reveal),
+            { eligible: firstCompletion },
           ),
           ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
         }
       : {
-          onNext: () => void this.runInterstitialBefore(() => {
-            this.level = destination.level;
-            void this.loadLevel();
-          }),
+          onNext: () => void this.runInterstitialBefore(
+            () => {
+              this.level = destination.level;
+              void this.loadLevel();
+            },
+            { eligible: firstCompletion },
+          ),
           ...(!clean ? { onTryClean: () => this.loadLevel() } : {}),
         };
 
@@ -992,25 +1079,26 @@ export class BoardScene extends Phaser.Scene {
             "YANDEX TRUSTED TIME IS UNAVAILABLE",
           ),
         );
-        this.time.delayedCall(1200, () => this.openMainMenu());
+        this.time.delayedCall(1200, () => this.returnFromDailyBoard());
         return;
       }
 
       const completion = session.complete(dailyDateKey(trustedNow));
-      if (completion.kind === "expired") {
+      if (completion.kind === "outside-window") {
         this.status.setText(
           this.uiText(
-            "ДОСТУПНА НОВАЯ ЕЖЕДНЕВНАЯ ЗАДАЧА",
-            "NEW DAILY AVAILABLE",
+            "ЭТА ЕЖЕДНЕВНАЯ ЗАДАЧА БОЛЬШЕ НЕ ДОСТУПНА",
+            "THIS DAILY PUZZLE IS NO LONGER AVAILABLE",
           ),
         );
-        this.time.delayedCall(1200, () => this.openMainMenu());
+        this.time.delayedCall(1200, () => this.returnFromDailyBoard());
         return;
       }
       if (completion.kind !== "recorded") return;
 
       const week = this.dailyProgress.weekSummary(completion.dateKey);
       const achievedClean = completion.snapshot.entries[completion.dateKey]?.clean === true;
+      const returnToArchive = this.dailyReturnTarget === "daily-archive";
 
       this.status.setText("");
       this.completionOverlay.show(
@@ -1023,13 +1111,21 @@ export class BoardScene extends Phaser.Scene {
           detail: this.english
             ? `WEEK ${week.solvedCount}/7 · ◆ ${week.cleanCount}/7 CLEAN`
             : `НЕДЕЛЯ ${week.solvedCount}/7 · ◆ ЧИСТО ${week.cleanCount}/7`,
-          primaryLabel: this.uiText("НА ГЛАВНУЮ", "HOME"),
+          primaryLabel: returnToArchive
+            ? this.uiText("В АРХИВ", "BACK TO ARCHIVE")
+            : this.uiText("НА ГЛАВНУЮ", "HOME"),
           ...(!achievedClean
             ? { secondaryLabel: this.uiText("ПОПРОБОВАТЬ ЧИСТО", "TRY CLEAN") }
             : {}),
         },
         {
-          onHome: () => void this.runInterstitialBefore(() => this.openMainMenu()),
+          onHome: () => void this.runInterstitialBefore(() => {
+            if (this.dailyReturnTarget === "daily-archive") {
+              this.scene.start("daily-archive");
+              return;
+            }
+            this.openMainMenu();
+          }),
           ...(!achievedClean ? { onSecondary: () => this.loadLevel() } : {}),
         },
       );
@@ -1199,8 +1295,15 @@ export class BoardScene extends Phaser.Scene {
     this.syncGameplayLifecycle();
   }
 
-  async runInterstitialBefore(action: () => void): Promise<void> {
+  async runInterstitialBefore(
+    action: () => void,
+    { eligible = true }: { eligible?: boolean } = {},
+  ): Promise<void> {
     if (this.interstitialAdPending) return;
+    if (!getInterstitialAdGate().tryBegin(eligible)) {
+      action();
+      return;
+    }
     this.interstitialAdPending = true;
     this.syncGameplayLifecycle();
     try {
@@ -2005,6 +2108,7 @@ export class BoardScene extends Phaser.Scene {
     this.layoutPauseMenu(width, height);
     this.layoutCampaignDeadEnd(width, height);
     this.completionOverlay.layout(width, height);
+    this.generationOverlay?.layout(width, height);
   }
 
   layoutCampaignRuleCard(width: number, height: number): void {

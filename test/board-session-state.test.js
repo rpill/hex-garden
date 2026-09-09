@@ -68,7 +68,9 @@ test("Endless BoardScene owns one run session and routes visible dead ends throu
   assert.match(boardSource, /import \{ EndlessBoardSession \} from "\.\.\/board\/EndlessBoardSession\.js"/);
   assert.match(boardSource, /endlessRunSeed/);
   assert.match(boardSource, /endless-v2:/);
-  assert.match(boardSource, /generateEndlessRun\(this\.level, \{\s*runSeed: this\.endlessRunSeed,?\s*\}\)/);
+  assert.match(boardSource, /new EndlessLevelPrefetch/);
+  assert.match(boardSource, /generateEndlessRun\(level, \{ runSeed: this\.endlessRunSeed \}\)/);
+  assert.match(boardSource, /endlessPrefetch\.take\(this\.level\)/);
   assert.doesNotMatch(boardSource, /campaignSeed: CAMPAIGN_SEED/);
   assert.match(boardSource, /this\.endlessSession\.recordBeforeRemoval\(beforeRemovalPieces\)/);
   assert.match(boardSource, /this\.endlessSession\.clearBoard\(\)/);

@@ -18,7 +18,7 @@ import {
   switchUtilityScene,
 } from "../utility-navigation.js";
 
-const RETURN_SCENES = new Set<UtilityRootSceneKey>(["board", "menu", "level-select", "leaderboard"]);
+const RETURN_SCENES = new Set<UtilityRootSceneKey>(["board", "menu", "level-select", "leaderboard", "daily-archive"]);
 
 function returnSceneFromData(data: unknown): UtilityRootSceneKey {
   if (typeof data !== "object" || data === null) return "menu";

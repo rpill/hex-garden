@@ -15,7 +15,7 @@ test("leaderboard is a resumable utility root", () => {
 
 test("main registers LeaderboardScene before BoardScene", () => {
   assert.match(mainSource, /import \{ LeaderboardScene \} from "\.\/game\/scenes\/LeaderboardScene\.js"/);
-  assert.match(mainSource, /RulesScene,\s*LeaderboardScene,\s*BoardScene/);
+  assert.match(mainSource, /RulesScene,\s*LeaderboardScene,[\s\S]*BoardScene/);
 });
 
 test("Home context menu exposes leaderboard only behind Endless unlock", () => {

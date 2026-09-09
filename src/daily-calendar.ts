@@ -62,6 +62,62 @@ function dateKey(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+export const DAILY_ARCHIVE_DAYS = 90;
+
+export function isDailyDateKey(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const resolved = new Date(Date.UTC(year, month - 1, day));
+  return resolved.getUTCFullYear() === year
+    && resolved.getUTCMonth() === month - 1
+    && resolved.getUTCDate() === day;
+}
+
+export function offsetDailyDateKey(dateKeyValue: string, dayOffset: number): string {
+  if (!isDailyDateKey(dateKeyValue)) throw new RangeError(`Invalid daily date key: ${dateKeyValue}`);
+  if (!Number.isSafeInteger(dayOffset)) throw new RangeError(`Invalid daily day offset: ${dayOffset}`);
+  const [yearText, monthText, dayText] = dateKeyValue.split("-");
+  const date = new Date(Date.UTC(
+    Number(yearText),
+    Number(monthText) - 1,
+    Number(dayText) + dayOffset,
+  ));
+  return date.toISOString().slice(0, 10);
+}
+
+export function dailyArchiveWindow(currentDateKey: string): Readonly<{
+  startDateKey: string;
+  endDateKey: string;
+  dateKeys: readonly string[];
+}> {
+  if (!isDailyDateKey(currentDateKey)) throw new RangeError(`Invalid daily date key: ${currentDateKey}`);
+  const startDateKey = offsetDailyDateKey(currentDateKey, -(DAILY_ARCHIVE_DAYS - 1));
+  const dateKeys = Object.freeze(
+    Array.from({ length: DAILY_ARCHIVE_DAYS }, (_value, index) =>
+      offsetDailyDateKey(startDateKey, index),
+    ),
+  );
+  return Object.freeze({ startDateKey, endDateKey: currentDateKey, dateKeys });
+}
+
+export function isDailyArchiveDateAvailable(
+  currentDateKey: string,
+  targetDateKey: string,
+): boolean {
+  if (!isDailyDateKey(currentDateKey) || !isDailyDateKey(targetDateKey)) return false;
+  const { startDateKey, endDateKey } = dailyArchiveWindow(currentDateKey);
+  return targetDateKey >= startDateKey && targetDateKey <= endDateKey;
+}
+
+export function dailyArchiveMonthKeys(currentDateKey: string): readonly string[] {
+  const { dateKeys } = dailyArchiveWindow(currentDateKey);
+  return Object.freeze([...new Set(dateKeys.map((key) => key.slice(0, 7)))]);
+}
+
 function offsetDateKey(parts: MoscowDateParts, dayOffset: number): string {
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + dayOffset));
   return date.toISOString().slice(0, 10);

@@ -68,3 +68,14 @@ test("dead-end restart is an interstitial opportunity but ordinary restart stays
   assert.match(restart, /runInterstitialBefore/);
   assert.match(restart, /restartLevelNow/);
 });
+
+test("BoardScene gates fullscreen requests through the shared cooldown policy", () => {
+  assert.match(boardSceneSource, /getInterstitialAdGate/);
+  assert.match(boardSceneSource, /tryBegin\(/);
+});
+
+test("Campaign replay progression does not request an interstitial", () => {
+  const campaign = sourceSection("showCampaignCompletion({", "async completeDailyBoard()");
+  assert.match(campaign, /firstCompletion/);
+  assert.match(campaign, /eligible:\s*firstCompletion/);
+});

@@ -1,4 +1,207 @@
 garden-js/
+├── .scratch/
+│   ├── game-build/
+│   │   ├── assets/
+│   │   │   ├── art-tests/
+│   │   │   │   ├── adventure/
+│   │   │   │   │   ├── ui/
+│   │   │   │   │   │   ├── button.png
+│   │   │   │   │   │   └── panel.png
+│   │   │   │   │   └── LICENSE.txt
+│   │   │   │   ├── rpg/
+│   │   │   │   │   ├── ui/
+│   │   │   │   │   │   ├── button-pressed.png
+│   │   │   │   │   │   ├── button.png
+│   │   │   │   │   │   └── panel.png
+│   │   │   │   │   └── LICENSE.txt
+│   │   │   │   ├── shared-gems/
+│   │   │   │   │   ├── air.png
+│   │   │   │   │   ├── copper.png
+│   │   │   │   │   ├── earth.png
+│   │   │   │   │   ├── fire.png
+│   │   │   │   │   ├── gold.png
+│   │   │   │   │   ├── iron.png
+│   │   │   │   │   ├── lead.png
+│   │   │   │   │   ├── mors.png
+│   │   │   │   │   ├── quicksilver.png
+│   │   │   │   │   ├── quintessence.png
+│   │   │   │   │   ├── salt.png
+│   │   │   │   │   ├── silver.png
+│   │   │   │   │   ├── SOURCE.txt
+│   │   │   │   │   ├── tin.png
+│   │   │   │   │   ├── vitae.png
+│   │   │   │   │   └── water.png
+│   │   │   │   ├── space/
+│   │   │   │   │   ├── ui/
+│   │   │   │   │   │   ├── button-hover.png
+│   │   │   │   │   │   ├── button.png
+│   │   │   │   │   │   └── panel.png
+│   │   │   │   │   └── LICENSE.txt
+│   │   │   │   └── README.txt
+│   │   │   ├── chequered-ink/
+│   │   │   │   ├── gems/
+│   │   │   │   │   ├── air.png
+│   │   │   │   │   ├── copper.png
+│   │   │   │   │   ├── earth.png
+│   │   │   │   │   ├── fire.png
+│   │   │   │   │   ├── gold.png
+│   │   │   │   │   ├── iron.png
+│   │   │   │   │   ├── lead.png
+│   │   │   │   │   ├── mors.png
+│   │   │   │   │   ├── quicksilver.png
+│   │   │   │   │   ├── quintessence.png
+│   │   │   │   │   ├── salt.png
+│   │   │   │   │   ├── silver.png
+│   │   │   │   │   ├── tin.png
+│   │   │   │   │   ├── vitae.png
+│   │   │   │   │   └── water.png
+│   │   │   │   ├── icons/
+│   │   │   │   │   ├── back.png
+│   │   │   │   │   ├── badge-count.png
+│   │   │   │   │   ├── badge-reward.png
+│   │   │   │   │   ├── check.png
+│   │   │   │   │   ├── dust.png
+│   │   │   │   │   ├── failure.png
+│   │   │   │   │   ├── hint.png
+│   │   │   │   │   ├── next.png
+│   │   │   │   │   ├── pause.png
+│   │   │   │   │   ├── rating.png
+│   │   │   │   │   ├── rescue.png
+│   │   │   │   │   ├── retry.png
+│   │   │   │   │   ├── settings.png
+│   │   │   │   │   ├── shop.png
+│   │   │   │   │   ├── success.png
+│   │   │   │   │   ├── unavailable.png
+│   │   │   │   │   └── undo.png
+│   │   │   │   ├── tokens/
+│   │   │   │   │   ├── hex-hover.png
+│   │   │   │   │   ├── hex-idle.png
+│   │   │   │   │   └── hex-selected.png
+│   │   │   │   ├── ui/
+│   │   │   │   │   ├── button-wide-clicked.png
+│   │   │   │   │   ├── button-wide-completed.png
+│   │   │   │   │   ├── button-wide-current.png
+│   │   │   │   │   ├── button-wide-hover.png
+│   │   │   │   │   ├── button-wide-idle.png
+│   │   │   │   │   ├── button-wider-clicked.png
+│   │   │   │   │   ├── button-wider-hover.png
+│   │   │   │   │   ├── button-wider-idle.png
+│   │   │   │   │   ├── panel-black.png
+│   │   │   │   │   ├── panel-green.png
+│   │   │   │   │   └── panel-red.png
+│   │   │   │   └── SOURCE.txt
+│   │   │   ├── mechanized-magic/
+│   │   │   │   ├── atoms/
+│   │   │   │   │   ├── air.png
+│   │   │   │   │   ├── copper.png
+│   │   │   │   │   ├── earth.png
+│   │   │   │   │   ├── fire.png
+│   │   │   │   │   ├── gold.png
+│   │   │   │   │   ├── iron.png
+│   │   │   │   │   ├── lead.png
+│   │   │   │   │   ├── mors.png
+│   │   │   │   │   ├── quicksilver.png
+│   │   │   │   │   ├── quintessence.png
+│   │   │   │   │   ├── salt.png
+│   │   │   │   │   ├── silver.png
+│   │   │   │   │   ├── tin.png
+│   │   │   │   │   ├── vitae.png
+│   │   │   │   │   └── water.png
+│   │   │   │   ├── hud/
+│   │   │   │   │   ├── button-disabled.png
+│   │   │   │   │   ├── button-hover.png
+│   │   │   │   │   ├── button-idle.png
+│   │   │   │   │   ├── button-selected.png
+│   │   │   │   │   ├── cell-hover.png
+│   │   │   │   │   ├── cell-idle.png
+│   │   │   │   │   ├── cell-selected.png
+│   │   │   │   │   ├── level-completed.png
+│   │   │   │   │   ├── level-current.png
+│   │   │   │   │   ├── level-hover.png
+│   │   │   │   │   ├── level-idle.png
+│   │   │   │   │   ├── level-locked.png
+│   │   │   │   │   ├── panel-failure.png
+│   │   │   │   │   ├── panel-header.png
+│   │   │   │   │   ├── panel-large.png
+│   │   │   │   │   ├── panel-main.png
+│   │   │   │   │   ├── panel-side.png
+│   │   │   │   │   ├── panel-strip.png
+│   │   │   │   │   └── panel-success.png
+│   │   │   │   ├── icons/
+│   │   │   │   │   ├── back.png
+│   │   │   │   │   ├── badge-count.png
+│   │   │   │   │   ├── badge-reward.png
+│   │   │   │   │   ├── check.png
+│   │   │   │   │   ├── dust.png
+│   │   │   │   │   ├── failure.png
+│   │   │   │   │   ├── hint.png
+│   │   │   │   │   ├── lock.png
+│   │   │   │   │   ├── next.png
+│   │   │   │   │   ├── pause.png
+│   │   │   │   │   ├── rating.png
+│   │   │   │   │   ├── rescue.png
+│   │   │   │   │   ├── retry.png
+│   │   │   │   │   ├── settings.png
+│   │   │   │   │   ├── shop.png
+│   │   │   │   │   ├── success.png
+│   │   │   │   │   └── undo.png
+│   │   │   │   └── LICENSE.txt
+│   │   │   ├── physical-premium/
+│   │   │   │   ├── board-cell.png
+│   │   │   │   ├── coin.png
+│   │   │   │   ├── felt-table.jpg
+│   │   │   │   ├── piece-air.png
+│   │   │   │   ├── piece-ball.png
+│   │   │   │   ├── piece-copper.png
+│   │   │   │   ├── piece-earth.png
+│   │   │   │   ├── piece-fire.png
+│   │   │   │   ├── piece-gold.png
+│   │   │   │   ├── piece-iron.png
+│   │   │   │   ├── piece-lead.png
+│   │   │   │   ├── piece-mors.png
+│   │   │   │   ├── piece-quicksilver.png
+│   │   │   │   ├── piece-quintessence.png
+│   │   │   │   ├── piece-salt.png
+│   │   │   │   ├── piece-silver.png
+│   │   │   │   ├── piece-tin.png
+│   │   │   │   ├── piece-vitae.png
+│   │   │   │   ├── piece-water.png
+│   │   │   │   ├── SOURCE.txt
+│   │   │   │   ├── surface-button.png
+│   │   │   │   ├── surface-card.png
+│   │   │   │   ├── surface-system.png
+│   │   │   │   ├── surface-tray.png
+│   │   │   │   └── token-base.png
+│   │   │   ├── index-B56TNJI9.js
+│   │   │   └── index-DjHnL6RJ.css
+│   │   └── index.html
+│   ├── optix-cache/
+│   │   └── optix7cache.db
+│   ├── before-board.png
+│   ├── before-family.png
+│   ├── blender-tests.log
+│   ├── build-final.log
+│   ├── build.log
+│   ├── diagnose.log
+│   ├── diagnose.py
+│   ├── empty.log
+│   ├── empty.png
+│   ├── empty.py
+│   ├── factory-tests.log
+│   ├── game-tests.log
+│   ├── preview-final.log
+│   ├── preview.log
+│   ├── probe.log
+│   ├── probe.png
+│   ├── probe.py
+│   ├── targeted-build.log
+│   ├── tests-final.log
+│   ├── tests.log
+│   ├── tune.py
+│   ├── tune2.py
+│   ├── tune3.py
+│   ├── tune4.py
+│   └── tune5.py
 ├── assets/
 │   ├── alchemy_elements/
 │   │   ├── element_air.png
@@ -65,7 +268,6 @@ garden-js/
 │   │   ├── level_hover.png
 │   │   ├── level_idle.png
 │   │   └── level_locked.png
-│   ├── Mechanized Magic/ [contents omitted]
 │   ├── panels/
 │   │   ├── panel_failure.png
 │   │   ├── panel_header.png
@@ -127,6 +329,9 @@ garden-js/
 │   ├── ui_feedback_v2.png
 │   ├── ui_level_states_v2.png
 │   └── ui_panels_v2.png
+├── build/
+│   ├── campaign-selection.json
+│   └── campaign-shortlist.json
 ├── data/ [contents omitted]
 ├── docs/
 │   ├── archive/
@@ -134,21 +339,157 @@ garden-js/
 │   │       ├── 2026-09-01-mechanized-magic-visual-replacement-design.md
 │   │       ├── 2026-09-01-mechanized-magic-visual-replacement-plan.md
 │   │       └── REGENERATION_PROMPTS-paper-sketchbook.md
-│   └── superpowers/
-│       ├── plans/
-│       │   ├── 2026-09-03-board-ux-overhaul.md
-│       │   ├── 2026-09-03-chatgpt-context-workflow.md
-│       │   ├── 2026-09-03-presentation-b1-refinement.md
-│       │   ├── 2026-09-03-typescript-migration-board-boundaries.md
-│       │   └── 2026-09-03-visual-presentation-overhaul.md
-│       └── specs/
-│           ├── 2026-09-03-board-ux-overhaul-design.md
-│           ├── 2026-09-03-chatgpt-context-workflow-design.md
-│           ├── 2026-09-03-presentation-b1-refinement-design.md
-│           ├── 2026-09-03-typescript-migration-board-boundaries-design.md
-│           └── 2026-09-03-visual-presentation-overhaul-design.md
+│   ├── superpowers/
+│   │   ├── plans/
+│   │   │   ├── 2026-09-03-board-ux-overhaul.md
+│   │   │   ├── 2026-09-03-chatgpt-context-workflow.md
+│   │   │   ├── 2026-09-03-presentation-b1-refinement.md
+│   │   │   ├── 2026-09-03-typescript-migration-board-boundaries.md
+│   │   │   ├── 2026-09-03-visual-presentation-overhaul.md
+│   │   │   ├── 2026-09-04-physical-premium-club-table.md
+│   │   │   ├── 2026-09-04-premium-tabletop-ivory-walnut-brass.md
+│   │   │   ├── 2026-09-08-board-assistance-minimal-ui.md
+│   │   │   ├── 2026-09-08-daily-mode.md
+│   │   │   ├── 2026-09-08-endless-redesign.md
+│   │   │   ├── 2026-09-08-fixed-plates-scorer-campaign.md
+│   │   │   ├── 2026-09-08-functional-product-redesign-rollout.md
+│   │   │   ├── 2026-09-08-legacy-cleanup-functional-acceptance.md
+│   │   │   ├── 2026-09-08-physical-ui-kit-and-legacy-art-cleanup.md
+│   │   │   ├── 2026-09-08-progress-mastery-navigation.md
+│   │   │   ├── 2026-09-09-daily-archive-implementation-plan.md
+│   │   │   ├── 2026-09-09-endless-clean-leaderboard-implementation-plan.md
+│   │   │   └── 2026-09-09-endless-clean-leaderboard.md
+│   │   └── specs/
+│   │       ├── 2026-09-03-board-ux-overhaul-design.md
+│   │       ├── 2026-09-03-chatgpt-context-workflow-design.md
+│   │       ├── 2026-09-03-presentation-b1-refinement-design.md
+│   │       ├── 2026-09-03-typescript-migration-board-boundaries-design.md
+│   │       ├── 2026-09-03-visual-presentation-overhaul-design.md
+│   │       ├── 2026-09-04-physical-premium-club-table-design.md
+│   │       ├── 2026-09-04-premium-tabletop-ivory-walnut-brass-design.md
+│   │       ├── 2026-09-08-functional-product-redesign-design.md
+│   │       ├── 2026-09-08-physical-ui-kit-and-legacy-art-cleanup-design.md
+│   │       ├── 2026-09-09-daily-archive-design.md
+│   │       └── 2026-09-09-endless-clean-leaderboard-design.md
+│   ├── campaign-playtest.md
+│   └── functional-redesign-acceptance.md
+├── hex-garden-physical-asset-factory/
+│   ├── art/
+│   │   ├── physical-icons/
+│   │   │   ├── air.svg
+│   │   │   ├── copper.svg
+│   │   │   ├── earth.svg
+│   │   │   ├── fire.svg
+│   │   │   ├── gold.svg
+│   │   │   ├── iron.svg
+│   │   │   ├── lead.svg
+│   │   │   ├── mors.svg
+│   │   │   ├── quicksilver.svg
+│   │   │   ├── quintessence.svg
+│   │   │   ├── README.md
+│   │   │   ├── salt.svg
+│   │   │   ├── silver.svg
+│   │   │   ├── tin.svg
+│   │   │   ├── vitae.svg
+│   │   │   └── water.svg
+│   │   ├── physical-premium-preview/
+│   │   │   ├── .gitkeep
+│   │   │   ├── board-preview.png
+│   │   │   ├── piece-family-preview.png
+│   │   │   └── runtime-contact-sheet.png
+│   │   ├── reference/
+│   │   │   ├── approved-cell-reference.png
+│   │   │   ├── approved-concept.png
+│   │   │   └── README.md
+│   │   └── physical-premium-manifest.json
+│   ├── docs/
+│   │   └── superpowers/
+│   │       ├── plans/
+│   │       │   ├── 2026-09-07-physical-asset-factory-v2-concept-match.md
+│   │       │   ├── 2026-09-07-physical-asset-factory-v3-concept-match.md
+│   │       │   └── 2026-09-07-physical-asset-factory.md
+│   │       └── specs/
+│   │           └── 2026-09-07-physical-asset-factory-design.md
+│   ├── public/
+│   │   └── assets/
+│   │       └── physical-premium/
+│   │           ├── .gitkeep
+│   │           ├── asset-factory-manifest.json
+│   │           ├── board-cell.png
+│   │           ├── piece-air.png
+│   │           ├── piece-copper.png
+│   │           ├── piece-earth.png
+│   │           ├── piece-fire.png
+│   │           ├── piece-gold.png
+│   │           ├── piece-iron.png
+│   │           ├── piece-lead.png
+│   │           ├── piece-mors.png
+│   │           ├── piece-quicksilver.png
+│   │           ├── piece-quintessence.png
+│   │           ├── piece-salt.png
+│   │           ├── piece-silver.png
+│   │           ├── piece-tin.png
+│   │           ├── piece-vitae.png
+│   │           └── piece-water.png
+│   ├── tests/
+│   │   ├── blender_regressions.py
+│   │   ├── run_tests.py
+│   │   └── test_asset_factory.py
+│   ├── tools/
+│   │   ├── blender/
+│   │   │   ├── generate_physical_assets.py
+│   │   │   ├── physical_asset_factory.py
+│   │   │   └── render_physical_asset_preview.py
+│   │   └── physical_assets/
+│   │       ├── blender_common.ps1
+│   │       ├── factory_core.py
+│   │       ├── render_contact_sheet.py
+│   │       └── verify_physical_assets.py
+│   ├── .gitignore
+│   ├── build_physical_assets.ps1
+│   ├── PHYSICAL_ASSET_FACTORY_README_RU.md
+│   ├── preview_physical_assets.ps1
+│   ├── requirements-physical-assets.txt
+│   ├── test_physical_assets.ps1
+│   └── VALIDATION.md
 ├── public/
 │   └── assets/
+│       ├── art-tests/
+│       │   ├── adventure/
+│       │   │   ├── ui/
+│       │   │   │   ├── button.png
+│       │   │   │   └── panel.png
+│       │   │   └── LICENSE.txt
+│       │   ├── rpg/
+│       │   │   ├── ui/
+│       │   │   │   ├── button-pressed.png
+│       │   │   │   ├── button.png
+│       │   │   │   └── panel.png
+│       │   │   └── LICENSE.txt
+│       │   ├── shared-gems/
+│       │   │   ├── air.png
+│       │   │   ├── copper.png
+│       │   │   ├── earth.png
+│       │   │   ├── fire.png
+│       │   │   ├── gold.png
+│       │   │   ├── iron.png
+│       │   │   ├── lead.png
+│       │   │   ├── mors.png
+│       │   │   ├── quicksilver.png
+│       │   │   ├── quintessence.png
+│       │   │   ├── salt.png
+│       │   │   ├── silver.png
+│       │   │   ├── SOURCE.txt
+│       │   │   ├── tin.png
+│       │   │   ├── vitae.png
+│       │   │   └── water.png
+│       │   ├── space/
+│       │   │   ├── ui/
+│       │   │   │   ├── button-hover.png
+│       │   │   │   ├── button.png
+│       │   │   │   └── panel.png
+│       │   │   └── LICENSE.txt
+│       │   └── README.txt
 │       ├── chequered-ink/
 │       │   ├── gems/
 │       │   │   ├── air.png
@@ -201,71 +542,108 @@ garden-js/
 │       │   │   ├── panel-green.png
 │       │   │   └── panel-red.png
 │       │   └── SOURCE.txt
-│       └── mechanized-magic/ [contents omitted]
+│       ├── mechanized-magic/ [contents omitted]
+│       └── theme/
+│           └── walnut-table.jpg
 ├── scripts/
 │   ├── analyze-original-profiles.mjs
 │   ├── analyze-topology.mjs
+│   ├── build-physical-ui-runtime.mjs
 │   ├── chatgpt-context-lib.mjs
 │   ├── chatgpt-context.mjs
 │   ├── check-campaign.mjs
+│   ├── freeze-campaign.mjs
+│   ├── generate-campaign-shortlist.mjs
 │   ├── generate-database.mjs
 │   ├── inspect-database.mjs
-│   └── verify-database.mjs
+│   ├── verify-database.mjs
+│   ├── yandex-dev-port.mjs
+│   ├── yandex-dev.mjs
+│   └── yandex-proxy-command.mjs
 ├── src/
+│   ├── data/
+│   │   └── campaign-levels.json
 │   ├── game/
 │   │   ├── board/
+│   │   │   ├── assistance-policy.ts
+│   │   │   ├── attempt-state.ts
+│   │   │   ├── BaseBoardAttempt.ts
+│   │   │   ├── BoardAssistance.ts
 │   │   │   ├── BoardHud.ts
 │   │   │   ├── BoardIntroAnimator.ts
 │   │   │   ├── BoardInventory.ts
-│   │   │   └── BoardTutorial.ts
+│   │   │   ├── BoardTutorial.ts
+│   │   │   ├── CampaignBoardSession.ts
+│   │   │   ├── DailyBoardSession.ts
+│   │   │   └── EndlessBoardSession.ts
 │   │   ├── scenes/
 │   │   │   ├── BoardScene.ts
 │   │   │   ├── LeaderboardScene.ts
 │   │   │   ├── LevelSelectScene.ts
 │   │   │   ├── MenuScene.ts
-│   │   │   ├── SettingsScene.ts
-│   │   │   └── ShopScene.ts
+│   │   │   ├── RulesScene.ts
+│   │   │   └── SettingsScene.ts
 │   │   ├── board-session-state.ts
 │   │   ├── campaign-progress.ts
 │   │   ├── campaign-test-mode.ts
+│   │   ├── chapter-model.ts
 │   │   ├── completion-overlay.ts
-│   │   ├── economy.ts
-│   │   ├── leaderboard.ts
+│   │   ├── completion-presentation.ts
+│   │   ├── ContextMenuOverlay.ts
+│   │   ├── endless-leaderboard.ts
+│   │   ├── endless-progress.ts
+│   │   ├── home-model.ts
+│   │   ├── minimal-ui.ts
 │   │   ├── modes.ts
 │   │   ├── navigation-layout.ts
+│   │   ├── physical-asset-layout.ts
 │   │   ├── piece-visual-state.ts
 │   │   ├── presentation-layout.ts
 │   │   ├── presentation-model.ts
 │   │   ├── responsive-layout.ts
+│   │   ├── RewardedOfferOverlay.ts
 │   │   ├── settings.ts
 │   │   ├── tutorial-callout-layout.ts
 │   │   ├── ui.ts
 │   │   └── utility-navigation.ts
 │   ├── platform/
+│   │   ├── game-lifecycle.ts
+│   │   ├── player-data-storage.ts
+│   │   ├── trusted-clock.ts
 │   │   └── yandex-games.ts
 │   ├── services/
 │   ├── art-assets.ts
+│   ├── art-theme.ts
 │   ├── atom-types.ts
 │   ├── board.ts
 │   ├── browser.ts
+│   ├── campaign-levels.ts
+│   ├── campaign-onboarding.ts
 │   ├── campaign-progress.ts
+│   ├── campaign-routing.ts
 │   ├── campaign.ts
+│   ├── daily-calendar.ts
+│   ├── daily-progress.ts
+│   ├── daily.ts
 │   ├── database.ts
-│   ├── economy.ts
+│   ├── difficulty-profiles.ts
+│   ├── difficulty.ts
+│   ├── endless-leaderboard.ts
+│   ├── endless-progress.ts
 │   ├── endless-run.ts
-│   ├── endless-score.ts
 │   ├── generator-worker.ts
 │   ├── generator.ts
 │   ├── hex.ts
 │   ├── index.ts
-│   ├── leaderboard.ts
+│   ├── legacy-database-generation.ts
 │   ├── main.ts
-│   ├── mechanic-introductions.ts
+│   ├── mastery.ts
 │   ├── mode-access.ts
 │   ├── opening-levels.ts
 │   ├── panel-state.ts
 │   ├── persistence.ts
-│   ├── progression.ts
+│   ├── plates.ts
+│   ├── puzzle-generation.ts
 │   ├── rules.ts
 │   ├── scene-background.ts
 │   ├── settings.ts
@@ -274,43 +652,85 @@ garden-js/
 │   └── tutorial.ts
 ├── test/
 │   ├── art-assets.test.js
+│   ├── art-theme-contract.test.js
+│   ├── assistance-policy.test.js
 │   ├── board-intro.test.js
 │   ├── board-presentation-contract.test.js
 │   ├── board-presentation-model.test.js
+│   ├── board-scene-plate-cells-type.test.js
 │   ├── board-session-state.test.js
+│   ├── campaign-board-session.test.js
+│   ├── campaign-check-script.test.js
+│   ├── campaign-learning-curve.test.js
+│   ├── campaign-onboarding-contract.test.js
 │   ├── campaign-progress.test.js
 │   ├── campaign.test.js
+│   ├── chapters-source-contract.test.js
 │   ├── chatgpt-context.test.js
 │   ├── completion-presentation.test.js
+│   ├── context-menu-contract.test.js
+│   ├── daily-board-session.test.js
+│   ├── daily-calendar.test.js
+│   ├── daily-progress.test.js
+│   ├── daily.test.js
 │   ├── database.test.js
-│   ├── economy.test.js
+│   ├── dead-end-pulse-contract.test.js
+│   ├── difficulty-profiles.test.js
+│   ├── difficulty.test.js
+│   ├── endless-board-session.test.js
+│   ├── endless-leaderboard-publication.test.js
+│   ├── endless-leaderboard.test.js
+│   ├── endless-progress.test.js
 │   ├── endless-run.test.js
-│   ├── endless-score.test.js
+│   ├── functional-playtest-regressions.test.js
 │   ├── generator.test.js
+│   ├── global-settings-access.test.js
 │   ├── hex.test.js
-│   ├── leaderboard.test.js
+│   ├── hotfix7-ux-contract.test.js
+│   ├── hotfix8-regression.test.js
+│   ├── interstitial-ads.test.js
+│   ├── leaderboard-scene-contract.test.js
 │   ├── level-contract.test.js
-│   ├── mechanic-introductions.test.js
+│   ├── mastery.test.js
+│   ├── minimal-ui-contract.test.js
+│   ├── minimal-ui-hitarea.test.js
 │   ├── mode-access.test.js
 │   ├── panel-state.test.js
 │   ├── phaser-typing-contract.test.js
+│   ├── physical-board-asset-pipeline.test.js
+│   ├── physical-factory-runtime.test.js
+│   ├── physical-ui-factory-contract.test.js
 │   ├── piece-visual-state.test.js
+│   ├── plates.test.js
+│   ├── player-data-storage.test.js
 │   ├── presentation-layout.test.js
 │   ├── presentation-model.test.js
-│   ├── progression.test.js
+│   ├── puzzle-generation.test.js
 │   ├── removal-feedback-contract.test.js
+│   ├── removed-product-contract.test.js
+│   ├── rewarded-ux-contract.test.js
+│   ├── rules-scene-contract.test.js
 │   ├── rules.test.js
 │   ├── settings.test.js
 │   ├── solver.test.js
+│   ├── sticky-banner.test.js
+│   ├── trusted-clock.test.js
 │   ├── tutorial.test.js
 │   ├── typescript-runtime-entry.test.js
 │   ├── ui-state-model.test.js
 │   ├── utility-navigation.test.js
-│   └── yandex-games.test.js
+│   ├── yandex-dev-environment.test.js
+│   ├── yandex-dev-port.test.js
+│   ├── yandex-games.test.js
+│   ├── yandex-leaderboard.test.js
+│   ├── yandex-lifecycle.test.js
+│   ├── yandex-player-data-integration.test.js
+│   └── yandex-proxy-command.test.js
 ├── .gitignore
 ├── AGENTS.md
 ├── ART_DIRECTION.md
 ├── CURRENT_STATE.md
+├── garden-js.zip
 ├── index.html
 ├── package.json
 ├── pnpm-lock.yaml
@@ -320,4 +740,5 @@ garden-js/
 ├── RULES_AUDIT.md
 ├── THIRD_PARTY_ASSETS.md
 ├── TREE.txt
-└── tsconfig.json
+├── tsconfig.json
+└── VALIDATION.md

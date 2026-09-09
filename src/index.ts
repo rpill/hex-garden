@@ -170,11 +170,22 @@ export {
 } from "./tutorial.js";
 export { campaignPostCompletionDestination } from "./campaign-routing.js";
 export {
+  DAILY_ARCHIVE_DAYS,
+  dailyArchiveMonthKeys,
+  dailyArchiveWindow,
   dailyDateKey,
   dailyWeekKey,
   dailyWeekdayIndex,
   datesForMoscowWeek,
+  isDailyArchiveDateAvailable,
+  isDailyDateKey,
+  offsetDailyDateKey,
 } from "./daily-calendar.js";
+export {
+  createDailyArchiveMonth,
+  type DailyArchiveCell,
+  type DailyArchiveMonthModel,
+} from "./daily-archive.js";
 export {
   DAILY_PROGRESS_STORAGE_KEY,
   DailyProgressStore,
@@ -185,6 +196,14 @@ export {
   type DailyWeekDay,
   type DailyWeekSummary,
 } from "./daily-progress.js";
+
+export {
+  DAILY_LEVEL_PACK_END_DATE_KEY,
+  DAILY_LEVEL_PACK_START_DATE_KEY,
+  FROZEN_DAILY_LEVEL_COUNT,
+  getDailyLevel,
+  type FrozenDailyLevel,
+} from "./daily-levels.js";
 
 export {
   dailyDifficultyProfile,

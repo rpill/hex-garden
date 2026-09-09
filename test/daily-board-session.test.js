@@ -62,14 +62,14 @@ test("assisted Daily solve can be replayed and upgraded to Clean", () => {
   const first = assisted.complete(DATE_KEY);
   assert.equal(first.kind, "recorded");
   assert.equal(first.clean, false);
-  assert.deepEqual(progress.snapshot.entries[DATE_KEY], { solved: true, clean: false });
+  assert.deepEqual(progress.snapshot.entries[DATE_KEY], { solved: true, clean: false, completedOnTime: true });
 
   const replay = new DailyBoardSession(puzzle(), progress);
   solve(replay);
   const second = replay.complete(DATE_KEY);
   assert.equal(second.kind, "recorded");
   assert.equal(second.clean, true);
-  assert.deepEqual(progress.snapshot.entries[DATE_KEY], { solved: true, clean: true });
+  assert.deepEqual(progress.snapshot.entries[DATE_KEY], { solved: true, clean: true, completedOnTime: true });
 });
 
 test("Daily Undo restores the board without invalidating Clean", () => {
@@ -108,15 +108,32 @@ test("Daily Undo restores the board without invalidating Clean", () => {
   assert.equal(larger.board.size, 4);
 });
 
-test("Daily completion refuses an expired Moscow date and does not persist", () => {
+test("Daily completion records an in-window historical date as off-time", () => {
   const progress = new DailyProgressStore({ storage: new MemoryStorage() });
   const session = new DailyBoardSession(puzzle(), progress);
   solve(session);
 
   const completion = session.complete("2026-09-09");
 
-  assert.equal(completion.kind, "expired");
-  assert.equal(progress.snapshot.entries[DATE_KEY], undefined);
+  assert.equal(completion.kind, "recorded");
+  assert.equal(completion.completedOnTime, false);
+  assert.deepEqual(progress.snapshot.entries[DATE_KEY], {
+    solved: true,
+    clean: true,
+    completedOnTime: false,
+  });
+});
+
+test("Daily completion rejects future and older-than-archive targets", () => {
+  const progress = new DailyProgressStore({ storage: new MemoryStorage() });
+
+  const future = new DailyBoardSession({ ...puzzle(), dateKey: "2026-09-10" }, progress);
+  solve(future);
+  assert.equal(future.complete("2026-09-09").kind, "outside-window");
+
+  const old = new DailyBoardSession({ ...puzzle(), dateKey: "2026-06-11" }, progress);
+  solve(old);
+  assert.equal(old.complete("2026-09-09").kind, "outside-window");
 });
 
 test("Daily hint always requires rewarded confirmation and invalidates Clean only after reward", async () => {
@@ -186,15 +203,16 @@ test("Daily Rescue is one rewarded restore per attempt", async () => {
   assert.equal(session.board.size, 4);
 });
 
-test("BoardScene loads Daily from trusted Yandex time and rechecks rollover before persistence", async () => {
+test("BoardScene loads Daily from trusted Yandex time and rechecks archive availability before persistence", async () => {
   const source = await readFile(new URL("../src/game/scenes/BoardScene.ts", import.meta.url), "utf8");
 
   assert.match(source, /getTrustedClock\(\)\.now\(\)/);
   assert.match(source, /dailyDateKey\(/);
-  assert.match(source, /generateDaily\(/);
+  assert.match(source, /getDailyLevel\(/);
+  assert.doesNotMatch(source, /generator\.generateDaily\(/);
   assert.match(source, /new DailyBoardSession\(/);
   assert.match(source, /session\.complete\(/);
-  assert.match(source, /NEW DAILY AVAILABLE/);
+  assert.match(source, /outside-window/);
   assert.doesNotMatch(source, /Daily mode is not implemented yet/);
 });
 

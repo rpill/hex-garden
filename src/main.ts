@@ -5,6 +5,7 @@ import { getYandexGamesAdapter } from "./platform/yandex-games.js";
 import { getGameLifecycleController } from "./platform/game-lifecycle.js";
 import { initializePlayerDataStorage } from "./platform/player-data-storage.js";
 import { BoardScene } from "./game/scenes/BoardScene.js";
+import { DailyArchiveScene } from "./game/scenes/DailyArchiveScene.js";
 import { LevelSelectScene } from "./game/scenes/LevelSelectScene.js";
 import { LeaderboardScene } from "./game/scenes/LeaderboardScene.js";
 import { MenuScene } from "./game/scenes/MenuScene.js";
@@ -42,7 +43,7 @@ async function startGarden(): Promise<void> {
       activePointers: 3,
       touch: { capture: true },
     },
-    scene: [MenuScene, LevelSelectScene, SettingsScene, RulesScene, LeaderboardScene, BoardScene],
+    scene: [MenuScene, LevelSelectScene, SettingsScene, RulesScene, LeaderboardScene, DailyArchiveScene, BoardScene],
   });
 
   lifecycle.attachGame(game);

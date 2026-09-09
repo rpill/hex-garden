@@ -1,12 +1,17 @@
+import {
+  dailyArchiveWindow,
+  isDailyDateKey,
+  offsetDailyDateKey,
+} from "./daily-calendar.js";
 import { isRecord, type StorageLike } from "./persistence.js";
 import { getPlayerDataStorage } from "./platform/player-data-storage.js";
 
 export const DAILY_PROGRESS_STORAGE_KEY = "garden-js.daily-progress.v1";
-const DAILY_HISTORY_LIMIT = 90;
 
 export interface DailyEntry {
   solved: true;
   clean: boolean;
+  completedOnTime: boolean;
 }
 
 export interface DailyProgressSnapshot {
@@ -14,6 +19,7 @@ export interface DailyProgressSnapshot {
   entries: Record<string, DailyEntry>;
   bestSolvedWeek: number;
   bestCleanWeek: number;
+  bestStreak: number;
 }
 
 export type DailyDayState = "missing" | "solved" | "clean";
@@ -41,11 +47,16 @@ function initialSnapshot(): DailyProgressSnapshot {
     entries: {},
     bestSolvedWeek: 0,
     bestCleanWeek: 0,
+    bestStreak: 0,
   };
 }
 
 function cloneEntry(entry: DailyEntry): DailyEntry {
-  return { solved: true, clean: entry.clean };
+  return {
+    solved: true,
+    clean: entry.clean,
+    completedOnTime: entry.completedOnTime,
+  };
 }
 
 function cloneSnapshot(snapshot: DailyProgressSnapshot): DailyProgressSnapshot {
@@ -56,6 +67,7 @@ function cloneSnapshot(snapshot: DailyProgressSnapshot): DailyProgressSnapshot {
     ),
     bestSolvedWeek: snapshot.bestSolvedWeek,
     bestCleanWeek: snapshot.bestCleanWeek,
+    bestStreak: snapshot.bestStreak,
   };
 }
 
@@ -63,32 +75,14 @@ function boundedWeeklyCount(value: unknown): number {
   return Number.isSafeInteger(value) ? Math.max(0, Math.min(7, value as number)) : 0;
 }
 
-function isIsoDateKey(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const resolved = new Date(Date.UTC(year, month - 1, day));
-  return (
-    resolved.getUTCFullYear() === year &&
-    resolved.getUTCMonth() === month - 1 &&
-    resolved.getUTCDate() === day
-  );
+function nonNegativeSafeInteger(value: unknown): number {
+  return Number.isSafeInteger(value) ? Math.max(0, value as number) : 0;
 }
 
 function assertDateKey(dateKey: string): void {
-  if (!isIsoDateKey(dateKey)) {
+  if (!isDailyDateKey(dateKey)) {
     throw new RangeError(`Invalid daily date key: ${dateKey}`);
   }
-}
-
-function offsetDateKey(dateKey: string, offset: number): string {
-  assertDateKey(dateKey);
-  const [yearText, monthText, dayText] = dateKey.split("-");
-  const date = new Date(Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText) + offset));
-  return date.toISOString().slice(0, 10);
 }
 
 function weekStartKey(dateKey: string): string {
@@ -97,12 +91,14 @@ function weekStartKey(dateKey: string): string {
   const date = new Date(Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText)));
   const sundayZero = date.getUTCDay();
   const mondayZero = (sundayZero + 6) % 7;
-  return offsetDateKey(dateKey, -mondayZero);
+  return offsetDailyDateKey(dateKey, -mondayZero);
 }
 
 function weekDateKeys(dateKey: string): readonly string[] {
   const monday = weekStartKey(dateKey);
-  return Object.freeze(Array.from({ length: 7 }, (_value, index) => offsetDateKey(monday, index)));
+  return Object.freeze(
+    Array.from({ length: 7 }, (_value, index) => offsetDailyDateKey(monday, index)),
+  );
 }
 
 export function normalizeDailyProgress(value: unknown): DailyProgressSnapshot {
@@ -112,10 +108,11 @@ export function normalizeDailyProgress(value: unknown): DailyProgressSnapshot {
 
   const entries: Record<string, DailyEntry> = {};
   for (const [dateKey, rawEntry] of Object.entries(value.entries)) {
-    if (!isIsoDateKey(dateKey) || !isRecord(rawEntry) || rawEntry.solved !== true) continue;
+    if (!isDailyDateKey(dateKey) || !isRecord(rawEntry) || rawEntry.solved !== true) continue;
     entries[dateKey] = {
       solved: true,
       clean: rawEntry.clean === true,
+      completedOnTime: rawEntry.completedOnTime === true,
     };
   }
 
@@ -127,6 +124,7 @@ export function normalizeDailyProgress(value: unknown): DailyProgressSnapshot {
     entries,
     bestSolvedWeek,
     bestCleanWeek,
+    bestStreak: nonNegativeSafeInteger(value.bestStreak),
   };
 }
 
@@ -148,20 +146,33 @@ export class DailyProgressStore {
     return cloneSnapshot(this.#snapshot);
   }
 
-  markSolved(dateKey: string, { clean = false }: { clean?: boolean } = {}): DailyProgressSnapshot {
+  markSolved(
+    dateKey: string,
+    { clean = false, currentDateKey }: { clean?: boolean; currentDateKey: string },
+  ): DailyProgressSnapshot {
     assertDateKey(dateKey);
-    const previous = this.#snapshot.entries[dateKey];
-    const nextClean = previous?.clean === true || clean === true;
+    assertDateKey(currentDateKey);
 
-    if (previous?.clean === nextClean) {
-      this.prune(dateKey);
-      return this.snapshot;
+    const before = JSON.stringify(this.#snapshot);
+    const previous = this.#snapshot.entries[dateKey];
+    const next: DailyEntry = {
+      solved: true,
+      clean: previous?.clean === true || clean === true,
+      completedOnTime: previous?.completedOnTime === true || dateKey === currentDateKey,
+    };
+
+    const changed = !previous
+      || previous.clean !== next.clean
+      || previous.completedOnTime !== next.completedOnTime;
+
+    if (changed) {
+      this.#snapshot.entries[dateKey] = next;
+      this.#updateBestForWeek(dateKey);
+      this.#updateBestStreak();
     }
 
-    this.#snapshot.entries[dateKey] = { solved: true, clean: nextClean };
-    this.#updateBestForWeek(dateKey);
-    this.#pruneInMemory(dateKey);
-    this.#persist();
+    this.#pruneInMemory(currentDateKey);
+    if (JSON.stringify(this.#snapshot) !== before) this.#persist();
     return this.snapshot;
   }
 
@@ -185,10 +196,37 @@ export class DailyProgressStore {
     };
   }
 
+  streakSummary(currentDateKey: string): Readonly<{
+    currentStreak: number;
+    bestStreak: number;
+  }> {
+    assertDateKey(currentDateKey);
+    const completed = new Set(
+      Object.entries(this.#snapshot.entries)
+        .filter(([dateKey, entry]) => dateKey <= currentDateKey && entry.completedOnTime)
+        .map(([dateKey]) => dateKey),
+    );
+
+    let cursor = completed.has(currentDateKey)
+      ? currentDateKey
+      : offsetDailyDateKey(currentDateKey, -1);
+    let currentStreak = 0;
+    while (completed.has(cursor)) {
+      currentStreak += 1;
+      cursor = offsetDailyDateKey(cursor, -1);
+    }
+
+    return Object.freeze({
+      currentStreak,
+      bestStreak: this.#snapshot.bestStreak,
+    });
+  }
+
   prune(nowDateKey: string): DailyProgressSnapshot {
     assertDateKey(nowDateKey);
     const before = JSON.stringify(this.#snapshot);
     this.#updateBestAcrossEntries(nowDateKey);
+    this.#updateBestStreak();
     this.#pruneInMemory(nowDateKey);
     if (JSON.stringify(this.#snapshot) !== before) this.#persist();
     return this.snapshot;
@@ -225,14 +263,29 @@ export class DailyProgressStore {
     for (const weekKey of weeks) this.#updateBestForWeek(weekKey);
   }
 
-  #pruneInMemory(nowDateKey: string): void {
-    const eligible = Object.keys(this.#snapshot.entries)
-      .filter((dateKey) => dateKey <= nowDateKey)
+  #updateBestStreak(): void {
+    const completed = Object.entries(this.#snapshot.entries)
+      .filter(([, entry]) => entry.completedOnTime)
+      .map(([dateKey]) => dateKey)
       .sort();
-    const retained = new Set(eligible.slice(-DAILY_HISTORY_LIMIT));
 
+    let longest = 0;
+    let current = 0;
+    let previous: string | undefined;
+    for (const dateKey of completed) {
+      current = previous && offsetDailyDateKey(previous, 1) === dateKey ? current + 1 : 1;
+      longest = Math.max(longest, current);
+      previous = dateKey;
+    }
+    this.#snapshot.bestStreak = Math.max(this.#snapshot.bestStreak, longest);
+  }
+
+  #pruneInMemory(nowDateKey: string): void {
+    const { startDateKey } = dailyArchiveWindow(nowDateKey);
     for (const dateKey of Object.keys(this.#snapshot.entries)) {
-      if (!retained.has(dateKey)) delete this.#snapshot.entries[dateKey];
+      if (dateKey < startDateKey || dateKey > nowDateKey) {
+        delete this.#snapshot.entries[dateKey];
+      }
     }
   }
 }

@@ -1,5 +1,4 @@
 import { GardenBoard } from "./board.js";
-import type { DailyPuzzle } from "./daily.js";
 import { GardenDatabase } from "./database.js";
 import { BoardVariant } from "./generator.js";
 import type { CampaignLevel } from "./campaign.js";
@@ -21,7 +20,6 @@ export async function fetchBoardDatabase(
 
 type SerializedResult<T extends { board: GardenBoard }> = Omit<T, "board">;
 type WorkerResult =
-  | SerializedResult<DailyPuzzle>
   | SerializedResult<EndlessRunLevel>
   | SerializedResult<GeneratedPuzzleCandidate>;
 type BrowserResult<T extends { board: GardenBoard }> = Omit<T, "board"> & { board: GardenBoard };
@@ -113,10 +111,6 @@ export class BrowserLevelGenerator {
     { runSeed }: { runSeed: string },
   ): Promise<BrowserResult<EndlessRunLevel>> {
     return this.#request({ kind: "endless-run", level, runSeed });
-  }
-
-  generateDaily(dateKey: string): Promise<BrowserResult<DailyPuzzle>> {
-    return this.#request({ kind: "daily", dateKey });
   }
 
   generatePuzzleCandidate(

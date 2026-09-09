@@ -28,6 +28,18 @@ Use it only when deliberately generating/reviewing Campaign candidates or shortl
 
 `pnpm check:campaign` may be used to inspect/validate the currently frozen Campaign data without replacing it.
 
+## Daily authoring is separate
+
+Daily runtime content is frozen in `src/data/daily-levels.json`. Ordinary test/typecheck/build validation must not regenerate it.
+
+Use:
+
+```powershell
+pnpm check:daily
+```
+
+to replay every shipped Daily solution certificate. Use `pnpm freeze:daily` only when deliberately replacing the release pack; by default it freezes `2026-01-01` through `2027-12-31` deterministically. The bulk freeze intentionally does not run the expensive deep difficulty scorer for every date; that scorer remains available for selective authoring review.
+
 ## Functional automated acceptance
 
 The normal `pnpm test` suite should cover the current product contracts, including:
@@ -36,7 +48,7 @@ The normal `pnpm test` suite should cover the current product contracts, includi
 - canonical 37 / 61 / 91-cell plates;
 - 50 fixed Campaign levels and solution certificates;
 - Campaign Solved/Clean progression, 5×10 chapters, mastery ranks, and sequential unlocks;
-- Daily unlock after 5 solves, Moscow calendar boundaries, trusted-clock handling, 90-day history, and weekly summary;
+- Daily unlock after 5 solves, trusted Moscow calendar boundaries, playable rolling 90-day Archive, on-time streak semantics, historical Solved → Clean upgrades, weekly summary, and the frozen 2026–2027 Daily pack;
 - Endless unlock after 10 solves, 37 → 61 → 91 staging, boards-cleared records, assisted separation, and run-session behavior;
 - free Undo/Restart behavior;
 - solver-first Hint/Rescue and rewarded confirmation policy;
@@ -63,11 +75,38 @@ For user-facing changes, smoke-test the affected slice in `pnpm yandex:dev`.
 
 ### Daily
 
-- Same Moscow date produces the same puzzle after refresh.
+- Same Moscow `dateKey` produces the same puzzle after refresh.
 - Current week is Monday–Sunday and shows open/solved/clean states.
-- Daily can be replayed to upgrade Solved → Clean.
-- Crossing Moscow midnight invalidates completion of the old Daily.
+- Daily can be replayed to upgrade Solved → Clean; Clean never downgrades.
+- Today plus the previous 89 trusted Moscow dates are playable from Archive; future/older dates are disabled.
+- Completing a historical Daily records it off-time and never repairs the streak retroactively.
+- Today's Daily can count on time whether launched from Home or Archive.
+- Archive-origin completion returns to Archive through the normal Daily interstitial opportunity, subject to the shared 3-minute session/cooldown gate.
 - There is no currency/reward chest/Shop flow.
+
+### Daily Archive
+
+DA-01  Home shows ARCHIVE · 90 DAYS only after Daily unlocks.
+DA-02  Archive opens on trusted current Moscow month and shows only months intersecting the 90-day window.
+DA-03  Future dates and dates older than today-89 are not playable.
+DA-04  Historical date launches the deterministic Daily for that exact dateKey.
+DA-05  Historical Solved replay can upgrade to Clean; Clean never downgrades.
+DA-06  Historical completion does not repair Daily streak.
+DA-07  Today's Daily launched from Archive can count on time but still returns to Archive.
+DA-08  Archive -> Rules/Settings -> Back resumes Archive without resetting the selected month.
+DA-09  Archive-origin completion primary action returns to Archive after the normal Daily interstitial opportunity; the centralized 3-minute session/cooldown gate may suppress the actual ad request.
+DA-10  Trusted-time failure disables Archive instead of falling back to device time.
+DA-11  Mobile landscape keeps month arrows, 7-column calendar, streak header, and date cells readable/clickable.
+
+### Generation / interstitial UX
+
+- Campaign and Daily start without generator-worker work; Daily loads its packaged board directly after trusted-date validation.
+- Endless prefetches the next board while the current one is played. The central generation overlay appears only when the requested Endless board is still being generated (normally the first board or fallback).
+- The generation overlay uses animated dots and never presents fake percentage progress.
+- No fullscreen interstitial request is made during the first 3 minutes of an app session.
+- After that grace period, fullscreen interstitial requests are limited to at most one every 3 minutes.
+- Campaign replay progression is not an interstitial opportunity.
+- Endless board-to-board continuation is never an interstitial opportunity.
 
 ### Endless
 

@@ -16,9 +16,11 @@ This is the concise factual implementation snapshot. Stable product intent lives
 - production build: `pnpm build`
 - preview: `pnpm preview`
 - frozen campaign validation: `pnpm check:campaign`
+- frozen Daily validation: `pnpm check:daily`
 - campaign candidate authoring only: `pnpm author:campaign`
+- Daily pack authoring only: `pnpm freeze:daily`
 
-Normal test/build validation does **not** regenerate `src/data/campaign-levels.json`.
+Normal test/build validation does **not** regenerate `src/data/campaign-levels.json` or `src/data/daily-levels.json`.
 
 ## Implemented product state
 
@@ -30,7 +32,12 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 - Campaign progression persists `Solved` and `Clean` separately. Sequential unlock follows the contiguous solved prefix.
 - Clean mastery ranks are implemented at 0 / 5 / 15 / 30 / 40 / 50 Clean levels.
 - Daily becomes visible after 5 contiguous campaign solves. Endless becomes visible after 10.
-- Daily uses the Moscow calendar (`Europe/Moscow`), trusted platform time, Monday–Sunday weekly history, latest-90-day persistence, and Solved/Clean upgrades.
+- Daily uses the Moscow calendar (`Europe/Moscow`) and trusted platform time.
+- Daily Archive is a playable rolling 90-day library using trusted Europe/Moscow time.
+- Historical Daily can be replayed and upgraded from Solved to Clean.
+- Daily streak counts only completions recorded on the target Daily's own trusted date.
+- Completing a missed historical date never repairs a streak retroactively.
+- Archive-origin Daily returns to Daily Archive after completion.
 - Endless is a session-scoped sequence of boards: two 37-cell boards, three 61-cell boards, then 91-cell boards. The result is boards cleared, not points.
 - Endless persists separate best unassisted and best assisted board counts; Home displays the canonical unassisted best.
 - Endless Clean Yandex leaderboard is implemented with technical name `endless_clean_boards`: guests can read Top 10; explicit Yandex sign-in enables personal placement and clean-best publication; higher remote scores are never downgraded by lower local scores.
@@ -43,6 +50,9 @@ Normal test/build validation does **not** regenerate `src/data/campaign-levels.j
 - Campaign, Daily, Endless records, and settings use the hydrated player-data storage boundary backed by Yandex Player Data when available.
 - Russian/English language and global sound preference persist.
 - Responsive desktop, phone portrait, and phone landscape layouts remain implemented.
+- Daily runtime reads the frozen `src/data/daily-levels.json` pack and does not start the generator worker. This release ships 730 solver-certified Daily boards covering `2026-01-01` through `2027-12-31`. Freeze authoring takes the first deterministic constructable candidate for each date/profile; the expensive deep difficulty scorer remains available for selective manual curation, not as a release-pack blocker.
+- Endless keeps runtime generation but prefetches board N+1 in the worker while board N is being played. The central `GENERATING LEVEL / ГЕНЕРАЦИЯ УРОВНЯ` overlay is now only the first-board/fallback state when the requested Endless board is not already ready.
+- Fullscreen interstitial requests use a shared app-session gate: first 3 minutes suppressed, then at most one request per 3 minutes; Campaign replay progression does not request one; Endless board-to-board continuation remains ad-free.
 
 ## Removed legacy product state
 
@@ -70,11 +80,12 @@ The current runtime no longer contains the old product surfaces:
 
 ## Architecture snapshot
 
-- Active Phaser scenes: `MenuScene`, `LevelSelectScene`, `SettingsScene`, `RulesScene`, `LeaderboardScene`, `BoardScene`.
+- Active Phaser scenes: `MenuScene`, `LevelSelectScene`, `SettingsScene`, `RulesScene`, `LeaderboardScene`, `DailyArchiveScene`, `BoardScene`.
 - `BoardScene.ts` orchestrates gameplay/session state.
 - Board-specific presentation/session helpers live under `src/game/board/`, including `BoardHud`, `BoardInventory` (atom-count/filter panel), `BoardTutorial`, `BoardIntroAnimator`, `BoardAssistance`, and Campaign/Daily/Endless session classes.
 - Frozen Campaign data is read synchronously from `src/data/campaign-levels.json`; Campaign is not generated in the worker at runtime.
-- The generator worker handles generic puzzle candidates, Daily, and Endless run boards only.
+- Frozen Daily data is read synchronously/lazily from `src/data/daily-levels.json`; Campaign and Daily do not start the generator worker.
+- The generator worker handles generic puzzle candidates and Endless run boards only. Endless uses one-board-ahead prefetch.
 - `src/solver.ts` remains the renderer-independent authority for verified winning routes and recoverable history positions.
 - Runtime source remains strict TypeScript; tooling under `scripts/*.mjs` remains JavaScript where appropriate.
 

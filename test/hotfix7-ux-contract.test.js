@@ -14,7 +14,7 @@ test("restart is a permanent board HUD action and is not duplicated in pause men
   assert.match(hud, /this\.restartButton/);
   assert.match(board, /onRestart:\s*\(\) => this\.restartLevel\(\)/);
   const menuStart = board.indexOf("openPauseMenu(): void");
-  const menuEnd = board.indexOf("closePauseMenu(): void", menuStart);
+  const menuEnd = board.indexOf("closePauseMenu(", menuStart);
   assert.ok(menuStart >= 0 && menuEnd > menuStart);
   const menuBlock = board.slice(menuStart, menuEnd);
   assert.doesNotMatch(menuBlock, /id:\s*"restart"/);

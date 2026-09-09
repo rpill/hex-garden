@@ -1,4 +1,5 @@
 import type { BoardPieceInput } from "../../board.js";
+import { isDailyArchiveDateAvailable } from "../../daily-calendar.js";
 import type {
   DailyProgressSnapshot,
   DailyProgressStore,
@@ -20,11 +21,12 @@ export interface DailyBoardDefinition {
 
 export type DailyCompletionResult =
   | Readonly<{ kind: "not-cleared" }>
-  | Readonly<{ kind: "expired"; dateKey: string }>
+  | Readonly<{ kind: "outside-window"; dateKey: string }>
   | Readonly<{
       kind: "recorded";
       dateKey: string;
       clean: boolean;
+      completedOnTime: boolean;
       snapshot: DailyProgressSnapshot;
     }>;
 
@@ -59,19 +61,24 @@ export class DailyBoardSession extends BaseBoardAttempt {
     if (!this.board.won) {
       return Object.freeze({ kind: "not-cleared" as const });
     }
-    if (currentDateKey !== this.daily.dateKey) {
+    if (!isDailyArchiveDateAvailable(currentDateKey, this.daily.dateKey)) {
       return Object.freeze({
-        kind: "expired" as const,
+        kind: "outside-window" as const,
         dateKey: this.daily.dateKey,
       });
     }
 
     const clean = this.cleanEligible;
-    const snapshot = this.progress.markSolved(this.daily.dateKey, { clean });
+    const completedOnTime = currentDateKey === this.daily.dateKey;
+    const snapshot = this.progress.markSolved(this.daily.dateKey, {
+      clean,
+      currentDateKey,
+    });
     return Object.freeze({
       kind: "recorded" as const,
       dateKey: this.daily.dateKey,
       clean,
+      completedOnTime,
       snapshot,
     });
   }

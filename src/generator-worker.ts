@@ -1,4 +1,3 @@
-import { generateDailyPuzzle } from "./daily.js";
 import { generateEndlessRunLevel } from "./endless-run.js";
 import { generatePuzzleCandidate, type PuzzleCandidateOptions } from "./puzzle-generation.js";
 import { isRecord } from "./persistence.js";
@@ -24,7 +23,6 @@ interface EndlessWorkerRequest {
 
 type GeneratorWorkerRequest =
   | { requestId: number; kind: "puzzle-candidate"; options: PuzzleCandidateOptions }
-  | { requestId: number; kind: "daily"; dateKey: string }
   | EndlessWorkerRequest;
 
 function parseRequest(value: unknown): GeneratorWorkerRequest {
@@ -33,10 +31,6 @@ function parseRequest(value: unknown): GeneratorWorkerRequest {
   }
   const requestId = value.requestId as number;
 
-  if (value.kind === "daily") {
-    if (typeof value.dateKey !== "string") throw new TypeError("Invalid Daily worker request");
-    return { requestId, kind: "daily", dateKey: value.dateKey };
-  }
 
   if (value.kind === "puzzle-candidate") {
     if (!isRecord(value.options)) throw new TypeError("Invalid puzzle candidate worker request");
@@ -67,15 +61,9 @@ port.addEventListener("message", (event) => {
   try {
     const request = parseRequest(event.data);
     requestId = request.requestId;
-    const generated = (() => {
-      if (request.kind === "daily") {
-        return generateDailyPuzzle(request.dateKey);
-      }
-      if (request.kind === "puzzle-candidate") {
-        return generatePuzzleCandidate(request.options);
-      }
-      return generateEndlessRunLevel(request.level, { runSeed: request.runSeed });
-    })();
+    const generated = request.kind === "puzzle-candidate"
+      ? generatePuzzleCandidate(request.options)
+      : generateEndlessRunLevel(request.level, { runSeed: request.runSeed });
     const { board: _board, ...result } = generated;
     port.postMessage({ requestId: request.requestId, result });
   } catch (error) {
